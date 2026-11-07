@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer expressive decorative badge -->
+    <path
+        android:pathData="M54,26 C64,26 76,28 82,34 C88,40 90,52 90,62 C90,72 82,82 72,82 C62,82 46,82 36,82 C26,82 18,74 18,62 C18,50 26,26 54,26 Z"
+        android:fillColor="#FFB300" />
+    <!-- Expressive Tool Gear / Bolt & Wrench Motif -->
+    <!-- Wrench Head -->
+    <path
+        android:pathData="M68,36 C64,32 58,32 54,36 L44,46 L50,52 L60,42 C64,42 66,40 68,36 Z"
+        android:fillColor="#FFFFFF" />
+    <!-- Screwdriver / Stylus / Spark -->
+    <path
+        android:pathData="M38,70 L34,74 L38,74 L40,72 L66,46 L62,42 Z"
+        android:fillColor="#E0F7FA" />
+    <!-- Vibrant Central Expressive "S" (Sark Tools) Accent Curve -->
+    <path
+        android:pathData="M50,44 C45,44 42,47 42,50 C42,55 54,53 54,58 C54,61 51,63 47,63 C43,63 40,61 39,59 L35,62 C37,65 41,67 47,67 C53,67 58,63 58,58 C58,52 46,54 46,49 C46,47 48,46 51,46 C54,46 57,48 58,50 L62,47 C60,45 56,44 50,44 Z"
+        android:fillColor="#004D40" />
+</vector>
