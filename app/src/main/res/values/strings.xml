@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Toolbox</string>
+    <string name="app_name">Sark Tools</string>
     <string name="shortcut_flashlight">Flashlight</string>
     <string name="shortcut_level">Bubble Level</string>
     <string name="shortcut_sound_meter">Sound Meter</string>

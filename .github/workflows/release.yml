@@ -1,0 +1,88 @@
+name: Release Sark Tools
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+      - stable
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 27
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '27'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Compute Dynamic Versioning & Build Variables
+        id: versioning
+        run: |
+          VERSION_CODE=${GITHUB_RUN_NUMBER}
+          MAJOR=0
+          MINOR=$(( VERSION_CODE / 10 ))
+          PATCH=$(( VERSION_CODE % 10 ))
+          VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}"
+          TAG_NAME="v${VERSION_NAME}"
+          echo "VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "VERSION_NAME=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "TAG_NAME=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Build arm64-v8a Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'sarktools' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'sarktools' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'sarktools' }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease -x lint -x check --no-daemon
+
+      - name: Generate Dynamic Release Notes
+        id: release_notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "TITLE=Sark Tools v${{ steps.versioning.outputs.VERSION_NAME }} (Build ${{ steps.versioning.outputs.VERSION_CODE }})" >> "$GITHUB_OUTPUT"
+
+          NOTES_FILE="release_notes.md"
+          echo "### Sark Tools Release v${{ steps.versioning.outputs.VERSION_NAME }}" > "$NOTES_FILE"
+          echo "" >> "$NOTES_FILE"
+          echo "**Commit Summary:**" >> "$NOTES_FILE"
+          if [ -n "$PREV_TAG" ]; then
+            git log "${PREV_TAG}..HEAD" --pretty=format:"* %s (%h)" >> "$NOTES_FILE"
+          else
+            git log -n 15 --pretty=format:"* %s (%h)" >> "$NOTES_FILE"
+          fi
+          echo "" >> "$NOTES_FILE"
+
+      - name: Upload arm64-v8a Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sark-tools-arm64-v8a-release
+          path: app/build/outputs/apk/release/*.apk
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.release_notes.outputs.TITLE }}
+          body_path: release_notes.md
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.versioning.outputs.TAG_NAME }}
+          files: app/build/outputs/apk/release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

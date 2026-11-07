@@ -14,32 +14,71 @@ fun getKeychainPassword(account: String, service: String): String {
     }
 }
 
+val githubRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 14
+val calculatedVersionCode = githubRunNumber
+val major = 0
+val minor = calculatedVersionCode / 10
+val patch = calculatedVersionCode % 10
+val calculatedVersionName = "$major.$minor.$patch"
+
 android {
     namespace = "com.toolbox"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.vedtechnologies.toolbox"
+        applicationId = "sark.tools"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.7.0"
+        versionCode = calculatedVersionCode
+        versionName = calculatedVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        resourceConfigurations += listOf("en")
+
+        ndk {
+            abiFilters.clear()
+            abiFilters.add("arm64-v8a")
+        }
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file("${System.getProperty("user.home")}/.android/release.jks")
-            storePassword = getKeychainPassword("release-key", "android-release-keystore")
-            keyAlias = "release-key"
-            keyPassword = getKeychainPassword("release-key", "android-release-keystore")
+        val releaseKeystore = run {
+            val rootRelease = rootProject.file("release.jks")
+            val homeRelease = file("${System.getProperty("user.home")}/.android/release.jks")
+            if (rootRelease.exists()) rootRelease else homeRelease
+        }
+        val envPassword = System.getenv("KEYSTORE_PASSWORD") ?: System.getenv("KEY_PASSWORD") ?: ""
+        val keychainPass = getKeychainPassword("release-key", "android-release-keystore")
+        val fallbackPass = if (releaseKeystore.name == "release.jks") "sarktools" else "android"
+        val resolvedPassword = envPassword.ifEmpty { keychainPass.ifEmpty { fallbackPass } }
+        val resolvedAlias = System.getenv("KEY_ALIAS") ?: "sarktools"
+
+        val sharedSigningConfig = create("shared") {
+            if (releaseKeystore.exists()) {
+                storeFile = releaseKeystore
+                storePassword = resolvedPassword
+                keyAlias = resolvedAlias
+                keyPassword = resolvedPassword
+            }
+        }
+
+        getByName("debug") {
+            if (releaseKeystore.exists()) {
+                storeFile = releaseKeystore
+                storePassword = resolvedPassword
+                keyAlias = resolvedAlias
+                keyPassword = resolvedPassword
+            }
         }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("shared")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

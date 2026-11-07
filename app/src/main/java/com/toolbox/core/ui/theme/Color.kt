@@ -2,21 +2,21 @@ package com.toolbox.core.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary steel blue palette from Stitch design system (#517BA0)
-val Primary = Color(0xFF517BA0)
+// Material 3 Expressive Vibrant Palette for Sark Tools
+val Primary = Color(0xFF325DA8)
 val OnPrimary = Color(0xFFFFFFFF)
-val PrimaryContainer = Color(0xFFD4E4F6)
-val OnPrimaryContainer = Color(0xFF0B1D2E)
+val PrimaryContainer = Color(0xFFD8E2FF)
+val OnPrimaryContainer = Color(0xFF001A41)
 
-val Secondary = Color(0xFF00B4D8)
+val Secondary = Color(0xFF535F70)
 val OnSecondary = Color(0xFFFFFFFF)
-val SecondaryContainer = Color(0xFFBFECF6)
-val OnSecondaryContainer = Color(0xFF001F26)
+val SecondaryContainer = Color(0xFFD7E3F7)
+val OnSecondaryContainer = Color(0xFF101C2B)
 
-val Tertiary = Color(0xFF90E0EF)
-val OnTertiary = Color(0xFF003640)
-val TertiaryContainer = Color(0xFFD0F1F8)
-val OnTertiaryContainer = Color(0xFF001F26)
+val Tertiary = Color(0xFF6B5778)
+val OnTertiary = Color(0xFFFFFFFF)
+val TertiaryContainer = Color(0xFFF2DAFF)
+val OnTertiaryContainer = Color(0xFF251432)
 
 val Error = Color(0xFFBA1A1A)
 val OnError = Color(0xFFFFFFFF)
@@ -33,20 +33,20 @@ val Outline = Color(0xFF75777B)
 val OutlineVariant = Color(0xFFC1C7CC)
 
 // Dark variants
-val DarkPrimary = Color(0xFFA4C4E0)
-val DarkOnPrimary = Color(0xFF1A3A56)
-val DarkPrimaryContainer = Color(0xFF375C7D)
-val DarkOnPrimaryContainer = Color(0xFFD4E4F6)
+val DarkPrimary = Color(0xFFAEC6FF)
+val DarkOnPrimary = Color(0xFF002E69)
+val DarkPrimaryContainer = Color(0xFF13448F)
+val DarkOnPrimaryContainer = Color(0xFFD8E2FF)
 
-val DarkSecondary = Color(0xFF6DD7ED)
-val DarkOnSecondary = Color(0xFF003640)
-val DarkSecondaryContainer = Color(0xFF004E5C)
-val DarkOnSecondaryContainer = Color(0xFFBFECF6)
+val DarkSecondary = Color(0xFFBBC7DB)
+val DarkOnSecondary = Color(0xFF253140)
+val DarkSecondaryContainer = Color(0xFF3B4858)
+val DarkOnSecondaryContainer = Color(0xFFD7E3F7)
 
-val DarkTertiary = Color(0xFF90E0EF)
-val DarkOnTertiary = Color(0xFF003640)
-val DarkTertiaryContainer = Color(0xFF004E5C)
-val DarkOnTertiaryContainer = Color(0xFFD0F1F8)
+val DarkTertiary = Color(0xFFD6BEE5)
+val DarkOnTertiary = Color(0xFF3B2948)
+val DarkTertiaryContainer = Color(0xFF523F5F)
+val DarkOnTertiaryContainer = Color(0xFFF2DAFF)
 
 val DarkError = Color(0xFFFFB4AB)
 val DarkOnError = Color(0xFF690005)
