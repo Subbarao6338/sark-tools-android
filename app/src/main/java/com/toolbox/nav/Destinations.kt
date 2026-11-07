@@ -120,3 +120,19 @@ import kotlinx.serialization.Serializable
 // Batch 7 Tools
 @Serializable object DuplicatePhotos
 @Serializable object StorageAnalyzer
+
+// New Roadmap & Category Tools
+@Serializable object ImageEditor
+@Serializable object AudioEditor
+@Serializable object VideoEditor
+@Serializable object PdfEditor
+@Serializable object WordEditor
+@Serializable object DocumentCreation
+@Serializable object WebToolsNav
+@Serializable object DeadPixelTester
+@Serializable object TouchTester
+@Serializable object ScreenDimmer
+@Serializable object CallLogsAnalytics
+@Serializable object MessagesAnalytics
+
+@Serializable object EducationHub
