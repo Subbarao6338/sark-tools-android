@@ -34,7 +34,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        resourceConfigurations += listOf("en")
+        resourceConfigurations += listOf("en", "te")
 
         ndk {
             abiFilters.clear()
@@ -87,6 +87,11 @@ android {
             )
             ndk.debugSymbolLevel = "FULL"
         }
+    }
+
+
+    base {
+        archivesName.set("sark-tools-$calculatedVersionName")
     }
 
     buildFeatures {

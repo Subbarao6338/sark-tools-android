@@ -50,6 +50,8 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease -x lint -x check --no-daemon
+          mkdir -p release-apk
+          cp app/build/outputs/apk/release/sark-tools-*.apk release-apk/sark-tools-${{ steps.versioning.outputs.VERSION_NAME }}.apk
 
       - name: Generate Dynamic Release Notes
         id: release_notes
@@ -72,7 +74,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sark-tools-arm64-v8a-release
-          path: app/build/outputs/apk/release/*.apk
+          path: release-apk/*.apk
           retention-days: 1
           if-no-files-found: error
 
@@ -83,6 +85,6 @@ jobs:
           name: ${{ steps.release_notes.outputs.TITLE }}
           body_path: release_notes.md
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.versioning.outputs.TAG_NAME }}
-          files: app/build/outputs/apk/release/*.apk
+          files: release-apk/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

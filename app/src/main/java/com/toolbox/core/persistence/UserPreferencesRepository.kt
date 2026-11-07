@@ -14,12 +14,22 @@ import kotlinx.coroutines.flow.map
 
 enum class ThemeMode { System, Light, Dark }
 
+enum class NatureTheme(val label: String, val primaryHex: Long) {
+    Default("Classic Blue", 0xFF325DA8),
+    Forest("Forest Emerald", 0xFF2E6F40),
+    Ocean("Ocean Breeze", 0xFF006B7B),
+    Sunset("Sunset Dunes", 0xFFB34A1B),
+    CherryBlossom("Cherry Blossom", 0xFF9E3F68),
+    Lavender("Lavender Mist", 0xFF5D548C)
+}
+
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_preferences")
 
 class UserPreferencesRepository(private val context: Context) {
 
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val NATURE_THEME = stringPreferencesKey("nature_theme")
         val FAVORITE_TOOLS = stringSetPreferencesKey("favorite_tools")
         val PINNED_TOOLS = stringSetPreferencesKey("pinned_tools")
         val FAVORITE_CONVERSIONS = stringSetPreferencesKey("favorite_conversions")
@@ -38,9 +48,20 @@ class UserPreferencesRepository(private val context: Context) {
         ThemeMode.entries.find { it.name == name } ?: ThemeMode.System
     }
 
+    val natureTheme: Flow<NatureTheme> = context.dataStore.data.map { prefs ->
+        val name = prefs[NATURE_THEME] ?: NatureTheme.Default.name
+        NatureTheme.entries.find { it.name == name } ?: NatureTheme.Default
+    }
+
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { prefs ->
             prefs[THEME_MODE] = mode.name
+        }
+    }
+
+    suspend fun setNatureTheme(theme: NatureTheme) {
+        context.dataStore.edit { prefs ->
+            prefs[NATURE_THEME] = theme.name
         }
     }
 
