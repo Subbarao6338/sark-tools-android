@@ -161,3 +161,16 @@ import kotlinx.serialization.Serializable
 @Serializable object WeightConverter
 @Serializable object TemperatureConverter
 @Serializable object StorageConverter
+@Serializable object VolumeConverter
+@Serializable object SpeedConverter
+@Serializable object AreaConverter
+@Serializable object TimeConverter
+@Serializable object PressureConverter
+@Serializable object EnergyConverter
+@Serializable object PowerConverter
+@Serializable object ForceConverter
+@Serializable object TorqueConverter
+@Serializable object DensityConverter
+@Serializable object FuelEconomyConverter
+@Serializable object AngleConverter
+@Serializable object FrequencyConverter

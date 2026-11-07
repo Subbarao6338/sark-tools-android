@@ -87,6 +87,15 @@ import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.LocalDrink
+import androidx.compose.material.icons.filled.OpenWith
+import androidx.compose.material.icons.automirrored.filled.RotateRight
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.SquareFoot
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Power
+import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.School
@@ -367,6 +376,110 @@ val allTools = listOf(
         category = ToolCategory.UnitConverters,
         description = "Data storage and memory units: Bytes, KB, MB, GB, TB, as well as binary standards KiB, MiB, GiB, TiB.",
         searchKeywords = listOf("storage", "data", "byte", "kb", "mb", "gb", "tb", "gigabyte", "megabyte", "binary"),
+    ),
+    ToolDefinition(
+        id = "volume_converter",
+        name = "Volume",
+        icon = Icons.Default.LocalDrink,
+        category = ToolCategory.UnitConverters,
+        description = "Convert volume across liters, milliliters, gallons, quarts, cups, fluid ounces, tablespoons, teaspoons, and cubic meters.",
+        searchKeywords = listOf("volume", "liquid", "liter", "gallon", "cup", "fluid", "ounce", "ml", "m3"),
+    ),
+    ToolDefinition(
+        id = "speed_converter",
+        name = "Speed",
+        icon = Icons.Default.Speed,
+        category = ToolCategory.UnitConverters,
+        description = "Convert velocity between m/s, km/h, mph, knots, and ft/s with instant precision calculations.",
+        searchKeywords = listOf("speed", "velocity", "kmh", "mph", "knots", "pace", "fast"),
+    ),
+    ToolDefinition(
+        id = "area_converter",
+        name = "Area",
+        icon = Icons.Default.SquareFoot,
+        category = ToolCategory.UnitConverters,
+        description = "Convert land and surface area between square meters, square feet, acres, hectares, square kilometers, and square miles.",
+        searchKeywords = listOf("area", "square", "acre", "hectare", "sqft", "sqm", "land", "surface"),
+    ),
+    ToolDefinition(
+        id = "time_converter",
+        name = "Time",
+        icon = Icons.Default.Schedule,
+        category = ToolCategory.UnitConverters,
+        description = "Convert time intervals between milliseconds, seconds, minutes, hours, days, weeks, months, and years.",
+        searchKeywords = listOf("time", "second", "minute", "hour", "day", "week", "month", "year", "duration"),
+    ),
+    ToolDefinition(
+        id = "pressure_converter",
+        name = "Pressure",
+        icon = Icons.Default.Compress,
+        category = ToolCategory.UnitConverters,
+        description = "Convert atmospheric and mechanical pressure between Pascal, kPa, Bar, PSI, Atmosphere (atm), and mmHg.",
+        searchKeywords = listOf("pressure", "pascal", "bar", "psi", "atm", "kpa", "mmhg", "atmosphere"),
+    ),
+    ToolDefinition(
+        id = "energy_converter",
+        name = "Energy",
+        icon = Icons.Default.Bolt,
+        category = ToolCategory.UnitConverters,
+        description = "Convert energy and work across Joules, Kilojoules, Calories, Kilocalories, Watt-hours, and kilowatt-hours (kWh).",
+        searchKeywords = listOf("energy", "joule", "calorie", "kcal", "kwh", "work", "heat", "power"),
+    ),
+    ToolDefinition(
+        id = "power_converter",
+        name = "Power",
+        icon = Icons.Default.Power,
+        category = ToolCategory.UnitConverters,
+        description = "Convert mechanical and electrical power between Watts, Kilowatts, Megawatts, Horsepower (hp), and BTU/hr.",
+        searchKeywords = listOf("power", "watt", "kilowatt", "horsepower", "hp", "btu", "electricity"),
+    ),
+    ToolDefinition(
+        id = "force_converter",
+        name = "Force",
+        icon = Icons.Default.OpenWith,
+        category = ToolCategory.UnitConverters,
+        description = "Convert physical force between Newtons, Kilonewtons, Pound-force (lbf), Dynes, and Kilogram-force (kgf).",
+        searchKeywords = listOf("force", "newton", "pound-force", "lbf", "dyne", "kgf", "physics"),
+    ),
+    ToolDefinition(
+        id = "torque_converter",
+        name = "Torque",
+        icon = Icons.AutoMirrored.Filled.RotateRight,
+        category = ToolCategory.UnitConverters,
+        description = "Convert rotational force and torque between Newton-meters (N·m), Foot-pounds (ft·lb), Inch-pounds, and Kilogram-meters.",
+        searchKeywords = listOf("torque", "rotational", "newton-meter", "foot-pound", "nm", "ft-lb", "moment"),
+    ),
+    ToolDefinition(
+        id = "density_converter",
+        name = "Density",
+        icon = Icons.Default.Science,
+        category = ToolCategory.UnitConverters,
+        description = "Convert volumetric mass density across kg/m³, g/cm³, lb/ft³, and lb/gal.",
+        searchKeywords = listOf("density", "mass", "volume", "kg/m3", "g/cm3", "science"),
+    ),
+    ToolDefinition(
+        id = "fuel_economy_converter",
+        name = "Fuel Economy",
+        icon = Icons.Default.LocalGasStation,
+        category = ToolCategory.UnitConverters,
+        description = "Convert vehicle fuel consumption ratings between km/L, MPG (US), MPG (UK), and L/100km.",
+        searchKeywords = listOf("fuel", "economy", "mileage", "mpg", "km/l", "consumption", "l/100km", "gas"),
+    ),
+    ToolDefinition(
+        id = "angle_converter",
+        name = "Angle",
+        icon = Icons.Default.Architecture,
+        category = ToolCategory.UnitConverters,
+        description = "Convert planar angles between Degrees (°), Radians (rad), Gradians (grad), Arcminutes, and Arcseconds.",
+        searchKeywords = listOf("angle", "degree", "radian", "gradian", "arcminute", "arcsecond", "geometry"),
+    ),
+    ToolDefinition(
+        id = "frequency_converter",
+        name = "Frequency",
+        icon = Icons.Default.GraphicEq,
+        category = ToolCategory.UnitConverters,
+        description = "Convert cyclic frequencies between Hertz (Hz), Kilohertz (kHz), Megahertz (MHz), Gigahertz (GHz), and RPM.",
+        searchKeywords = listOf("frequency", "hertz", "hz", "khz", "mhz", "ghz", "rpm", "cycles"),
     ),
     ToolDefinition(
         id = "percentage",

@@ -260,6 +260,19 @@ import com.toolbox.nav.LengthConverter
 import com.toolbox.nav.WeightConverter
 import com.toolbox.nav.TemperatureConverter
 import com.toolbox.nav.StorageConverter
+import com.toolbox.nav.VolumeConverter
+import com.toolbox.nav.SpeedConverter
+import com.toolbox.nav.AreaConverter
+import com.toolbox.nav.TimeConverter
+import com.toolbox.nav.PressureConverter
+import com.toolbox.nav.EnergyConverter
+import com.toolbox.nav.PowerConverter
+import com.toolbox.nav.ForceConverter
+import com.toolbox.nav.TorqueConverter
+import com.toolbox.nav.DensityConverter
+import com.toolbox.nav.FuelEconomyConverter
+import com.toolbox.nav.AngleConverter
+import com.toolbox.nav.FrequencyConverter
 import com.toolbox.conversion.bmr.BmrCalculatorScreen
 import com.toolbox.conversion.contrast.ContrastCheckerScreen
 import com.toolbox.conversion.recipe.RecipeScalerScreen
@@ -268,6 +281,7 @@ import com.toolbox.conversion.units.LengthConverterScreen
 import com.toolbox.conversion.units.WeightConverterScreen
 import com.toolbox.conversion.units.TemperatureConverterScreen
 import com.toolbox.conversion.units.DataStorageConverterScreen
+import com.toolbox.conversion.unitconverter.UnitCategory
 
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -502,6 +516,19 @@ fun ToolboxApp(
                     composable<WeightConverter> { ToolScreen("Weight Converter", "weight_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { WeightConverterScreen() } }
                     composable<TemperatureConverter> { ToolScreen("Temperature Converter", "temperature_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { TemperatureConverterScreen() } }
                     composable<StorageConverter> { ToolScreen("Data Storage Converter", "storage_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DataStorageConverterScreen() } }
+                    composable<VolumeConverter> { ToolScreen("Volume Converter", "volume_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Volume) } }
+                    composable<SpeedConverter> { ToolScreen("Speed Converter", "speed_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Speed) } }
+                    composable<AreaConverter> { ToolScreen("Area Converter", "area_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Area) } }
+                    composable<TimeConverter> { ToolScreen("Time Converter", "time_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Time) } }
+                    composable<PressureConverter> { ToolScreen("Pressure Converter", "pressure_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Pressure) } }
+                    composable<EnergyConverter> { ToolScreen("Energy Converter", "energy_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Energy) } }
+                    composable<PowerConverter> { ToolScreen("Power Converter", "power_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Power) } }
+                    composable<ForceConverter> { ToolScreen("Force Converter", "force_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Force) } }
+                    composable<TorqueConverter> { ToolScreen("Torque Converter", "torque_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Torque) } }
+                    composable<DensityConverter> { ToolScreen("Density Converter", "density_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Density) } }
+                    composable<FuelEconomyConverter> { ToolScreen("Fuel Economy Converter", "fuel_economy_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.FuelEconomy) } }
+                    composable<AngleConverter> { ToolScreen("Angle Converter", "angle_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Angle) } }
+                    composable<FrequencyConverter> { ToolScreen("Frequency Converter", "frequency_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Frequency) } }
 
                 }
             }
@@ -737,5 +764,18 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "weight_converter" -> WeightConverter
     "temperature_converter" -> TemperatureConverter
     "storage_converter" -> StorageConverter
+    "volume_converter" -> VolumeConverter
+    "speed_converter" -> SpeedConverter
+    "area_converter" -> AreaConverter
+    "time_converter" -> TimeConverter
+    "pressure_converter" -> PressureConverter
+    "energy_converter" -> EnergyConverter
+    "power_converter" -> PowerConverter
+    "force_converter" -> ForceConverter
+    "torque_converter" -> TorqueConverter
+    "density_converter" -> DensityConverter
+    "fuel_economy_converter" -> FuelEconomyConverter
+    "angle_converter" -> AngleConverter
+    "frequency_converter" -> FrequencyConverter
     else -> null
 }

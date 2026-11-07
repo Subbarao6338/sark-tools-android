@@ -222,4 +222,24 @@ class CalculatorModuleTest {
         assertTrue(timeUnits.any { it.symbol == "mo" })
         assertTrue(timeUnits.any { it.symbol == "yr" })
     }
+
+    @Test
+    fun testAllUnitCategoriesPresentInUnitConverters() {
+        val unitConverterTools = com.toolbox.dashboard.allTools.filter {
+            it.category == com.toolbox.dashboard.ToolCategory.UnitConverters
+        }
+        val toolNames = unitConverterTools.map { it.name }
+
+        // Ensure every UnitCategory in UnitCategory.entries is represented as a tool
+        UnitCategory.entries.forEach { category ->
+            val matchFound = when (category) {
+                UnitCategory.Length -> toolNames.contains("Length")
+                UnitCategory.Weight -> toolNames.contains("Weight & Mass")
+                UnitCategory.Temperature -> toolNames.contains("Temperature")
+                UnitCategory.Data -> toolNames.contains("Data Storage")
+                else -> toolNames.contains(category.label)
+            }
+            assertTrue("Expected tool for category ${category.label} in UnitConverters", matchFound)
+        }
+    }
 }
