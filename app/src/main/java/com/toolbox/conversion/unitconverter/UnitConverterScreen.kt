@@ -43,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,8 +65,15 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UnitConverterScreen(
+    initialCategory: UnitCategory? = null,
     viewModel: UnitConverterViewModel = viewModel(),
 ) {
+    LaunchedEffect(initialCategory) {
+        if (initialCategory != null) {
+            viewModel.setInitialCategory(initialCategory)
+        }
+    }
+
     val state by viewModel.state.collectAsState()
     val units = unitsByCategory[state.category] ?: emptyList()
 

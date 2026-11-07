@@ -52,6 +52,12 @@ class UnitConverterViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    fun setInitialCategory(category: UnitCategory) {
+        if (_state.value.category != category) {
+            onCategoryChanged(category)
+        }
+    }
+
     fun onFromUnitChanged(unit: UnitDef) {
         _state.update { s ->
             val newTo = recalculate(s.fromValue, unit, s.toUnit)
