@@ -168,6 +168,270 @@
         </service>
 
         <service
+            android:name=".tiles.CompassTileService"
+            android:icon="@drawable/ic_qs_compass"
+            android:label="Compass"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.RulerTileService"
+            android:icon="@drawable/ic_qs_ruler"
+            android:label="Ruler"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.QrScannerTileService"
+            android:icon="@drawable/ic_qs_qr"
+            android:label="QR Scanner"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.CounterTileService"
+            android:icon="@drawable/ic_qs_calc"
+            android:label="Counter"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.StopwatchTileService"
+            android:icon="@drawable/ic_qs_stopwatch"
+            android:label="Stopwatch"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.UnitConverterTileService"
+            android:icon="@drawable/ic_qs_calc"
+            android:label="Unit Converter"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.CalculatorTileService"
+            android:icon="@drawable/ic_qs_calc"
+            android:label="Calculator"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.BatteryTileService"
+            android:icon="@drawable/ic_qs_battery"
+            android:label="Battery Health"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.SpeedTestTileService"
+            android:icon="@drawable/ic_timer_tile"
+            android:label="Speed Test"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.MirrorTileService"
+            android:icon="@drawable/ic_flashlight_tile"
+            android:label="Mirror"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.MagnifierTileService"
+            android:icon="@drawable/ic_level_tile"
+            android:label="Magnifier"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.VoiceRecorderTileService"
+            android:icon="@drawable/ic_qs_mic"
+            android:label="Voice Recorder"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.NotesTileService"
+            android:icon="@drawable/ic_qs_notes"
+            android:label="Quick Notes"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.PedometerTileService"
+            android:icon="@drawable/ic_timer_tile"
+            android:label="Pedometer"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.BmiTileService"
+            android:icon="@drawable/ic_level_tile"
+            android:label="BMI Index"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.DiscountTileService"
+            android:icon="@drawable/ic_qs_calc"
+            android:label="Discount Calculator"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.FuelTileService"
+            android:icon="@drawable/ic_qs_calc"
+            android:label="Fuel Calculator"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.LuxMeterTileService"
+            android:icon="@drawable/ic_flashlight_tile"
+            android:label="Light Meter"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.ScreenDimmerTileService"
+            android:icon="@drawable/ic_flashlight_tile"
+            android:label="Screen Dimmer"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.ColorPickerTileService"
+            android:icon="@drawable/ic_level_tile"
+            android:label="Color Picker"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.VibrationTileService"
+            android:icon="@drawable/ic_soundmeter_tile"
+            android:label="Vibration"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.WhiteNoiseTileService"
+            android:icon="@drawable/ic_soundmeter_tile"
+            android:label="White Noise"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.ProtractorTileService"
+            android:icon="@drawable/ic_qs_ruler"
+            android:label="Protractor"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.WorldClockTileService"
+            android:icon="@drawable/ic_qs_stopwatch"
+            android:label="World Clock"
+            android:exported="true"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
             android:name=".tiles.SoundMeterTileService"
             android:icon="@drawable/ic_soundmeter_tile"
             android:label="Sound Meter"
@@ -295,6 +559,54 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/favorites_slider_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.BatteryWidgetReceiver"
+            android:exported="true"
+            android:label="Battery Health">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/battery_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.BmiCalculatorWidgetReceiver"
+            android:exported="true"
+            android:label="BMI Index">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/bmi_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.NotesWidgetReceiver"
+            android:exported="true"
+            android:label="Quick Notes">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/notes_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.WorldClockWidgetReceiver"
+            android:exported="true"
+            android:label="World Clock">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/world_clock_widget_info" />
         </receiver>
 
         <activity

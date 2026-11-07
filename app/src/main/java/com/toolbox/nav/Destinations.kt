@@ -184,3 +184,8 @@ import kotlinx.serialization.Serializable
 @Serializable object SocialBio
 @Serializable object SocialPreview
 @Serializable object QuoteMaker
+
+// Management & Creation Destinations
+@Serializable object WidgetsManager
+@Serializable object QuickTilesManager
+@Serializable object ShortcutsManager

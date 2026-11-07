@@ -42,6 +42,8 @@ import androidx.compose.material.icons.filled.Delete
 import com.toolbox.core.rate.PlayStoreLauncher
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -164,6 +166,137 @@ fun SettingsScreen() {
                     }
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Backup and Restore Section
+        SectionHeader("Backup & Restore")
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        var showRestoreDialog by remember { mutableStateOf(false) }
+        var restoreJsonInput by remember { mutableStateOf("") }
+        var backupStatusMessage by remember { mutableStateOf<String?>(null) }
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = "Backup your app settings, theme, favorites, notes, and counter data to a portable JSON format.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                if (backupStatusMessage != null) {
+                    Text(
+                        text = backupStatusMessage!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    val backupJson = com.toolbox.core.persistence.BackupRestoreManager.createBackupJson(context)
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/json"
+                                        putExtra(Intent.EXTRA_TEXT, backupJson)
+                                        putExtra(Intent.EXTRA_SUBJECT, "SarkTools_Backup.json")
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "Export Backup JSON"))
+                                    backupStatusMessage = "Backup created successfully"
+                                } catch (e: Exception) {
+                                    backupStatusMessage = "Failed to create backup: ${e.message}"
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Create Backup")
+                    }
+
+                    OutlinedButton(
+                        onClick = { showRestoreDialog = true },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Default.SettingsBackupRestore, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Restore")
+                    }
+                }
+            }
+        }
+
+        if (showRestoreDialog) {
+            AlertDialog(
+                onDismissRequest = { showRestoreDialog = false },
+                title = { Text("Restore From Backup") },
+                text = {
+                    Column {
+                        Text(
+                            text = "Paste backup JSON content to restore preferences, favorites, counters, and notes:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = restoreJsonInput,
+                            onValueChange = { restoreJsonInput = it },
+                            placeholder = { Text("Paste JSON here...") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(140.dp),
+                            maxLines = 6,
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                val result = com.toolbox.core.persistence.BackupRestoreManager.restoreFromJson(
+                                    context,
+                                    restoreJsonInput.trim(),
+                                )
+                                showRestoreDialog = false
+                                restoreJsonInput = ""
+                                backupStatusMessage = if (result.isSuccess) {
+                                    "Backup restored successfully!"
+                                } else {
+                                    "Restore failed: invalid backup format"
+                                }
+                            }
+                        },
+                        enabled = restoreJsonInput.isNotBlank(),
+                    ) {
+                        Text("Restore Now")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRestoreDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))

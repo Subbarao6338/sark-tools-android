@@ -11,4 +11,8 @@
     <string name="date_countdown_widget_description">Countdown days to an event on your home screen</string>
     <string name="pedometer_widget_description">Track your daily steps on your home screen</string>
     <string name="favorites_slider_widget_description">Swipe through your favorite tools on your home screen</string>
+    <string name="battery_widget_description">Battery level and health indicator on your home screen</string>
+    <string name="bmi_widget_description">Quick BMI health index on your home screen</string>
+    <string name="notes_widget_description">Quick notes and memo pad on your home screen</string>
+    <string name="world_clock_widget_description">Local and UTC world clock on your home screen</string>
 </resources>
