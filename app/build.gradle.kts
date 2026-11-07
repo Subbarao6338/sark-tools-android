@@ -5,9 +5,13 @@ plugins {
 }
 
 fun getKeychainPassword(account: String, service: String): String {
-    return Runtime.getRuntime()
-        .exec(arrayOf("security", "find-generic-password", "-a", account, "-s", service, "-w"))
-        .inputStream.bufferedReader().readLine() ?: ""
+    return try {
+        Runtime.getRuntime()
+            .exec(arrayOf("security", "find-generic-password", "-a", account, "-s", service, "-w"))
+            .inputStream.bufferedReader().readLine() ?: ""
+    } catch (e: Exception) {
+        ""
+    }
 }
 
 android {

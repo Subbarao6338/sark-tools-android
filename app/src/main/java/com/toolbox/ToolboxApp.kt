@@ -208,6 +208,33 @@ import com.toolbox.nav.NfcToolkit
 import com.toolbox.nav.ToneGenerator
 import com.toolbox.nav.FormulaReference
 import com.toolbox.settings.SettingsScreen
+import com.toolbox.media.image.ImageEditorScreen
+import com.toolbox.media.audio.AudioEditorScreen
+import com.toolbox.media.video.VideoEditorScreen
+import com.toolbox.documents.pdf.PdfEditorScreen
+import com.toolbox.documents.word.WordEditorScreen
+import com.toolbox.documents.creator.DocumentCreationScreen
+import com.toolbox.web.WebToolsScreen
+import com.toolbox.labs.deadpixel.DeadPixelTesterScreen
+import com.toolbox.labs.touch.TouchTesterScreen
+import com.toolbox.labs.dimmer.ScreenDimmerScreen
+import com.toolbox.telephony.call.CallLogsAnalyticsScreen
+import com.toolbox.telephony.sms.MessagesAnalyticsScreen
+import com.toolbox.education.EducationHubScreen
+import com.toolbox.nav.EducationHub
+import com.toolbox.nav.ImageEditor
+import com.toolbox.nav.AudioEditor
+import com.toolbox.nav.VideoEditor
+import com.toolbox.nav.PdfEditor
+import com.toolbox.nav.WordEditor
+import com.toolbox.nav.DocumentCreation
+import com.toolbox.nav.WebToolsNav
+import com.toolbox.nav.DeadPixelTester
+import com.toolbox.nav.TouchTester
+import com.toolbox.nav.ScreenDimmer
+import com.toolbox.nav.CallLogsAnalytics
+import com.toolbox.nav.MessagesAnalytics
+
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -408,6 +435,20 @@ fun ToolboxApp(themeMode: ThemeMode, launchToolId: String? = null, defaultScreen
                     composable<StatusSaver> { ToolScreen("Status Saver", "status_saver", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is StatusSaver, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { StatusSaverScreen() } }
                     composable<DuplicatePhotos> { ToolScreen("Duplicate Photos", "duplicate_photos", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is DuplicatePhotos, accent = androidx.compose.ui.graphics.Color(0xFFF4511E)) { DuplicatePhotosScreen() } }
                     composable<StorageAnalyzer> { ToolScreen("Storage Analyzer", "storage_analyzer", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is StorageAnalyzer, accent = androidx.compose.ui.graphics.Color(0xFF5E35B1)) { StorageAnalyzerScreen() } }
+                    composable<ImageEditor> { ToolScreen("Image Editor", "image_editor", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is ImageEditor, accent = androidx.compose.ui.graphics.Color(0xFFD81B60)) { ImageEditorScreen() } }
+                    composable<AudioEditor> { ToolScreen("Audio Editor", "audio_editor", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is AudioEditor, accent = androidx.compose.ui.graphics.Color(0xFF3949AB)) { AudioEditorScreen() } }
+                    composable<VideoEditor> { ToolScreen("Video Editor", "video_editor", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is VideoEditor, accent = androidx.compose.ui.graphics.Color(0xFFE53935)) { VideoEditorScreen() } }
+                    composable<PdfEditor> { ToolScreen("PDF Editor", "pdf_editor", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is PdfEditor, accent = androidx.compose.ui.graphics.Color(0xFF00897B)) { PdfEditorScreen() } }
+                    composable<WordEditor> { ToolScreen("Word Editor", "word_editor", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is WordEditor, accent = androidx.compose.ui.graphics.Color(0xFF1E88E5)) { WordEditorScreen() } }
+                    composable<DocumentCreation> { ToolScreen("Document Creation", "document_creation", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is DocumentCreation, accent = androidx.compose.ui.graphics.Color(0xFF00ACC1)) { DocumentCreationScreen() } }
+                    composable<WebToolsNav> { ToolScreen("Web Tools", "web_tools", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is WebToolsNav, accent = androidx.compose.ui.graphics.Color(0xFF0288D1)) { WebToolsScreen() } }
+                    composable<DeadPixelTester> { ToolScreen("Dead Pixel Tester", "dead_pixel_tester", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is DeadPixelTester) { DeadPixelTesterScreen() } }
+                    composable<TouchTester> { ToolScreen("Touch Tester", "touch_tester", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is TouchTester) { TouchTesterScreen() } }
+                    composable<ScreenDimmer> { ToolScreen("Screen Dimmer", "screen_dimmer", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is ScreenDimmer) { ScreenDimmerScreen() } }
+                    composable<CallLogsAnalytics> { ToolScreen("Call Logs Analytics", "call_logs_analytics", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is CallLogsAnalytics, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { CallLogsAnalyticsScreen() } }
+                    composable<EducationHub> { ToolScreen("Education", "education_hub", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is EducationHub, accent = androidx.compose.ui.graphics.Color(0xFF5E35B1)) { EducationHubScreen() } }
+                    composable<MessagesAnalytics> { ToolScreen("Messages Analytics", "messages_analytics", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is MessagesAnalytics, accent = androidx.compose.ui.graphics.Color(0xFFF57F17)) { MessagesAnalyticsScreen() } }
+
                 }
             }
         }
@@ -612,5 +653,18 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "status_saver" -> StatusSaver
     "duplicate_photos" -> DuplicatePhotos
     "storage_analyzer" -> StorageAnalyzer
+        "image_editor" -> ImageEditor
+    "audio_editor" -> AudioEditor
+    "video_editor" -> VideoEditor
+    "pdf_editor" -> PdfEditor
+    "word_editor" -> WordEditor
+    "document_creation" -> DocumentCreation
+    "web_tools" -> WebToolsNav
+    "dead_pixel_tester" -> DeadPixelTester
+    "touch_tester" -> TouchTester
+    "screen_dimmer" -> ScreenDimmer
+    "call_logs_analytics" -> CallLogsAnalytics
+    "messages_analytics" -> MessagesAnalytics
+    "education_hub" -> EducationHub
     else -> null
 }
