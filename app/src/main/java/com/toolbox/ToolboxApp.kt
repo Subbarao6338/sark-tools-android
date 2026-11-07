@@ -295,6 +295,9 @@ import com.toolbox.nav.HashtagGenerator
 import com.toolbox.nav.SocialBio
 import com.toolbox.nav.SocialPreview
 import com.toolbox.nav.QuoteMaker
+import com.toolbox.nav.WidgetsManager
+import com.toolbox.nav.QuickTilesManager
+import com.toolbox.nav.ShortcutsManager
 
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -552,6 +555,15 @@ fun ToolboxApp(
                     composable<SocialBio> { ToolScreen("Bio Link Card", "social_bio", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE91E63)) { SocialBioScreen() } }
                     composable<SocialPreview> { ToolScreen("Post Previewer", "social_preview", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE91E63)) { SocialPreviewScreen() } }
                     composable<QuoteMaker> { ToolScreen("Quote Creator", "quote_maker", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE91E63)) { QuoteMakerScreen() } }
+                    composable<WidgetsManager> {
+                        com.toolbox.widgets.WidgetsManagementScreen(onBack = { navController.popBackStack() })
+                    }
+                    composable<QuickTilesManager> {
+                        com.toolbox.tiles.QuickTilesManagementScreen(onBack = { navController.popBackStack() })
+                    }
+                    composable<ShortcutsManager> {
+                        com.toolbox.core.shortcuts.ShortcutsManagementScreen(onBack = { navController.popBackStack() })
+                    }
                 }
             }
         }
@@ -805,5 +817,8 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "social_bio" -> SocialBio
     "social_preview" -> SocialPreview
     "quote_maker" -> QuoteMaker
+    "widgets_manager" -> WidgetsManager
+    "quick_tiles_manager" -> QuickTilesManager
+    "shortcuts_manager" -> ShortcutsManager
     else -> null
 }

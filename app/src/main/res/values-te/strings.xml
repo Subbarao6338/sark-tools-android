@@ -11,4 +11,8 @@
     <string name="date_countdown_widget_description">ఈవెంట్ కోసం హోమ్ స్క్రీన్‌పై రోజుల కౌంట్‌డౌన్</string>
     <string name="pedometer_widget_description">హోమ్ స్క్రీన్‌పై మీ రోజువారీ అడుగులను ట్రాక్ చేయండి</string>
     <string name="favorites_slider_widget_description">హోమ్ స్క్రీన్‌పై మీకు ఇష్టమైన సాధనాల ద్వారా స్వైప్ చేయండి</string>
+    <string name="battery_widget_description">హోమ్ స్క్రీన్‌పై బ్యాటరీ స్థాయి మరియు ఆరోగ్య సూచిక</string>
+    <string name="bmi_widget_description">హోమ్ స్క్రీన్‌పై శీఘ్ర బిఎమ్‌ఐ ఆరోగ్య సూచిక</string>
+    <string name="notes_widget_description">హోమ్ స్క్రీన్‌పై త్వరిత గమనికలు మరియు మెమో ప్యాడ్</string>
+    <string name="world_clock_widget_description">హోమ్ స్క్రీన్‌పై స్థానిక మరియు యుటిసి ప్రపంచ గడియారం</string>
 </resources>

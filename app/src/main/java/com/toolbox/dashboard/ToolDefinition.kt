@@ -1313,4 +1313,29 @@ val allTools = listOf(
         description = "Create aesthetic quote banners and social story graphics with customizable nature gradients, author attribution, typography, and image export.",
         searchKeywords = listOf("quote", "maker", "creator", "banner", "story", "status", "typography", "gradient", "instagram", "graphic"),
     ),
+    // Management & Creation Suite
+    ToolDefinition(
+        id = "widgets_manager",
+        name = "Widgets",
+        icon = Icons.Default.GridOn,
+        category = ToolCategory.Utilities,
+        description = "Browse, customize, configure, and pin 10+ precision interactive widgets directly to your Android Home Screen.",
+        searchKeywords = listOf("widget", "widgets", "creator", "manager", "pin", "glance", "home screen"),
+    ),
+    ToolDefinition(
+        id = "quick_tiles_manager",
+        name = "Quick Tiles",
+        icon = Icons.Default.GridOn,
+        category = ToolCategory.Utilities,
+        description = "Configure, test, and request system addition for 25+ Quick Settings tiles in your Android notification shade.",
+        searchKeywords = listOf("quick tile", "tiles", "quick settings", "shade", "status bar", "creator", "manager"),
+    ),
+    ToolDefinition(
+        id = "shortcuts_manager",
+        name = "Shortcuts",
+        icon = Icons.Default.Pin,
+        category = ToolCategory.Utilities,
+        description = "Create custom home screen shortcuts with custom colors & labels, and manage 20+ predefined 1-tap app shortcuts.",
+        searchKeywords = listOf("shortcut", "shortcuts", "pin", "launcher", "creator", "manager", "icon"),
+    ),
 )
