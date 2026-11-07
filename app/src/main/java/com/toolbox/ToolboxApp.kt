@@ -234,30 +234,35 @@ import com.toolbox.nav.TouchTester
 import com.toolbox.nav.ScreenDimmer
 import com.toolbox.nav.CallLogsAnalytics
 import com.toolbox.nav.MessagesAnalytics
+import com.toolbox.measurement.battery.BatteryInfoScreen
+import com.toolbox.conversion.currency.CurrencyConverterScreen
+import com.toolbox.measurement.speedtest.NetworkSpeedTestScreen
+import com.toolbox.conversion.fuel.FuelCalculatorScreen
+import com.toolbox.measurement.luxguide.LuxGuideScreen
+import com.toolbox.nav.BatteryInfo
+import com.toolbox.nav.CurrencyConverter
+import com.toolbox.nav.NetworkSpeedTest
+import com.toolbox.nav.FuelCalculator
+import com.toolbox.nav.LuxGuide
 
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun ToolboxApp(themeMode: ThemeMode, launchToolId: String? = null, defaultScreenId: String = "dashboard") {
-    ToolboxTheme(themeMode = themeMode) {
+fun ToolboxApp(
+    themeMode: ThemeMode,
+    natureTheme: com.toolbox.core.persistence.NatureTheme = com.toolbox.core.persistence.NatureTheme.Default,
+    launchToolId: String? = null,
+    defaultScreenId: String = "dashboard",
+) {
+    ToolboxTheme(themeMode = themeMode, natureTheme = natureTheme) {
         Surface(modifier = Modifier.fillMaxSize()) {
             val navController = rememberNavController()
 
-            // Root-hosted "Rate us" prompt (renders as its own dialog window when eligible).
-            com.toolbox.core.rate.RatePrompt()
-
-            // Determine start destination and initial Favorites tab state
-            val isDefaultTool = defaultScreenId != "dashboard" && defaultScreenId != "favorites"
-            val startDest: Any = if (isDefaultTool) {
-                toolDestination(defaultScreenId) ?: Dashboard
-            } else {
-                Dashboard
-            }
-            val initialTab = when {
-                isDefaultTool -> 0 // not used on Dashboard when starting on a tool
-                defaultScreenId == "favorites" -> 1
-                else -> 0
-            }
+            // Root-hosted "Rate us" prompt disabled per request
+            // Startup is always Dashboard
+            val isDefaultTool = false
+            val startDest: Any = Dashboard
+            val initialTab = 0
             // Handle deep-link from Quick Settings tile
             androidx.compose.runtime.LaunchedEffect(launchToolId) {
                 if (launchToolId != null) {
@@ -291,10 +296,10 @@ fun ToolboxApp(themeMode: ThemeMode, launchToolId: String? = null, defaultScreen
                                         text = when (selectedTab) {
                                             1 -> "Favorites"
                                             2 -> "Settings"
-                                            else -> "Toolbox"
+                                            else -> "Sark Tools"
                                         },
                                         style = MaterialTheme.typography.headlineSmall,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = FontWeight.Bold,
                                     )
                                     if (selectedTab == 1) {
                                         Text(
@@ -448,6 +453,13 @@ fun ToolboxApp(themeMode: ThemeMode, launchToolId: String? = null, defaultScreen
                     composable<CallLogsAnalytics> { ToolScreen("Call Logs Analytics", "call_logs_analytics", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is CallLogsAnalytics, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { CallLogsAnalyticsScreen() } }
                     composable<EducationHub> { ToolScreen("Education", "education_hub", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is EducationHub, accent = androidx.compose.ui.graphics.Color(0xFF5E35B1)) { EducationHubScreen() } }
                     composable<MessagesAnalytics> { ToolScreen("Messages Analytics", "messages_analytics", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is MessagesAnalytics, accent = androidx.compose.ui.graphics.Color(0xFFF57F17)) { MessagesAnalyticsScreen() } }
+
+                    // Newly Integrated Offline Tools
+                    composable<BatteryInfo> { ToolScreen("Battery Health", "battery_info", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { BatteryInfoScreen() } }
+                    composable<CurrencyConverter> { ToolScreen("Currency", "currency_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF1976D2)) { CurrencyConverterScreen() } }
+                    composable<NetworkSpeedTest> { ToolScreen("Speed Test", "network_speed_test", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFD84315)) { NetworkSpeedTestScreen() } }
+                    composable<FuelCalculator> { ToolScreen("Fuel Economy", "fuel_calculator", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE65100)) { FuelCalculatorScreen() } }
+                    composable<LuxGuide> { ToolScreen("Lux & Exposure", "lux_guide", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFF57F17)) { LuxGuideScreen() } }
 
                 }
             }
@@ -666,5 +678,10 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "call_logs_analytics" -> CallLogsAnalytics
     "messages_analytics" -> MessagesAnalytics
     "education_hub" -> EducationHub
+    "battery_info" -> BatteryInfo
+    "currency_converter" -> CurrencyConverter
+    "network_speed_test" -> NetworkSpeedTest
+    "fuel_calculator" -> FuelCalculator
+    "lux_guide" -> LuxGuide
     else -> null
 }

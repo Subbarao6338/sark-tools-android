@@ -84,6 +84,11 @@ import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Brightness2
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.filled.BatteryStd
+import androidx.compose.material.icons.filled.CurrencyExchange
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.School
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -936,5 +941,47 @@ val allTools = listOf(
         category = ToolCategory.Others,
         description = "Comprehensive science, physics, chemistry laws, periodic table, physical constants, and interactive quizzes.",
         searchKeywords = listOf("education", "school", "learn", "study", "physics", "chemistry", "quiz", "elements"),
+    ),
+    // Newly Added Offline Utility Suite Tools
+    ToolDefinition(
+        id = "battery_info",
+        name = "Battery Health",
+        icon = Icons.Default.BatteryStd,
+        category = ToolCategory.Device,
+        description = "Monitor battery temperature, voltage, charging health status, technology, and health recommendations.",
+        searchKeywords = listOf("battery", "power", "charge", "health", "voltage", "temperature", "mah"),
+    ),
+    ToolDefinition(
+        id = "currency_converter",
+        name = "Currency",
+        icon = Icons.Default.CurrencyExchange,
+        category = ToolCategory.Converters,
+        description = "Convert between world currencies using benchmark offline exchange rates with instant calculations.",
+        searchKeywords = listOf("currency", "exchange", "money", "usd", "inr", "eur", "gbp", "jpy", "rate"),
+    ),
+    ToolDefinition(
+        id = "network_speed_test",
+        name = "Speed Test",
+        icon = Icons.Default.Speed,
+        category = ToolCategory.Utilities,
+        description = "Measure network latency ping, packet jitter, and throughput speed with latency health guidelines.",
+        searchKeywords = listOf("speed", "test", "ping", "latency", "network", "throughput", "bandwidth", "jitter"),
+    ),
+    ToolDefinition(
+        id = "fuel_calculator",
+        name = "Fuel Economy",
+        icon = Icons.Default.LocalGasStation,
+        category = ToolCategory.Calculators,
+        description = "Calculate road trip fuel requirements, fuel economy, total journey cost, and cost per km/mile.",
+        searchKeywords = listOf("fuel", "gas", "mileage", "trip", "cost", "mpg", "economy", "petrol", "diesel"),
+    ),
+    ToolDefinition(
+        id = "lux_guide",
+        name = "Lux & Exposure",
+        icon = Icons.Default.Lightbulb,
+        category = ToolCategory.Sensors,
+        description = "Compare ambient light against standard architectural illumination levels and photography Exposure Value (EV).",
+        requiredSensorType = Sensor.TYPE_LIGHT,
+        searchKeywords = listOf("lux", "light", "exposure", "ev", "photography", "standards", "study", "office"),
     ),
 )

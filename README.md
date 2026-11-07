@@ -1,6 +1,13 @@
-# Toolbox — Android Utility App
+# Sark Tools — Precision Android Utility Suite
 
-A privacy-respecting, offline-first Android utility app with 25+ tools across measurement, conversion, and everyday use. Built with Kotlin + Jetpack Compose + Material 3.
+A privacy-respecting, offline-first Android utility suite with 60+ tools across sensors, calculations, everyday utilities, and converters. Built with Kotlin, Jetpack Compose, and Material 3.
+
+## Highlights
+- **APK Format**: Released APK name format follows `sark-tools-<version>.apk`.
+- **Languages**: Strictly English and Telugu (`te`) localization.
+- **Nature Themes**: Forest Emerald, Ocean Breeze, Sunset Dunes, Cherry Blossom, and Lavender Mist themes with dynamic color fallback.
+- **Modern UI/UX**: Category tool count badges, real-time live filtering, category tile layouts, and hero dashboard analytics.
+- **Zero Tracking**: 100% offline-first, no analytics, no ads, and no external dependencies.
 
 ## Features
 

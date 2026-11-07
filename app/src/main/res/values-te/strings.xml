@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">సార్క్ టూల్స్</string>
+    <string name="shortcut_flashlight">ఫ్లాష్‌లైట్</string>
+    <string name="shortcut_level">బబుల్ లెవల్</string>
+    <string name="shortcut_sound_meter">సౌండ్ మీటర్</string>
+    <string name="counter_widget_description">మీ హోమ్ స్క్రీన్‌పై +/- బటన్లతో కౌంటర్</string>
+    <string name="quick_launch_widget_description">మీకు ఇష్టమైన సాధనాలను త్వరితంగా తెరవండి</string>
+    <string name="flashlight_widget_description">హోమ్ స్క్రీన్ నుండి ఫ్లాష్‌లైట్ ఆన్/ఆఫ్ చేయండి</string>
+    <string name="stopwatch_widget_description">హోమ్ స్క్రీన్‌పై స్టార్ట్/స్టాప్/రీసెట్‌తో స్టాప్‌వాచ్</string>
+    <string name="unit_converter_widget_description">హోమ్ స్క్రీన్‌పై త్వరిత యూనిట్ మార్పిడులు</string>
+    <string name="date_countdown_widget_description">ఈవెంట్ కోసం హోమ్ స్క్రీన్‌పై రోజుల కౌంట్‌డౌన్</string>
+    <string name="pedometer_widget_description">హోమ్ స్క్రీన్‌పై మీ రోజువారీ అడుగులను ట్రాక్ చేయండి</string>
+    <string name="favorites_slider_widget_description">హోమ్ స్క్రీన్‌పై మీకు ఇష్టమైన సాధనాల ద్వారా స్వైప్ చేయండి</string>
+</resources>

@@ -13,7 +13,9 @@ import kotlinx.coroutines.launch
 
 data class DashboardUiState(
     val query: String = "",
+    val selectedCategory: ToolCategory? = null,
     val tools: List<ToolDefinition> = allTools,
+    val totalCount: Int = allTools.size,
     val disabledToolIds: Set<String> = emptySet(),
     val favoriteToolIds: Set<String> = emptySet(),
 )
@@ -42,7 +44,17 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { state ->
             state.copy(
                 query = query,
-                tools = filterTools(query),
+                tools = filterTools(query, state.selectedCategory),
+            )
+        }
+    }
+
+    fun onCategorySelected(category: ToolCategory?) {
+        _uiState.update { state ->
+            val newCategory = if (state.selectedCategory == category) null else category
+            state.copy(
+                selectedCategory = newCategory,
+                tools = filterTools(state.query, newCategory),
             )
         }
     }
@@ -53,11 +65,16 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private fun filterTools(query: String): List<ToolDefinition> {
-        if (query.isBlank()) return allTools
-        val lower = query.lowercase()
-        return allTools.filter { tool ->
+    private fun filterTools(query: String, category: ToolCategory?): List<ToolDefinition> {
+        var list = allTools
+        if (category != null) {
+            list = list.filter { it.category == category }
+        }
+        if (query.isBlank()) return list
+        val lower = query.lowercase().trim()
+        return list.filter { tool ->
             tool.name.lowercase().contains(lower) ||
+                tool.category.label.lowercase().contains(lower) ||
                 tool.searchKeywords.any { it.contains(lower) }
         }
     }

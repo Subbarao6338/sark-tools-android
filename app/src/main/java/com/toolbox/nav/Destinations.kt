@@ -136,3 +136,10 @@ import kotlinx.serialization.Serializable
 @Serializable object MessagesAnalytics
 
 @Serializable object EducationHub
+
+// Newly Added Tools
+@Serializable object BatteryInfo
+@Serializable object CurrencyConverter
+@Serializable object NetworkSpeedTest
+@Serializable object FuelCalculator
+@Serializable object LuxGuide

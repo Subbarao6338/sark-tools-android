@@ -75,9 +75,8 @@ fun SettingsScreen() {
     val context = LocalContext.current
     val repository = UserPreferencesRepository(context)
     val themeMode by repository.themeMode.collectAsState(initial = ThemeMode.System)
-    val defaultScreenId by repository.defaultScreenId.collectAsState(initial = "dashboard")
+    val natureTheme by repository.natureTheme.collectAsState(initial = com.toolbox.core.persistence.NatureTheme.Default)
     val scope = rememberCoroutineScope()
-    var showDefaultScreenDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -85,8 +84,11 @@ fun SettingsScreen() {
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
     ) {
-        // Startup section
-        SectionHeader("Startup")
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Nature Inspiration Themes section
+        SectionHeader("Nature Themes & Colors")
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -96,49 +98,53 @@ fun SettingsScreen() {
             ),
             shape = RoundedCornerShape(16.dp),
         ) {
-            // Determine display name for current default
-            val defaultScreenLabel = when (defaultScreenId) {
-                "dashboard" -> "Dashboard"
-                "favorites" -> "Favorites"
-                else -> allTools.find { it.id == defaultScreenId }?.name ?: "Dashboard"
-            }
-            val defaultScreenIcon: ImageVector = when (defaultScreenId) {
-                "dashboard" -> Icons.Default.Dashboard
-                "favorites" -> Icons.Default.Favorite
-                else -> allTools.find { it.id == defaultScreenId }?.icon ?: Icons.Default.Home
-            }
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showDefaultScreenDialog = true }
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(
-                    defaultScreenIcon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp),
+                Text(
+                    text = "Personalize your tools palette with calming nature-inspired palettes",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Default Screen",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = defaultScreenLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                com.toolbox.core.persistence.NatureTheme.entries.forEach { option ->
+                    val isSelected = natureTheme == option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                scope.launch { repository.setNatureTheme(option) }
+                            }
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                else Color.Transparent
+                            )
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(option.primaryHex)),
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Text(
+                            text = option.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.weight(1f),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        )
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = { scope.launch { repository.setNatureTheme(option) } },
+                        )
+                    }
                 }
-                Icon(
-                    Icons.Default.Dashboard,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.size(18.dp),
-                )
             }
         }
 
@@ -238,40 +244,7 @@ fun SettingsScreen() {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Support section
-        SectionHeader("Support")
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Card(
-            modifier = Modifier.clickable { PlayStoreLauncher.open(context) },
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text("Rate us on Play Store", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "A quick rating helps a lot",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // About section
+        // About section (Support section removed per user request)
         SectionHeader("About")
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -307,12 +280,12 @@ fun SettingsScreen() {
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text(
-                            text = "Toolbox",
+                            text = "Sark Tools",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            text = "Version 1.0.0",
+                            text = "Offline-First Multi-Tool System",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -321,7 +294,7 @@ fun SettingsScreen() {
 
                 // App Description
                 Text(
-                    text = "A collection of high-performance utility tools designed for precision and privacy. Built for developers, designers, and artisans who value functional clarity.",
+                    text = "Sark Tools is a private, precision-engineered utility suite featuring 60+ sensors, calculators, media converters, and everyday utilities with zero tracking, offline capability, nature palettes, and English & Telugu language support.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 22.sp,
@@ -381,81 +354,6 @@ fun SettingsScreen() {
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-    }
-
-    // Default Screen Selection Dialog
-    if (showDefaultScreenDialog) {
-        data class ScreenOption(val id: String, val name: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
-
-        val fixedOptions = listOf(
-            ScreenOption("dashboard", "Dashboard", Icons.Default.Dashboard),
-            ScreenOption("favorites", "Favorites", Icons.Default.Favorite),
-        )
-        val toolOptions = allTools
-            .sortedBy { it.name }
-            .map { ScreenOption(it.id, it.name, it.icon) }
-        val allOptions = fixedOptions + toolOptions
-
-        AlertDialog(
-            onDismissRequest = { showDefaultScreenDialog = false },
-            title = {
-                Text(
-                    text = "Default Screen",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            },
-            text = {
-                LazyColumn {
-                    items(allOptions) { option ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    scope.launch { repository.setDefaultScreen(option.id) }
-                                    showDefaultScreenDialog = false
-                                }
-                                .padding(vertical = 10.dp, horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                option.icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp),
-                                tint = if (defaultScreenId == option.id)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Text(
-                                text = option.name,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (defaultScreenId == option.id) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (defaultScreenId == option.id)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (defaultScreenId == option.id) {
-                                Icon(
-                                    Icons.Default.CheckCircle,
-                                    contentDescription = "Selected",
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showDefaultScreenDialog = false }) {
-                    Text("Done")
-                }
-            },
-        )
     }
 }
 
