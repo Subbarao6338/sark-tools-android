@@ -32,9 +32,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import com.toolbox.core.ui.components.TileSelector
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -160,11 +159,11 @@ private fun NfcContent(nfcAdapter: NfcAdapter) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = selectedTab) {
-            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Read") })
-            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Write") })
-            Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Tools") })
-        }
+        TileSelector(
+            options = listOf("Read", "Write", "Tools"),
+            selectedIndex = selectedTab,
+            onSelectIndex = { selectedTab = it },
+        )
 
         // Status message
         statusMessage?.let { msg ->

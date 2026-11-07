@@ -174,3 +174,13 @@ import kotlinx.serialization.Serializable
 @Serializable object FuelEconomyConverter
 @Serializable object AngleConverter
 @Serializable object FrequencyConverter
+
+// New Date & Time Destinations
+@Serializable object TimeDiff
+@Serializable object MoonPhase
+
+// New Social Destinations
+@Serializable object HashtagGenerator
+@Serializable object SocialBio
+@Serializable object SocialPreview
+@Serializable object QuoteMaker

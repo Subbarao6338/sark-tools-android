@@ -39,9 +39,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import com.toolbox.core.ui.components.TileSelector
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -112,20 +111,12 @@ fun PhotoCleanupScreen() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        TabRow(selectedTabIndex = tab) {
-            Tab(
-                selected = tab == 0,
-                onClick = { tab = 0; results.clear() },
-                text = { Text("Compress") },
-                icon = { Icon(Icons.Default.Compress, contentDescription = null) },
-            )
-            Tab(
-                selected = tab == 1,
-                onClick = { tab = 1; results.clear() },
-                text = { Text("Strip Metadata") },
-                icon = { Icon(Icons.Default.PrivacyTip, contentDescription = null) },
-            )
-        }
+        TileSelector(
+            options = listOf("Compress", "Strip EXIF"),
+            icons = listOf(Icons.Default.Compress, Icons.Default.PrivacyTip),
+            selectedIndex = tab,
+            onSelectIndex = { tab = it; results.clear() },
+        )
 
         SelectionCard(
             selectedCount = selected.size,

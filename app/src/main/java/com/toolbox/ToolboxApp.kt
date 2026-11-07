@@ -281,7 +281,20 @@ import com.toolbox.conversion.units.LengthConverterScreen
 import com.toolbox.conversion.units.WeightConverterScreen
 import com.toolbox.conversion.units.TemperatureConverterScreen
 import com.toolbox.conversion.units.DataStorageConverterScreen
+import com.toolbox.conversion.units.DedicatedUnitConverterScreen
 import com.toolbox.conversion.unitconverter.UnitCategory
+import com.toolbox.datetime.timediff.TimeDiffScreen
+import com.toolbox.datetime.moonphase.MoonPhaseScreen
+import com.toolbox.social.hashtag.HashtagGeneratorScreen
+import com.toolbox.social.biocard.SocialBioScreen
+import com.toolbox.social.preview.SocialPreviewScreen
+import com.toolbox.social.quotemaker.QuoteMakerScreen
+import com.toolbox.nav.TimeDiff
+import com.toolbox.nav.MoonPhase
+import com.toolbox.nav.HashtagGenerator
+import com.toolbox.nav.SocialBio
+import com.toolbox.nav.SocialPreview
+import com.toolbox.nav.QuoteMaker
 
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -516,20 +529,29 @@ fun ToolboxApp(
                     composable<WeightConverter> { ToolScreen("Weight Converter", "weight_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { WeightConverterScreen() } }
                     composable<TemperatureConverter> { ToolScreen("Temperature Converter", "temperature_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { TemperatureConverterScreen() } }
                     composable<StorageConverter> { ToolScreen("Data Storage Converter", "storage_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DataStorageConverterScreen() } }
-                    composable<VolumeConverter> { ToolScreen("Volume Converter", "volume_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Volume) } }
-                    composable<SpeedConverter> { ToolScreen("Speed Converter", "speed_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Speed) } }
-                    composable<AreaConverter> { ToolScreen("Area Converter", "area_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Area) } }
-                    composable<TimeConverter> { ToolScreen("Time Converter", "time_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Time) } }
-                    composable<PressureConverter> { ToolScreen("Pressure Converter", "pressure_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Pressure) } }
-                    composable<EnergyConverter> { ToolScreen("Energy Converter", "energy_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Energy) } }
-                    composable<PowerConverter> { ToolScreen("Power Converter", "power_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Power) } }
-                    composable<ForceConverter> { ToolScreen("Force Converter", "force_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Force) } }
-                    composable<TorqueConverter> { ToolScreen("Torque Converter", "torque_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Torque) } }
-                    composable<DensityConverter> { ToolScreen("Density Converter", "density_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Density) } }
-                    composable<FuelEconomyConverter> { ToolScreen("Fuel Economy Converter", "fuel_economy_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.FuelEconomy) } }
-                    composable<AngleConverter> { ToolScreen("Angle Converter", "angle_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Angle) } }
-                    composable<FrequencyConverter> { ToolScreen("Frequency Converter", "frequency_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { UnitConverterScreen(initialCategory = UnitCategory.Frequency) } }
+                    composable<VolumeConverter> { ToolScreen("Volume Converter", "volume_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Volume, "Volume") } }
+                    composable<SpeedConverter> { ToolScreen("Speed Converter", "speed_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Speed, "Speed") } }
+                    composable<AreaConverter> { ToolScreen("Area Converter", "area_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Area, "Area") } }
+                    composable<TimeConverter> { ToolScreen("Time Converter", "time_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Time, "Time") } }
+                    composable<PressureConverter> { ToolScreen("Pressure Converter", "pressure_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Pressure, "Pressure") } }
+                    composable<EnergyConverter> { ToolScreen("Energy Converter", "energy_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Energy, "Energy") } }
+                    composable<PowerConverter> { ToolScreen("Power Converter", "power_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Power, "Power") } }
+                    composable<ForceConverter> { ToolScreen("Force Converter", "force_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Force, "Force") } }
+                    composable<TorqueConverter> { ToolScreen("Torque Converter", "torque_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Torque, "Torque") } }
+                    composable<DensityConverter> { ToolScreen("Density Converter", "density_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Density, "Density") } }
+                    composable<FuelEconomyConverter> { ToolScreen("Fuel Economy Converter", "fuel_economy_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.FuelEconomy, "Fuel Economy") } }
+                    composable<AngleConverter> { ToolScreen("Angle Converter", "angle_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Angle, "Angle") } }
+                    composable<FrequencyConverter> { ToolScreen("Frequency Converter", "frequency_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DedicatedUnitConverterScreen(UnitCategory.Frequency, "Frequency") } }
 
+                    // New Date & Time Category Screens
+                    composable<TimeDiff> { ToolScreen("Time Planner", "time_diff", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF0288D1)) { TimeDiffScreen() } }
+                    composable<MoonPhase> { ToolScreen("Moon & Sun", "moon_phase", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF0288D1)) { MoonPhaseScreen() } }
+
+                    // New Social Category Screens
+                    composable<HashtagGenerator> { ToolScreen("Hashtags", "hashtag_generator", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE91E63)) { HashtagGeneratorScreen() } }
+                    composable<SocialBio> { ToolScreen("Bio Link Card", "social_bio", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE91E63)) { SocialBioScreen() } }
+                    composable<SocialPreview> { ToolScreen("Post Previewer", "social_preview", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE91E63)) { SocialPreviewScreen() } }
+                    composable<QuoteMaker> { ToolScreen("Quote Creator", "quote_maker", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE91E63)) { QuoteMakerScreen() } }
                 }
             }
         }
@@ -777,5 +799,11 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "fuel_economy_converter" -> FuelEconomyConverter
     "angle_converter" -> AngleConverter
     "frequency_converter" -> FrequencyConverter
+    "time_diff" -> TimeDiff
+    "moon_phase" -> MoonPhase
+    "hashtag_generator" -> HashtagGenerator
+    "social_bio" -> SocialBio
+    "social_preview" -> SocialPreview
+    "quote_maker" -> QuoteMaker
     else -> null
 }
