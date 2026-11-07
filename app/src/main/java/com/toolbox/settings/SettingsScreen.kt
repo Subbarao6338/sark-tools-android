@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ShieldMoon
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ColorLens
@@ -359,7 +360,7 @@ fun SettingsScreen() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.Default.Sort,
+                        Icons.AutoMirrored.Filled.Sort,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp),
@@ -400,7 +401,7 @@ fun SettingsScreen() {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.Default.Sort,
+                        Icons.AutoMirrored.Filled.Sort,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp),

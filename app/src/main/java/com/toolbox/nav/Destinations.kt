@@ -136,6 +136,7 @@ import kotlinx.serialization.Serializable
 @Serializable object MessagesAnalytics
 
 @Serializable object EducationHub
+@Serializable object Pokedex
 
 // Newly Added Tools
 @Serializable object BatteryInfo
