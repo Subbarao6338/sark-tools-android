@@ -5,19 +5,26 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlin.math.PI
 import kotlin.math.E
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.acos
 import kotlin.math.asin
 import kotlin.math.atan
+import kotlin.math.ceil
 import kotlin.math.cos
+import kotlin.math.cosh
+import kotlin.math.exp
+import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.log10
 import kotlin.math.pow
+import kotlin.math.round
 import kotlin.math.sin
+import kotlin.math.sinh
 import kotlin.math.sqrt
 import kotlin.math.tan
+import kotlin.math.tanh
 
 data class CalculatorUiState(
     val expression: String = "",
@@ -45,7 +52,11 @@ class CalculatorViewModel : ViewModel() {
             val expr = it.expression
             if (expr.isEmpty()) return@update it
             // Remove trailing function name if present
-            val functions = listOf("sin(", "cos(", "tan(", "asin(", "acos(", "atan(", "ln(", "log(", "sqrt(", "abs(")
+            val functions = listOf(
+                "sinh(", "cosh(", "tanh(", "asin(", "acos(", "atan(",
+                "cbrt(", "sqrt(", "abs(", "round(", "floor(", "ceil(",
+                "sin(", "cos(", "tan(", "ln(", "log(", "exp("
+            )
             val matchedFunc = functions.firstOrNull { f -> expr.endsWith(f) }
             val newExpr = if (matchedFunc != null) {
                 expr.dropLast(matchedFunc.length)
@@ -62,7 +73,7 @@ class CalculatorViewModel : ViewModel() {
         if (current.result.isNotEmpty() && !current.result.startsWith("Error")) {
             _state.update {
                 it.copy(
-                    history = (listOf(it.expression to it.result) + it.history).take(20),
+                    history = (listOf(it.expression to it.result) + it.history).take(30),
                     expression = it.result,
                     result = "",
                 )
@@ -93,6 +104,10 @@ class CalculatorViewModel : ViewModel() {
         tryEvaluate()
     }
 
+    fun clearHistory() {
+        _state.update { it.copy(history = emptyList()) }
+    }
+
     private fun tryEvaluate() {
         val expr = _state.value.expression
         if (expr.isBlank()) {
@@ -101,10 +116,17 @@ class CalculatorViewModel : ViewModel() {
         }
         try {
             val result = evaluate(expr, _state.value.useDegrees)
-            val formatted = if (result == result.toLong().toDouble()) {
+            if (result.isNaN()) {
+                _state.update { it.copy(result = "NaN") }
+                return
+            }
+            if (result.isInfinite()) {
+                _state.update { it.copy(result = if (result > 0) "∞" else "-∞") }
+                return
+            }
+            val formatted = if (result == result.toLong().toDouble() && abs(result) < 1e14) {
                 result.toLong().toString()
             } else {
-                // Show up to 10 decimal places, trim trailing zeros
                 "%.10f".format(result).trimEnd('0').trimEnd('.')
             }
             _state.update { it.copy(result = formatted) }
@@ -121,9 +143,11 @@ class CalculatorViewModel : ViewModel() {
 
 /**
  * Recursive descent parser for mathematical expressions.
- * Supports: +, -, *, /, ^, %, parentheses, and scientific functions.
+ * Supports: +, -, *, /, ^, %, permutations (P), combinations (C), parentheses, whitespace, and scientific functions.
  */
-private class ExpressionParser(private val input: String, private val useDegrees: Boolean) {
+class ExpressionParser(private val rawInput: String, private val useDegrees: Boolean) {
+    // Strip whitespace so expressions like "10 + 20 * 5" parse seamlessly
+    private val input: String = rawInput.replace(" ", "")
     private var pos = 0
 
     fun parse(): Double {
@@ -151,6 +175,8 @@ private class ExpressionParser(private val input: String, private val useDegrees
                 peek('×') || peek('*') -> { advance(); result *= parseExponent() }
                 peek('÷') || peek('/') -> { advance(); result /= parseExponent() }
                 peek('%') -> { advance(); result %= parseExponent() }
+                peek('P') || peek('p') -> { advance(); result = nPr(result.toLong(), parseExponent().toLong()).toDouble() }
+                peek('C') || peek('c') -> { advance(); result = nCr(result.toLong(), parseExponent().toLong()).toDouble() }
                 else -> break
             }
         }
@@ -179,20 +205,24 @@ private class ExpressionParser(private val input: String, private val useDegrees
 
     private fun parsePrimary(): Double {
         // Functions
-        for (func in listOf("asin", "acos", "atan", "sin", "cos", "tan", "ln", "log", "sqrt", "abs")) {
+        val functions = listOf(
+            "sinh", "cosh", "tanh",
+            "asin", "acos", "atan",
+            "cbrt", "sqrt", "abs", "round", "floor", "ceil",
+            "sin", "cos", "tan", "ln", "log", "exp"
+        )
+        for (func in functions) {
             if (matchString(func)) {
                 expect('(')
                 val arg = parseExpression()
                 expect(')')
-                return applyFunction(func, arg)
+                return maybeFactorial(applyFunction(func, arg))
             }
         }
 
-        // Factorial suffix handled after number/constant parsing
-
         // Constants
-        if (matchString("π") || matchString("pi")) return PI
-        if (matchString("e") && !peekDigit()) return E
+        if (matchString("π") || matchString("pi")) return maybeFactorial(PI)
+        if (matchString("e") && !peekDigit()) return maybeFactorial(E)
 
         // Parenthesized expression
         if (peek('(')) {
@@ -205,7 +235,7 @@ private class ExpressionParser(private val input: String, private val useDegrees
         // Number
         val start = pos
         while (pos < input.length && (input[pos].isDigit() || input[pos] == '.')) pos++
-        if (pos == start) throw IllegalArgumentException("Expected number at position $pos")
+        if (pos == start) throw IllegalArgumentException("Expected number at position $pos in '$input'")
         val number = input.substring(start, pos).toDouble()
         return maybeFactorial(number)
     }
@@ -226,10 +256,18 @@ private class ExpressionParser(private val input: String, private val useDegrees
             "asin" -> fromRadians(asin(arg))
             "acos" -> fromRadians(acos(arg))
             "atan" -> fromRadians(atan(arg))
+            "sinh" -> sinh(arg)
+            "cosh" -> cosh(arg)
+            "tanh" -> tanh(arg)
             "ln" -> ln(arg)
             "log" -> log10(arg)
+            "exp" -> exp(arg)
             "sqrt" -> sqrt(arg)
+            "cbrt" -> Math.cbrt(arg)
             "abs" -> abs(arg)
+            "round" -> round(arg)
+            "floor" -> floor(arg)
+            "ceil" -> ceil(arg)
             else -> throw IllegalArgumentException("Unknown function: $name")
         }
     }
@@ -246,6 +284,25 @@ private class ExpressionParser(private val input: String, private val useDegrees
         var result = 1L
         for (i in 2..n.coerceAtMost(20)) result *= i
         return result
+    }
+
+    private fun nPr(n: Long, r: Long): Long {
+        if (n < 0 || r < 0 || r > n) return 0
+        var res = 1L
+        for (i in 0 until r) {
+            res *= (n - i)
+        }
+        return res
+    }
+
+    private fun nCr(n: Long, r: Long): Long {
+        if (n < 0 || r < 0 || r > n) return 0
+        val k = if (r > n - r) n - r else r
+        var res = 1L
+        for (i in 1..k) {
+            res = res * (n - i + 1) / i
+        }
+        return res
     }
 
     private fun peek(c: Char): Boolean = pos < input.length && input[pos] == c

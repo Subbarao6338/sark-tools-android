@@ -50,6 +50,10 @@ import com.toolbox.conversion.aspectratio.AspectRatioScreen
 import com.toolbox.conversion.bmi.BmiCalculatorScreen
 import com.toolbox.conversion.calculator.CalculatorScreen
 import com.toolbox.conversion.datecalc.DateCalculatorScreen
+import com.toolbox.conversion.discount.DiscountCalculatorScreen
+import com.toolbox.conversion.financial.FinancialCalculatorScreen
+import com.toolbox.conversion.gst.GstCalculatorScreen
+import com.toolbox.conversion.mathutils.MathUtilitiesScreen
 import com.toolbox.conversion.numberbase.NumberBaseScreen
 import com.toolbox.conversion.percentage.PercentageScreen
 import com.toolbox.conversion.tipcalculator.TipCalculatorScreen
@@ -244,6 +248,10 @@ import com.toolbox.nav.CurrencyConverter
 import com.toolbox.nav.NetworkSpeedTest
 import com.toolbox.nav.FuelCalculator
 import com.toolbox.nav.LuxGuide
+import com.toolbox.nav.DiscountCalculator
+import com.toolbox.nav.GstCalculator
+import com.toolbox.nav.FinancialCalculators
+import com.toolbox.nav.MathUtilities
 
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -460,6 +468,12 @@ fun ToolboxApp(
                     composable<NetworkSpeedTest> { ToolScreen("Speed Test", "network_speed_test", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFD84315)) { NetworkSpeedTestScreen() } }
                     composable<FuelCalculator> { ToolScreen("Fuel Economy", "fuel_calculator", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE65100)) { FuelCalculatorScreen() } }
                     composable<LuxGuide> { ToolScreen("Lux & Exposure", "lux_guide", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFF57F17)) { LuxGuideScreen() } }
+
+                    // All-in-One Calculator Category Routes
+                    composable<DiscountCalculator> { ToolScreen("Discount Calculator", "discount_calculator", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFD81B60)) { DiscountCalculatorScreen() } }
+                    composable<GstCalculator> { ToolScreen("GST / Tax Calculator", "gst_calculator", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF1976D2)) { GstCalculatorScreen() } }
+                    composable<FinancialCalculators> { ToolScreen("Financial Calculators", "financial_calculators", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { FinancialCalculatorScreen() } }
+                    composable<MathUtilities> { ToolScreen("Math Utilities", "math_utilities", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF6B5BAE)) { MathUtilitiesScreen() } }
 
                 }
             }
@@ -683,5 +697,9 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "network_speed_test" -> NetworkSpeedTest
     "fuel_calculator" -> FuelCalculator
     "lux_guide" -> LuxGuide
+    "discount_calculator" -> DiscountCalculator
+    "gst_calculator" -> GstCalculator
+    "financial_calculators" -> FinancialCalculators
+    "math_utilities" -> MathUtilities
     else -> null
 }

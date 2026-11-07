@@ -37,6 +37,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -73,19 +75,19 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun DateCalculatorScreen() {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("Age Calculator", "Date Difference", "Add/Subtract")
+    val tabs = listOf("Age", "Difference", "Add/Sub", "Time Diff", "Countdown")
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
-        PrimaryTabRow(selectedTabIndex = selectedTab) {
+        PrimaryTabRow(selectedTabIndex = selectedTab, modifier = Modifier.fillMaxWidth()) {
             tabs.forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTab == index,
                     onClick = { selectedTab = index },
-                    text = { Text(title) },
+                    text = { Text(title, maxLines = 1) },
                 )
             }
         }
@@ -97,6 +99,248 @@ fun DateCalculatorScreen() {
                 0 -> AgeCalculatorTab()
                 1 -> DateDifferenceTab()
                 2 -> AddSubtractTab()
+                3 -> TimeDifferenceTab()
+                4 -> CountdownTab()
+            }
+        }
+    }
+}
+
+// ----------------- Time Difference Tab -----------------
+
+@Composable
+private fun TimeDifferenceTab() {
+    var startHour by rememberSaveable { mutableStateOf("09") }
+    var startMin by rememberSaveable { mutableStateOf("00") }
+    var isStartPm by rememberSaveable { mutableStateOf(false) }
+
+    var endHour by rememberSaveable { mutableStateOf("17") }
+    var endMin by rememberSaveable { mutableStateOf("30") }
+    var isEndPm by rememberSaveable { mutableStateOf(false) }
+
+    var is24Hour by rememberSaveable { mutableStateOf(true) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Time Difference", fontWeight = FontWeight.Bold)
+                FilterChip(
+                    selected = is24Hour,
+                    onClick = { is24Hour = !is24Hour },
+                    label = { Text(if (is24Hour) "24-Hour" else "12-Hour AM/PM") },
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("Start Time", style = MaterialTheme.typography.labelSmall)
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = startHour,
+                    onValueChange = { startHour = it.filter { c -> c.isDigit() }.take(2) },
+                    label = { Text("Hour") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                )
+                Text(":", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = startMin,
+                    onValueChange = { startMin = it.filter { c -> c.isDigit() }.take(2) },
+                    label = { Text("Min") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                )
+                if (!is24Hour) {
+                    FilterChip(
+                        selected = isStartPm,
+                        onClick = { isStartPm = !isStartPm },
+                        label = { Text(if (isStartPm) "PM" else "AM") },
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("End Time", style = MaterialTheme.typography.labelSmall)
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = endHour,
+                    onValueChange = { endHour = it.filter { c -> c.isDigit() }.take(2) },
+                    label = { Text("Hour") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                )
+                Text(":", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = endMin,
+                    onValueChange = { endMin = it.filter { c -> c.isDigit() }.take(2) },
+                    label = { Text("Min") },
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                )
+                if (!is24Hour) {
+                    FilterChip(
+                        selected = isEndPm,
+                        onClick = { isEndPm = !isEndPm },
+                        label = { Text(if (isEndPm) "PM" else "AM") },
+                    )
+                }
+            }
+        }
+    }
+
+    var sh = startHour.toIntOrNull() ?: 0
+    val sm = startMin.toIntOrNull() ?: 0
+    var eh = endHour.toIntOrNull() ?: 0
+    val em = endMin.toIntOrNull() ?: 0
+
+    if (!is24Hour) {
+        if (sh == 12) sh = 0
+        if (isStartPm) sh += 12
+        if (eh == 12) eh = 0
+        if (isEndPm) eh += 12
+    }
+
+    val startTotalMinutes = (sh * 60 + sm) % (24 * 60)
+    val endTotalMinutes = (eh * 60 + em) % (24 * 60)
+
+    val diffMinutes = if (endTotalMinutes >= startTotalMinutes) {
+        endTotalMinutes - startTotalMinutes
+    } else {
+        // Overnight interval (e.g. 10 PM to 6 AM)
+        (24 * 60 - startTotalMinutes) + endTotalMinutes
+    }
+
+    val diffHours = diffMinutes / 60
+    val remMinutes = diffMinutes % 60
+
+    Spacer(modifier = Modifier.height(16.dp))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text("Duration", style = MaterialTheme.typography.labelMedium)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${diffHours}h ${remMinutes}m",
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Total Minutes", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("$diffMinutes minutes", fontWeight = FontWeight.SemiBold)
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Total Hours (Decimal)", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("%.2f hours".format(diffMinutes / 60.0), fontWeight = FontWeight.SemiBold)
+            }
+            if (endTotalMinutes < startTotalMinutes) {
+                Text(
+                    text = "* Overnight duration (+1 day)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+// ----------------- Live Countdown Tab -----------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CountdownTab() {
+    var targetDateMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+
+    val todayMillis = remember { System.currentTimeMillis() }
+    val targetDate = targetDateMillis?.let {
+        Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate()
+    }
+
+    DateInputCard(
+        label = "Target Date",
+        dateText = targetDate?.format(DateTimeFormatter.ofPattern("MMMM d, yyyy")),
+        onClick = { showDatePicker = true },
+    )
+
+    if (showDatePicker) {
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = targetDateMillis ?: todayMillis,
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        targetDateMillis = state.selectedDateMillis
+                        showDatePicker = false
+                    },
+                ) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state = state)
+        }
+    }
+
+    if (targetDate != null) {
+        val now = LocalDate.now()
+        val daysUntil = ChronoUnit.DAYS.between(now, targetDate)
+        val isPast = daysUntil < 0
+        val absDays = kotlin.math.abs(daysUntil)
+        val totalWeeks = absDays / 7
+        val remDays = absDays % 7
+        val totalHours = absDays * 24
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(if (isPast) "Time Since Event" else "Countdown Remaining", style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "$absDays Days",
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (isPast) "$absDays days ago" else "Only $absDays days left until target date",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Weeks & Days", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${totalWeeks}w ${remDays}d", fontWeight = FontWeight.SemiBold)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total Hours", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("$totalHours hours", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }

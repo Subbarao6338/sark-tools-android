@@ -1,5 +1,6 @@
 package com.toolbox.conversion.percentage
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,8 @@ import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -25,7 +28,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,29 +42,40 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.toolbox.core.ui.copyToClipboard
+import kotlin.math.abs
 import kotlin.math.floor
 
-private enum class PercentMode(
+enum class PercentMode(
     val label: String,
     val description: String,
 ) {
     PercentOf(
         label = "X% of Y",
-        description = "Calculate what a percentage of a number is — e.g. what is 20% of 150?",
+        description = "Calculate what a percentage of a number is — e.g. 20% of 500 = 100",
     ),
     WhatPercent(
         label = "What %",
-        description = "Find what percentage one number is of another — e.g. 30 is what % of 200?",
+        description = "Find what percentage one number is of another — e.g. 30 is what % of 200 = 15%",
     ),
     PercentChange(
         label = "% Change",
-        description = "Find the percentage increase or decrease between two values — e.g. 100 → 125.",
+        description = "Percentage increase or decrease from an original value to a new value.",
+    ),
+    PercentDifference(
+        label = "% Difference",
+        description = "Calculate percentage difference between two positive values: |V1 - V2| / ((V1 + V2)/2) × 100",
+    ),
+    ReversePercent(
+        label = "Reverse %",
+        description = "Find the original value before a percentage was applied (e.g. final is 120 after 20% increase/markup).",
     ),
 }
 
@@ -70,11 +86,12 @@ fun PercentageScreen() {
     var input2 by rememberSaveable { mutableStateOf("") }
     var committedResult by rememberSaveable { mutableStateOf<PercentResult?>(null) }
 
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
     fun calculate() {
         focusManager.clearFocus()
-        committedResult = calculateResult(mode, input1, input2)
+        committedResult = calculatePercentResult(mode, input1, input2)
     }
 
     Column(
@@ -83,9 +100,11 @@ fun PercentageScreen() {
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
-        // Spaced mode chips
+        // Horizontally scrollable mode chips
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PercentMode.entries.forEachIndexed { index, percentMode ->
@@ -98,7 +117,6 @@ fun PercentageScreen() {
                         committedResult = null
                     },
                     label = { Text(percentMode.label) },
-                    modifier = Modifier.weight(1f),
                 )
             }
         }
@@ -122,9 +140,11 @@ fun PercentageScreen() {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 val (label1, placeholder1, label2, placeholder2) = when (mode) {
-                    0 -> Quad("Percentage (%)", "Enter percentage, e.g. 20", "Value", "Enter value, e.g. 150")
+                    0 -> Quad("Percentage (%)", "Enter percentage, e.g. 20", "Value", "Enter value, e.g. 500")
                     1 -> Quad("Part", "The smaller amount, e.g. 30", "Whole", "The total amount, e.g. 200")
-                    else -> Quad("Original Value", "Value before change, e.g. 100", "New Value", "Value after change, e.g. 125")
+                    2 -> Quad("Original Value", "Value before change, e.g. 100", "New Value", "Value after change, e.g. 125")
+                    3 -> Quad("Value 1", "First number, e.g. 50", "Value 2", "Second number, e.g. 70")
+                    else -> Quad("Final Value", "Amount after percentage, e.g. 120", "Percentage Added (%)", "E.g. 20 (find base 100)")
                 }
 
                 OutlinedTextField(
@@ -172,24 +192,42 @@ fun PercentageScreen() {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Button(
-                    onClick = { calculate() },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(
-                        Icons.Default.Calculate,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.size(8.dp))
-                    Text("Calculate")
+                    OutlinedButton(
+                        onClick = {
+                            input1 = ""
+                            input2 = ""
+                            committedResult = null
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.size(4.dp))
+                        Text("Clear")
+                    }
+
+                    Button(
+                        onClick = { calculate() },
+                        modifier = Modifier.weight(2f),
+                    ) {
+                        Icon(
+                            Icons.Default.Calculate,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text("Calculate")
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Result card — always visible
+        // Result card
         val isPositiveChange = committedResult?.isPositive
         val resultColor = when {
             mode == 2 && isPositiveChange == true -> Color(0xFF4CAF50)
@@ -217,16 +255,31 @@ fun PercentageScreen() {
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    if (mode == 2 && committedResult != null) {
-                        Icon(
-                            imageVector = when (isPositiveChange) {
-                                true -> Icons.AutoMirrored.Filled.TrendingUp
-                                false -> Icons.AutoMirrored.Filled.TrendingDown
-                                else -> Icons.AutoMirrored.Filled.TrendingFlat
-                            },
-                            contentDescription = null,
-                            tint = resultColor,
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (mode == 2 && committedResult != null) {
+                            Icon(
+                                imageVector = when (isPositiveChange) {
+                                    true -> Icons.AutoMirrored.Filled.TrendingUp
+                                    false -> Icons.AutoMirrored.Filled.TrendingDown
+                                    else -> Icons.AutoMirrored.Filled.TrendingFlat
+                                },
+                                contentDescription = null,
+                                tint = resultColor,
+                            )
+                        }
+                        if (committedResult != null) {
+                            IconButton(
+                                onClick = { copyToClipboard(context, "Percentage Result", committedResult!!.value) },
+                                modifier = Modifier.size(28.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = "Copy result",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -265,7 +318,9 @@ fun PercentageScreen() {
                     text = when (mode) {
                         0 -> "result = (percentage ÷ 100) × value"
                         1 -> "result = (part ÷ whole) × 100"
-                        else -> "result = ((new − original) ÷ original) × 100"
+                        2 -> "result = ((new − original) ÷ original) × 100"
+                        3 -> "result = |V1 − V2| ÷ ((V1 + V2) ÷ 2) × 100"
+                        else -> "original = final ÷ (1 + percentage ÷ 100)"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -277,30 +332,30 @@ fun PercentageScreen() {
 
 private data class Quad(val a: String, val b: String, val c: String, val d: String)
 
-private data class PercentResult(
+data class PercentResult(
     val value: String,
     val description: String? = null,
     val isPositive: Boolean? = null,
 )
 
-private fun calculateResult(mode: Int, input1: String, input2: String): PercentResult? {
+fun calculatePercentResult(mode: Int, input1: String, input2: String): PercentResult? {
     val a = input1.toDoubleOrNull() ?: return null
     val b = input2.toDoubleOrNull() ?: return null
 
     return when (mode) {
         0 -> {
-            val r = a / 100.0 * b
+            val r = (a / 100.0) * b
             PercentResult(
-                value = fmt(r),
-                description = "${fmt(a)}% of ${fmt(b)} = ${fmt(r)}",
+                value = fmtPercent(r),
+                description = "${fmtPercent(a)}% of ${fmtPercent(b)} = ${fmtPercent(r)}",
             )
         }
         1 -> {
             if (b == 0.0) return PercentResult("Error", "Whole cannot be zero")
             val r = (a / b) * 100.0
             PercentResult(
-                value = "${fmt(r)}%",
-                description = "${fmt(a)} is ${fmt(r)}% of ${fmt(b)}",
+                value = "${fmtPercent(r)}%",
+                description = "${fmtPercent(a)} is ${fmtPercent(r)}% of ${fmtPercent(b)}",
             )
         }
         2 -> {
@@ -308,16 +363,33 @@ private fun calculateResult(mode: Int, input1: String, input2: String): PercentR
             val r = ((b - a) / a) * 100.0
             val positive = r >= 0
             PercentResult(
-                value = "${if (positive) "+" else ""}${fmt(r)}%",
-                description = if (positive) "increase from ${fmt(a)} to ${fmt(b)}"
-                              else "decrease from ${fmt(a)} to ${fmt(b)}",
+                value = "${if (positive) "+" else ""}${fmtPercent(r)}%",
+                description = if (positive) "increase from ${fmtPercent(a)} to ${fmtPercent(b)}"
+                              else "decrease from ${fmtPercent(a)} to ${fmtPercent(b)}",
                 isPositive = positive,
+            )
+        }
+        3 -> {
+            val average = (a + b) / 2.0
+            if (average == 0.0) return PercentResult("Error", "Average cannot be zero")
+            val r = (abs(a - b) / average) * 100.0
+            PercentResult(
+                value = "${fmtPercent(r)}%",
+                description = "Difference between ${fmtPercent(a)} and ${fmtPercent(b)} is ${fmtPercent(r)}%",
+            )
+        }
+        4 -> {
+            if (1.0 + (b / 100.0) == 0.0) return PercentResult("Error", "Invalid percentage rate")
+            val original = a / (1.0 + (b / 100.0))
+            PercentResult(
+                value = fmtPercent(original),
+                description = "Original value before ${fmtPercent(b)}% addition = ${fmtPercent(original)}",
             )
         }
         else -> null
     }
 }
 
-private fun fmt(value: Double): String =
-    if (value == floor(value) && !value.isInfinite()) value.toLong().toString()
+private fun fmtPercent(value: Double): String =
+    if (value == floor(value) && !value.isInfinite() && abs(value) < 1e12) value.toLong().toString()
     else "%.4g".format(value)

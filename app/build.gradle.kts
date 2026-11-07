@@ -141,4 +141,6 @@ dependencies {
     implementation(libs.glance.material3)
 
     implementation(libs.lottie.compose)
+
+    testImplementation(libs.junit)
 }
