@@ -143,3 +143,9 @@ import kotlinx.serialization.Serializable
 @Serializable object NetworkSpeedTest
 @Serializable object FuelCalculator
 @Serializable object LuxGuide
+
+// All-in-One Calculators
+@Serializable object DiscountCalculator
+@Serializable object GstCalculator
+@Serializable object FinancialCalculators
+@Serializable object MathUtilities

@@ -90,6 +90,10 @@ import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -983,5 +987,38 @@ val allTools = listOf(
         description = "Compare ambient light against standard architectural illumination levels and photography Exposure Value (EV).",
         requiredSensorType = Sensor.TYPE_LIGHT,
         searchKeywords = listOf("lux", "light", "exposure", "ev", "photography", "standards", "study", "office"),
+    ),
+    // All-in-One Calculator Category Additions
+    ToolDefinition(
+        id = "discount_calculator",
+        name = "Discount",
+        icon = Icons.Default.LocalOffer,
+        category = ToolCategory.Calculators,
+        description = "Calculate discounted final prices, multiple successive discounts, post-discount tax, and compare two shopping deals.",
+        searchKeywords = listOf("discount", "sale", "shopping", "deal", "savings", "offer", "bargain", "off"),
+    ),
+    ToolDefinition(
+        id = "gst_calculator",
+        name = "GST / Tax",
+        icon = Icons.AutoMirrored.Filled.ReceiptLong,
+        category = ToolCategory.Calculators,
+        description = "Compute GST inclusive and exclusive amounts with standard 0%, 5%, 12%, 18%, 28% and custom rates plus CGST/SGST/IGST breakdown.",
+        searchKeywords = listOf("gst", "tax", "vat", "invoice", "cgst", "sgst", "igst", "sales tax"),
+    ),
+    ToolDefinition(
+        id = "financial_calculators",
+        name = "Finance",
+        icon = Icons.AutoMirrored.Filled.TrendingUp,
+        category = ToolCategory.Calculators,
+        description = "Suite of financial calculators: Simple Interest, Compound Interest, SIP investment, wealth accumulation, Profit & Loss, and net salary take-home.",
+        searchKeywords = listOf("finance", "interest", "simple interest", "compound interest", "sip", "investment", "profit", "loss", "salary", "wealth"),
+    ),
+    ToolDefinition(
+        id = "math_utilities",
+        name = "Math Utilities",
+        icon = Icons.Default.Numbers,
+        category = ToolCategory.Calculators,
+        description = "Mathematical tools: Prime number checking and factors, factorial (n!), LCM, GCD, average and descriptive statistics, and random number generator.",
+        searchKeywords = listOf("math", "prime", "factorial", "lcm", "gcd", "average", "median", "mode", "statistics", "random", "hcf"),
     ),
 )
