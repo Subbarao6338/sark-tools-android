@@ -149,3 +149,15 @@ import kotlinx.serialization.Serializable
 @Serializable object GstCalculator
 @Serializable object FinancialCalculators
 @Serializable object MathUtilities
+
+// New Extended Tools
+@Serializable object BmrCalculator
+@Serializable object ContrastChecker
+@Serializable object RecipeScaler
+@Serializable object IntervalTimer
+
+// Unit Converters Category Tools
+@Serializable object LengthConverter
+@Serializable object WeightConverter
+@Serializable object TemperatureConverter
+@Serializable object StorageConverter

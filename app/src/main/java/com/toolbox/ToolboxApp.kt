@@ -252,6 +252,22 @@ import com.toolbox.nav.DiscountCalculator
 import com.toolbox.nav.GstCalculator
 import com.toolbox.nav.FinancialCalculators
 import com.toolbox.nav.MathUtilities
+import com.toolbox.nav.BmrCalculator
+import com.toolbox.nav.ContrastChecker
+import com.toolbox.nav.RecipeScaler
+import com.toolbox.nav.IntervalTimer
+import com.toolbox.nav.LengthConverter
+import com.toolbox.nav.WeightConverter
+import com.toolbox.nav.TemperatureConverter
+import com.toolbox.nav.StorageConverter
+import com.toolbox.conversion.bmr.BmrCalculatorScreen
+import com.toolbox.conversion.contrast.ContrastCheckerScreen
+import com.toolbox.conversion.recipe.RecipeScalerScreen
+import com.toolbox.everyday.interval.IntervalTimerScreen
+import com.toolbox.conversion.units.LengthConverterScreen
+import com.toolbox.conversion.units.WeightConverterScreen
+import com.toolbox.conversion.units.TemperatureConverterScreen
+import com.toolbox.conversion.units.DataStorageConverterScreen
 
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -474,6 +490,18 @@ fun ToolboxApp(
                     composable<GstCalculator> { ToolScreen("GST / Tax Calculator", "gst_calculator", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF1976D2)) { GstCalculatorScreen() } }
                     composable<FinancialCalculators> { ToolScreen("Financial Calculators", "financial_calculators", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { FinancialCalculatorScreen() } }
                     composable<MathUtilities> { ToolScreen("Math Utilities", "math_utilities", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF6B5BAE)) { MathUtilitiesScreen() } }
+
+                    // Extended Suite Tools
+                    composable<BmrCalculator> { ToolScreen("BMR & Calories", "bmr_calculator", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF1976D2)) { BmrCalculatorScreen() } }
+                    composable<ContrastChecker> { ToolScreen("Contrast Checker", "contrast_checker", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF0097A7)) { ContrastCheckerScreen() } }
+                    composable<RecipeScaler> { ToolScreen("Recipe Scaler", "recipe_scaler", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFE65100)) { RecipeScalerScreen() } }
+                    composable<IntervalTimer> { ToolScreen("Interval Timer", "interval_timer", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFFD32F2F)) { IntervalTimerScreen() } }
+
+                    // Unit Converters Category Screens
+                    composable<LengthConverter> { ToolScreen("Length Converter", "length_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { LengthConverterScreen() } }
+                    composable<WeightConverter> { ToolScreen("Weight Converter", "weight_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { WeightConverterScreen() } }
+                    composable<TemperatureConverter> { ToolScreen("Temperature Converter", "temperature_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { TemperatureConverterScreen() } }
+                    composable<StorageConverter> { ToolScreen("Data Storage Converter", "storage_converter", navController, this@SharedTransitionLayout, this@composable, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { DataStorageConverterScreen() } }
 
                 }
             }
@@ -701,5 +729,13 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "gst_calculator" -> GstCalculator
     "financial_calculators" -> FinancialCalculators
     "math_utilities" -> MathUtilities
+    "bmr_calculator" -> BmrCalculator
+    "contrast_checker" -> ContrastChecker
+    "recipe_scaler" -> RecipeScaler
+    "interval_timer" -> IntervalTimer
+    "length_converter" -> LengthConverter
+    "weight_converter" -> WeightConverter
+    "temperature_converter" -> TemperatureConverter
+    "storage_converter" -> StorageConverter
     else -> null
 }

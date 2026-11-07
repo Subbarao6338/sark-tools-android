@@ -30,6 +30,10 @@ class UserPreferencesRepository(private val context: Context) {
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val NATURE_THEME = stringPreferencesKey("nature_theme")
+        val THEME_MATCHED_ICONS = booleanPreferencesKey("theme_matched_icons")
+        val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
+        val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
+        val MEASUREMENT_SYSTEM = stringPreferencesKey("measurement_system")
         val FAVORITE_TOOLS = stringSetPreferencesKey("favorite_tools")
         val PINNED_TOOLS = stringSetPreferencesKey("pinned_tools")
         val FAVORITE_CONVERSIONS = stringSetPreferencesKey("favorite_conversions")
@@ -62,6 +66,46 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setNatureTheme(theme: NatureTheme) {
         context.dataStore.edit { prefs ->
             prefs[NATURE_THEME] = theme.name
+        }
+    }
+
+    val themeMatchedIcons: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[THEME_MATCHED_ICONS] ?: true
+    }
+
+    suspend fun setThemeMatchedIcons(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[THEME_MATCHED_ICONS] = enabled
+        }
+    }
+
+    val hapticFeedbackEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[HAPTIC_FEEDBACK] ?: true
+    }
+
+    suspend fun setHapticFeedbackEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[HAPTIC_FEEDBACK] = enabled
+        }
+    }
+
+    val keepScreenOn: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEEP_SCREEN_ON] ?: false
+    }
+
+    suspend fun setKeepScreenOn(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEEP_SCREEN_ON] = enabled
+        }
+    }
+
+    val measurementSystem: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[MEASUREMENT_SYSTEM] ?: "Metric"
+    }
+
+    suspend fun setMeasurementSystem(system: String) {
+        context.dataStore.edit { prefs ->
+            prefs[MEASUREMENT_SYSTEM] = system
         }
     }
 
