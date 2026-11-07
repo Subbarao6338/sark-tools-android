@@ -24,9 +24,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import com.toolbox.core.ui.components.TileSelector
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -184,18 +183,11 @@ fun MathUtilitiesScreen() {
     val tabs = listOf("Prime", "Factorial", "LCM & GCD", "Statistics", "Random")
 
     Column(modifier = Modifier.fillMaxSize()) {
-        PrimaryTabRow(
-            selectedTabIndex = selectedTab,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title) },
-                )
-            }
-        }
+        TileSelector(
+            options = tabs,
+            selectedIndex = selectedTab,
+            onSelectIndex = { selectedTab = it },
+        )
 
         Column(
             modifier = Modifier

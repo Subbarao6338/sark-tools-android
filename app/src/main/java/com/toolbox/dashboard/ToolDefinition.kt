@@ -162,6 +162,16 @@ enum class ToolCategory(
         tileColor = Color(0xFFD4F5E0),
         iconTint = Color(0xFF2E8B57),
     ),
+    DateTime(
+        label = "Date & Time tools",
+        tileColor = Color(0xFFE1F5FE),
+        iconTint = Color(0xFF0288D1),
+    ),
+    Social(
+        label = "Social tools",
+        tileColor = Color(0xFFFCE4EC),
+        iconTint = Color(0xFFE91E63),
+    ),
     Sensors(
         label = "Sensors",
         tileColor = Color(0xFFE0F7FA),
@@ -192,6 +202,8 @@ fun ToolCategory.themeTileColor(matchWithTheme: Boolean): Color {
         ToolCategory.VideoTools -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
         ToolCategory.Utilities -> MaterialTheme.colorScheme.surfaceContainerHigh
         ToolCategory.EverydayTools -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+        ToolCategory.DateTime -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.50f)
+        ToolCategory.Social -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.50f)
         ToolCategory.Sensors -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
         ToolCategory.Device -> MaterialTheme.colorScheme.surfaceContainerHighest
         ToolCategory.Others -> MaterialTheme.colorScheme.surfaceContainerHigh
@@ -211,6 +223,8 @@ fun ToolCategory.themeIconTint(matchWithTheme: Boolean): Color {
         ToolCategory.VideoTools -> MaterialTheme.colorScheme.error
         ToolCategory.Utilities -> MaterialTheme.colorScheme.tertiary
         ToolCategory.EverydayTools -> MaterialTheme.colorScheme.primary
+        ToolCategory.DateTime -> MaterialTheme.colorScheme.primary
+        ToolCategory.Social -> MaterialTheme.colorScheme.tertiary
         ToolCategory.Sensors -> MaterialTheme.colorScheme.secondary
         ToolCategory.Device -> MaterialTheme.colorScheme.primary
         ToolCategory.Others -> MaterialTheme.colorScheme.secondary
@@ -518,7 +532,7 @@ val allTools = listOf(
         id = "date_calculator",
         name = "Date/Age",
         icon = Icons.Default.DateRange,
-        category = ToolCategory.Calculators,
+        category = ToolCategory.DateTime,
         description = "Calculate days between dates, exact age in years/months/days, and add or subtract days from any date. Includes countdown to next birthday.",
         searchKeywords = listOf("date", "age", "birthday", "difference", "days", "calendar"),
     ),
@@ -571,7 +585,7 @@ val allTools = listOf(
         id = "stopwatch_timer",
         name = "Stopwatch",
         icon = Icons.Default.Timer,
-        category = ToolCategory.EverydayTools,
+        category = ToolCategory.DateTime,
         description = "Stopwatch with lap timing and countdown timer in one tool. Start, stop, and record laps with precision. The timer supports custom durations with alarm notification.",
         searchKeywords = listOf("stopwatch", "timer", "countdown", "lap"),
     ),
@@ -899,7 +913,7 @@ val allTools = listOf(
         id = "focus_timer",
         name = "Focus Timer",
         icon = Icons.Default.Timelapse,
-        category = ToolCategory.EverydayTools,
+        category = ToolCategory.DateTime,
         description = "A Pomodoro focus timer with work and break cycles. Runs in the background so your session keeps counting with the screen off.",
         searchKeywords = listOf("focus", "pomodoro", "timer", "productivity", "study", "work", "break"),
     ),
@@ -941,7 +955,7 @@ val allTools = listOf(
         id = "world_clock",
         name = "World Clock",
         icon = Icons.Default.Public,
-        category = ToolCategory.EverydayTools,
+        category = ToolCategory.DateTime,
         description = "See the current time in cities around the world at a glance. Add and remove cities; everything stays on your device.",
         searchKeywords = listOf("world", "clock", "time", "timezone", "zone", "city", "utc", "gmt"),
     ),
@@ -949,7 +963,7 @@ val allTools = listOf(
         id = "sleep_timer",
         name = "Sleep Timer",
         icon = Icons.Default.Bedtime,
-        category = ToolCategory.EverydayTools,
+        category = ToolCategory.DateTime,
         description = "Play gentle ambient sound for a set time to fall asleep to; it stops automatically when the timer ends.",
         searchKeywords = listOf("sleep", "timer", "nap", "white noise", "ambient", "bedtime", "relax"),
     ),
@@ -1015,9 +1029,9 @@ val allTools = listOf(
         id = "status_saver",
         name = "Status Saver",
         icon = Icons.Default.Download,
-        category = ToolCategory.VideoTools,
+        category = ToolCategory.Social,
         description = "Save photos and videos from WhatsApp statuses you've viewed, before they disappear. Grant access to the statuses folder to begin.",
-        searchKeywords = listOf("status", "saver", "whatsapp", "download", "save", "story"),
+        searchKeywords = listOf("status", "saver", "whatsapp", "download", "save", "story", "social"),
     ),
     ToolDefinition(
         id = "duplicate_photos",
@@ -1243,8 +1257,60 @@ val allTools = listOf(
         id = "interval_timer",
         name = "Interval Timer",
         icon = Icons.Default.HourglassBottom,
-        category = ToolCategory.EverydayTools,
+        category = ToolCategory.DateTime,
         description = "High-Intensity Interval Training (HIIT) & Tabata workout timer with customizable Warmup, Work, Rest intervals, and Set counters.",
         searchKeywords = listOf("hiit", "interval", "timer", "tabata", "workout", "sets", "rounds", "fitness", "training"),
+    ),
+
+    // New Date & Time Category Tools
+    ToolDefinition(
+        id = "time_diff",
+        name = "Time Planner",
+        icon = Icons.Default.Schedule,
+        category = ToolCategory.DateTime,
+        description = "Compare time zones across world cities, calculate precise time differences, and plan meetings with golden working-hour overlap indicators.",
+        searchKeywords = listOf("time", "difference", "timezone", "meeting", "planner", "world", "overlap", "hours", "gmt", "utc"),
+    ),
+    ToolDefinition(
+        id = "moon_phase",
+        name = "Moon & Sun",
+        icon = Icons.Default.Nightlight,
+        category = ToolCategory.DateTime,
+        description = "Precise lunar phase tracker, illumination percentage, moon age in days, next full and new moon dates, and local sunrise/sunset calculator.",
+        searchKeywords = listOf("moon", "lunar", "phase", "sun", "sunrise", "sunset", "illumination", "astronomy", "full moon", "new moon"),
+    ),
+
+    // New Social Category Tools
+    ToolDefinition(
+        id = "hashtag_generator",
+        name = "Hashtags",
+        icon = Icons.Default.Tag,
+        category = ToolCategory.Social,
+        description = "Generate trending and niche hashtags for Instagram, Twitter/X, LinkedIn, TikTok, and YouTube with tag counters and instant copy.",
+        searchKeywords = listOf("hashtag", "tags", "social", "instagram", "twitter", "reach", "engagement", "creator", "trending"),
+    ),
+    ToolDefinition(
+        id = "social_bio",
+        name = "Bio Link Card",
+        icon = Icons.Default.Person,
+        category = ToolCategory.Social,
+        description = "Design and build your customizable personal Bio Link landing card with social icons, portfolio links, and quick vCard or QR export.",
+        searchKeywords = listOf("bio", "link", "social", "profile", "card", "landing", "creator", "portfolio", "links"),
+    ),
+    ToolDefinition(
+        id = "social_preview",
+        name = "Post Previewer",
+        icon = Icons.Default.Visibility,
+        category = ToolCategory.Social,
+        description = "Preview how your posts, title, description, and link OpenGraph cards will look across Twitter/X, Instagram, Facebook, and LinkedIn before publishing.",
+        searchKeywords = listOf("preview", "post", "social", "opengraph", "card", "meta", "twitter", "linkedin", "facebook", "feed"),
+    ),
+    ToolDefinition(
+        id = "quote_maker",
+        name = "Quote Creator",
+        icon = Icons.Default.Palette,
+        category = ToolCategory.Social,
+        description = "Create aesthetic quote banners and social story graphics with customizable nature gradients, author attribution, typography, and image export.",
+        searchKeywords = listOf("quote", "maker", "creator", "banner", "story", "status", "typography", "gradient", "instagram", "graphic"),
     ),
 )

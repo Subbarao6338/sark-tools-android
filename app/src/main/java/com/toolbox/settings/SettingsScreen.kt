@@ -67,13 +67,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.toolbox.core.export.MeasurementLog
+import com.toolbox.core.persistence.CategorySortOrder
 import com.toolbox.core.persistence.ThemeMode
+import com.toolbox.core.persistence.ToolSortOrder
 import com.toolbox.core.persistence.UserPreferencesRepository
 import com.toolbox.dashboard.allTools
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.ui.graphics.Color
 
 @Composable
@@ -86,6 +90,10 @@ fun SettingsScreen() {
     val hapticFeedbackEnabled by repository.hapticFeedbackEnabled.collectAsState(initial = true)
     val keepScreenOn by repository.keepScreenOn.collectAsState(initial = false)
     val measurementSystem by repository.measurementSystem.collectAsState(initial = "Metric")
+    val categorySortOrder by repository.categorySortOrder.collectAsState(initial = CategorySortOrder.Default)
+    val toolSortOrder by repository.toolSortOrder.collectAsState(initial = ToolSortOrder.Default)
+    var showResetDialog by remember { mutableStateOf(false) }
+    var resetDoneMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -210,6 +218,87 @@ fun SettingsScreen() {
             shape = RoundedCornerShape(16.dp),
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                // Category Sorting
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Sort,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Category Order",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = categorySortOrder.label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val next = when (categorySortOrder) {
+                                CategorySortOrder.Default -> CategorySortOrder.AlphabeticalAsc
+                                CategorySortOrder.AlphabeticalAsc -> CategorySortOrder.AlphabeticalDesc
+                                CategorySortOrder.AlphabeticalDesc -> CategorySortOrder.ToolCountDesc
+                                CategorySortOrder.ToolCountDesc -> CategorySortOrder.Default
+                            }
+                            scope.launch { repository.setCategorySortOrder(next) }
+                        },
+                    ) {
+                        Text("Cycle")
+                    }
+                }
+
+                // Tool Sorting
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Sort,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Tool Order inside Categories",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = toolSortOrder.label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val next = when (toolSortOrder) {
+                                ToolSortOrder.Default -> ToolSortOrder.AlphabeticalAsc
+                                ToolSortOrder.AlphabeticalAsc -> ToolSortOrder.AlphabeticalDesc
+                                ToolSortOrder.AlphabeticalDesc -> ToolSortOrder.FavoritesFirst
+                                ToolSortOrder.FavoritesFirst -> ToolSortOrder.Default
+                            }
+                            scope.launch { repository.setToolSortOrder(next) }
+                        },
+                    ) {
+                        Text("Cycle")
+                    }
+                }
                 // Theme matched icons toggle
                 Row(
                     modifier = Modifier
@@ -350,6 +439,80 @@ fun SettingsScreen() {
                     }
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Data & Cache Management section
+        SectionHeader("Data & Cache")
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.RestartAlt,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Reset Preferences & Cache",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "Clear temporary calculations, logs and restore default settings",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { showResetDialog = true },
+                    ) {
+                        Text("Reset")
+                    }
+                }
+            }
+        }
+
+        if (showResetDialog) {
+            AlertDialog(
+                onDismissRequest = { showResetDialog = false },
+                title = { Text("Reset Preferences & Cache?") },
+                text = { Text("This will reset sorting orders and session logs back to their defaults. Your favorites will be preserved.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                repository.setCategorySortOrder(CategorySortOrder.Default)
+                                repository.setToolSortOrder(ToolSortOrder.Default)
+                                MeasurementLog.clear()
+                                showResetDialog = false
+                            }
+                        },
+                    ) {
+                        Text("Reset", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetDialog = false }) {
+                        Text("Cancel")
+                    }
+                },
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))

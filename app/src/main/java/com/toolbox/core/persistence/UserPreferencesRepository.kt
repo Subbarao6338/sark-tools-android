@@ -23,6 +23,20 @@ enum class NatureTheme(val label: String, val primaryHex: Long) {
     Lavender("Lavender Mist", 0xFF5D548C)
 }
 
+enum class CategorySortOrder(val label: String) {
+    Default("Default Order"),
+    AlphabeticalAsc("Name (A to Z)"),
+    AlphabeticalDesc("Name (Z to A)"),
+    ToolCountDesc("Most Tools First"),
+}
+
+enum class ToolSortOrder(val label: String) {
+    Default("Default Order"),
+    AlphabeticalAsc("Name (A to Z)"),
+    AlphabeticalDesc("Name (Z to A)"),
+    FavoritesFirst("Favorites First"),
+}
+
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_preferences")
 
 class UserPreferencesRepository(private val context: Context) {
@@ -38,6 +52,8 @@ class UserPreferencesRepository(private val context: Context) {
         val PINNED_TOOLS = stringSetPreferencesKey("pinned_tools")
         val FAVORITE_CONVERSIONS = stringSetPreferencesKey("favorite_conversions")
         val DEFAULT_SCREEN = stringPreferencesKey("default_screen")
+        val CATEGORY_SORT = stringPreferencesKey("category_sort_order")
+        val TOOL_SORT = stringPreferencesKey("tool_sort_order")
         val LAUNCH_COUNT = intPreferencesKey("launch_count")
         val RATE_COMPLETED = booleanPreferencesKey("rate_completed")
         val RATE_NEVER_ASK = booleanPreferencesKey("rate_never_ask")
@@ -45,6 +61,28 @@ class UserPreferencesRepository(private val context: Context) {
         const val MAX_PINNED = 3
         const val RATE_FIRST_PROMPT_AT = 3
         const val RATE_SNOOZE_LAUNCHES = 5
+    }
+
+    val categorySortOrder: Flow<CategorySortOrder> = context.dataStore.data.map { prefs ->
+        val name = prefs[CATEGORY_SORT] ?: CategorySortOrder.Default.name
+        CategorySortOrder.entries.find { it.name == name } ?: CategorySortOrder.Default
+    }
+
+    suspend fun setCategorySortOrder(order: CategorySortOrder) {
+        context.dataStore.edit { prefs ->
+            prefs[CATEGORY_SORT] = order.name
+        }
+    }
+
+    val toolSortOrder: Flow<ToolSortOrder> = context.dataStore.data.map { prefs ->
+        val name = prefs[TOOL_SORT] ?: ToolSortOrder.Default.name
+        ToolSortOrder.entries.find { it.name == name } ?: ToolSortOrder.Default
+    }
+
+    suspend fun setToolSortOrder(order: ToolSortOrder) {
+        context.dataStore.edit { prefs ->
+            prefs[TOOL_SORT] = order.name
+        }
     }
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->

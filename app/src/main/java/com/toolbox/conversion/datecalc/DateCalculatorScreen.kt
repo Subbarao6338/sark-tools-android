@@ -42,9 +42,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import com.toolbox.core.ui.components.TileSelector
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
@@ -82,15 +81,11 @@ fun DateCalculatorScreen() {
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
-        PrimaryTabRow(selectedTabIndex = selectedTab, modifier = Modifier.fillMaxWidth()) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title, maxLines = 1) },
-                )
-            }
-        }
+        TileSelector(
+            options = tabs,
+            selectedIndex = selectedTab,
+            onSelectIndex = { selectedTab = it },
+        )
 
         Column(modifier = Modifier.padding(16.dp)) {
             Spacer(modifier = Modifier.height(8.dp))

@@ -23,9 +23,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import com.toolbox.core.ui.components.TileSelector
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -160,18 +159,11 @@ fun FinancialCalculatorScreen() {
     val tabs = listOf("Simple Int", "Compound Int", "SIP", "Investment", "Profit & Loss", "Salary")
 
     Column(modifier = Modifier.fillMaxSize()) {
-        PrimaryTabRow(
-            selectedTabIndex = selectedTab,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title, maxLines = 1) },
-                )
-            }
-        }
+        TileSelector(
+            options = tabs,
+            selectedIndex = selectedTab,
+            onSelectIndex = { selectedTab = it },
+        )
 
         Column(
             modifier = Modifier

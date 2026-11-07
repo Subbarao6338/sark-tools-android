@@ -43,10 +43,14 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -64,6 +68,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -79,6 +84,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.toolbox.R
+import com.toolbox.core.persistence.CategorySortOrder
+import com.toolbox.core.persistence.ToolSortOrder
 import com.toolbox.core.sensor.SensorAvailability
 import com.toolbox.core.ui.components.EmptyState
 import com.toolbox.everyday.stopwatch.ActiveTimerState
@@ -233,8 +240,18 @@ fun DashboardScreen(
                 )
             }
         } else {
-            val groupedTools = state.tools.groupBy { it.category }
+            val rawGrouped = state.tools.groupBy { it.category }
+            // Sort categories according to state.categorySortOrder
+            val sortedCategories = when (state.categorySortOrder) {
+                CategorySortOrder.Default -> rawGrouped.keys.toList()
+                CategorySortOrder.AlphabeticalAsc -> rawGrouped.keys.sortedBy { it.label }
+                CategorySortOrder.AlphabeticalDesc -> rawGrouped.keys.sortedByDescending { it.label }
+                CategorySortOrder.ToolCountDesc -> rawGrouped.keys.sortedByDescending { rawGrouped[it]?.size ?: 0 }
+            }
+            val groupedTools = sortedCategories.associateWith { rawGrouped[it] ?: emptyList() }
             val allCollapsed = groupedTools.keys.all { it in state.collapsedCategories }
+
+            var showSortMenu by remember { androidx.compose.runtime.mutableStateOf(false) }
 
             Row(
                 modifier = Modifier
@@ -243,11 +260,89 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "${groupedTools.size} Categories",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${groupedTools.size} Categories",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Box {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { showSortMenu = true }
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Default.Sort,
+                                contentDescription = "Sort Options",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Sort",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false },
+                        ) {
+                            Text(
+                                text = "CATEGORY SORT",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                            CategorySortOrder.entries.forEach { order ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = (if (state.categorySortOrder == order) "✓ " else "   ") + order.label,
+                                            fontWeight = if (state.categorySortOrder == order) FontWeight.Bold else FontWeight.Normal,
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setCategorySortOrder(order)
+                                        showSortMenu = false
+                                    },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "TOOL SORT",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                                onClick = {},
+                                enabled = false,
+                            )
+                            ToolSortOrder.entries.forEach { order ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = (if (state.toolSortOrder == order) "✓ " else "   ") + order.label,
+                                            fontWeight = if (state.toolSortOrder == order) FontWeight.Bold else FontWeight.Normal,
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setToolSortOrder(order)
+                                        showSortMenu = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))

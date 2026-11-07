@@ -3,11 +3,14 @@ package com.toolbox.dashboard
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.toolbox.core.persistence.CategorySortOrder
+import com.toolbox.core.persistence.ToolSortOrder
 import com.toolbox.core.persistence.UserPreferencesRepository
 import com.toolbox.core.sensor.SensorAvailability
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -20,6 +23,8 @@ data class DashboardUiState(
     val favoriteToolIds: Set<String> = emptySet(),
     val collapsedCategories: Set<ToolCategory> = emptySet(),
     val themeMatchedIcons: Boolean = true,
+    val categorySortOrder: CategorySortOrder = CategorySortOrder.Default,
+    val toolSortOrder: ToolSortOrder = ToolSortOrder.Default,
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -38,11 +43,25 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             preferencesRepository.favoriteToolIds.collect { favorites ->
                 _uiState.update { it.copy(favoriteToolIds = favorites) }
+                refreshTools()
             }
         }
         viewModelScope.launch {
             preferencesRepository.themeMatchedIcons.collect { matched ->
                 _uiState.update { it.copy(themeMatchedIcons = matched) }
+            }
+        }
+        viewModelScope.launch {
+            combine(
+                preferencesRepository.categorySortOrder,
+                preferencesRepository.toolSortOrder,
+            ) { catSort, toolSort ->
+                catSort to toolSort
+            }.collect { (catSort, toolSort) ->
+                _uiState.update {
+                    it.copy(categorySortOrder = catSort, toolSortOrder = toolSort)
+                }
+                refreshTools()
             }
         }
     }
@@ -51,9 +70,29 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _uiState.update { state ->
             state.copy(
                 query = query,
-                tools = filterTools(query, state.selectedCategory),
+                tools = filterAndSortTools(query, state.selectedCategory, state.toolSortOrder, state.favoriteToolIds),
                 // When actively searching, expand categories so user sees matching tools immediately
                 collapsedCategories = if (query.isNotBlank()) emptySet() else state.collapsedCategories,
+            )
+        }
+    }
+
+    fun setCategorySortOrder(order: CategorySortOrder) {
+        viewModelScope.launch {
+            preferencesRepository.setCategorySortOrder(order)
+        }
+    }
+
+    fun setToolSortOrder(order: ToolSortOrder) {
+        viewModelScope.launch {
+            preferencesRepository.setToolSortOrder(order)
+        }
+    }
+
+    private fun refreshTools() {
+        _uiState.update { state ->
+            state.copy(
+                tools = filterAndSortTools(state.query, state.selectedCategory, state.toolSortOrder, state.favoriteToolIds)
             )
         }
     }
@@ -82,7 +121,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             val newCategory = if (state.selectedCategory == category) null else category
             state.copy(
                 selectedCategory = newCategory,
-                tools = filterTools(state.query, newCategory),
+                tools = filterAndSortTools(state.query, newCategory, state.toolSortOrder, state.favoriteToolIds),
             )
         }
     }
@@ -93,17 +132,33 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private fun filterTools(query: String, category: ToolCategory?): List<ToolDefinition> {
+    private fun filterAndSortTools(
+        query: String,
+        category: ToolCategory?,
+        toolSort: ToolSortOrder,
+        favoriteIds: Set<String>,
+    ): List<ToolDefinition> {
         var list = allTools
         if (category != null) {
             list = list.filter { it.category == category }
         }
-        if (query.isBlank()) return list
-        val lower = query.lowercase().trim()
-        return list.filter { tool ->
-            tool.name.lowercase().contains(lower) ||
-                tool.category.label.lowercase().contains(lower) ||
-                tool.searchKeywords.any { it.contains(lower) }
+        if (query.isNotBlank()) {
+            val lower = query.lowercase().trim()
+            list = list.filter { tool ->
+                tool.name.lowercase().contains(lower) ||
+                    tool.category.label.lowercase().contains(lower) ||
+                    tool.searchKeywords.any { it.contains(lower) }
+            }
+        }
+
+        return when (toolSort) {
+            ToolSortOrder.Default -> list
+            ToolSortOrder.AlphabeticalAsc -> list.sortedBy { it.name.lowercase() }
+            ToolSortOrder.AlphabeticalDesc -> list.sortedByDescending { it.name.lowercase() }
+            ToolSortOrder.FavoritesFirst -> list.sortedWith(
+                compareByDescending<ToolDefinition> { it.id in favoriteIds }
+                    .thenBy { it.name.lowercase() }
+            )
         }
     }
 
