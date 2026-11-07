@@ -48,6 +48,8 @@ import com.toolbox.core.persistence.UserPreferencesRepository
 import com.toolbox.core.ui.components.EmptyState
 import com.toolbox.dashboard.ToolDefinition
 import com.toolbox.dashboard.allTools
+import com.toolbox.dashboard.themeTileColor
+import com.toolbox.dashboard.themeIconTint
 import kotlinx.coroutines.launch
 
 @Composable
@@ -59,6 +61,7 @@ fun FavoritesScreen(
     val repository = UserPreferencesRepository(context)
     val favoriteIds by repository.favoriteToolIds.collectAsState(initial = emptySet())
     val pinnedIds by repository.pinnedToolIds.collectAsState(initial = emptySet())
+    val themeMatchedIcons by repository.themeMatchedIcons.collectAsState(initial = true)
     val scope = rememberCoroutineScope()
 
     val favoriteTools = allTools.filter { it.id in favoriteIds }
@@ -205,11 +208,13 @@ private fun FavoriteToolItem(
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val bg = tool.category.themeTileColor(true)
+                val tint = tool.category.themeIconTint(true)
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .background(
-                            color = tool.category.tileColor,
+                            color = bg,
                             shape = RoundedCornerShape(12.dp),
                         ),
                     contentAlignment = Alignment.Center,
@@ -218,7 +223,7 @@ private fun FavoriteToolItem(
                         imageVector = tool.icon,
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
-                        tint = tool.category.iconTint,
+                        tint = tint,
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))

@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,16 +56,20 @@ private const val CHART_SAMPLES = 300
 @Composable
 fun LightMeterScreen() {
     val luxState = rememberLightSensorData()
-    val currentLux = luxState.value
+    val sensorLux = luxState.value
     val haptic = LocalHapticFeedback.current
+
+    var isHeld by remember { mutableStateOf(false) }
+    var heldLux by remember { mutableFloatStateOf(0f) }
+    val currentLux = if (isHeld) heldLux else sensorLux
 
     var peakLux by remember { mutableFloatStateOf(0f) }
     val chartData = remember { FloatArray(CHART_SAMPLES) }
     var chartIndex by remember { mutableIntStateOf(0) }
 
-    if (currentLux >= 0f) {
-        if (currentLux > peakLux) peakLux = currentLux
-        chartData[chartIndex % CHART_SAMPLES] = currentLux
+    if (sensorLux >= 0f && !isHeld) {
+        if (sensorLux > peakLux) peakLux = sensorLux
+        chartData[chartIndex % CHART_SAMPLES] = sensorLux
         chartIndex++
     }
 
@@ -203,11 +208,23 @@ fun LightMeterScreen() {
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Reset and Share buttons
+        // Hold, Reset and Share buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            androidx.compose.material3.Button(
+                onClick = {
+                    if (!isHeld) {
+                        heldLux = sensorLux
+                    }
+                    isHeld = !isHeld
+                },
+                modifier = Modifier.weight(1f).height(52.dp),
+                shape = RoundedCornerShape(26.dp),
+            ) {
+                Text(if (isHeld) "Resume" else "Hold Lux", fontWeight = FontWeight.SemiBold)
+            }
             OutlinedButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -215,16 +232,15 @@ fun LightMeterScreen() {
                     chartIndex = 0
                     chartData.fill(0f)
                 },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
+                modifier = Modifier.height(52.dp),
+                shape = RoundedCornerShape(26.dp),
             ) {
                 Icon(
                     Icons.Default.RestartAlt,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text("Reset")
             }
             ShareButton(
@@ -232,7 +248,7 @@ fun LightMeterScreen() {
                 value = "${currentLux.toInt()}",
                 unit = "lux",
                 label = lightCondition.label,
-                modifier = Modifier.height(56.dp),
+                modifier = Modifier.height(52.dp),
             )
         }
 

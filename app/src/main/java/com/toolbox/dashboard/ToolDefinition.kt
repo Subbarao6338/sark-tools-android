@@ -94,6 +94,12 @@ import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Numbers
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Contrast
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.HourglassBottom
+import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -102,6 +108,11 @@ enum class ToolCategory(
     val tileColor: Color,
     val iconTint: Color,
 ) {
+    UnitConverters(
+        label = "Unit Converters",
+        tileColor = Color(0xFFE8F5E9),
+        iconTint = Color(0xFF2E7D32),
+    ),
     Converters(
         label = "Converters",
         tileColor = Color(0xFFE5E0F6),
@@ -157,6 +168,44 @@ enum class ToolCategory(
         tileColor = Color(0xFFFBE9E7),
         iconTint = Color(0xFFD84315),
     ),
+}
+
+@Composable
+fun ToolCategory.themeTileColor(matchWithTheme: Boolean): Color {
+    if (!matchWithTheme) return this.tileColor
+    return when (this) {
+        ToolCategory.UnitConverters -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+        ToolCategory.Converters -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        ToolCategory.Calculators -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
+        ToolCategory.ImageTools -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
+        ToolCategory.AudioTools -> MaterialTheme.colorScheme.surfaceContainerHighest
+        ToolCategory.DocTools -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.40f)
+        ToolCategory.VideoTools -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+        ToolCategory.Utilities -> MaterialTheme.colorScheme.surfaceContainerHigh
+        ToolCategory.EverydayTools -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+        ToolCategory.Sensors -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
+        ToolCategory.Device -> MaterialTheme.colorScheme.surfaceContainerHighest
+        ToolCategory.Others -> MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+}
+
+@Composable
+fun ToolCategory.themeIconTint(matchWithTheme: Boolean): Color {
+    if (!matchWithTheme) return this.iconTint
+    return when (this) {
+        ToolCategory.UnitConverters -> MaterialTheme.colorScheme.primary
+        ToolCategory.Converters -> MaterialTheme.colorScheme.primary
+        ToolCategory.Calculators -> MaterialTheme.colorScheme.secondary
+        ToolCategory.ImageTools -> MaterialTheme.colorScheme.tertiary
+        ToolCategory.AudioTools -> MaterialTheme.colorScheme.primary
+        ToolCategory.DocTools -> MaterialTheme.colorScheme.secondary
+        ToolCategory.VideoTools -> MaterialTheme.colorScheme.error
+        ToolCategory.Utilities -> MaterialTheme.colorScheme.tertiary
+        ToolCategory.EverydayTools -> MaterialTheme.colorScheme.primary
+        ToolCategory.Sensors -> MaterialTheme.colorScheme.secondary
+        ToolCategory.Device -> MaterialTheme.colorScheme.primary
+        ToolCategory.Others -> MaterialTheme.colorScheme.secondary
+    }
 }
 
 data class ToolDefinition(
@@ -283,9 +332,41 @@ val allTools = listOf(
         id = "unit_converter",
         name = "Unit Converter",
         icon = Icons.Default.SyncAlt,
-        category = ToolCategory.Converters,
+        category = ToolCategory.UnitConverters,
         description = "Convert between units across 17+ categories including length, weight, temperature, volume, speed, area, and more. Supports all common units with instant real-time conversion.",
         searchKeywords = listOf("convert", "length", "weight", "temperature", "volume"),
+    ),
+    ToolDefinition(
+        id = "length_converter",
+        name = "Length",
+        icon = Icons.Default.Straighten,
+        category = ToolCategory.UnitConverters,
+        description = "High-precision length and distance converter across meters, kilometers, centimeters, millimeters, inches, feet, yards, and miles.",
+        searchKeywords = listOf("length", "distance", "meter", "kilometer", "mile", "inch", "foot", "yard", "cm", "mm"),
+    ),
+    ToolDefinition(
+        id = "weight_converter",
+        name = "Weight & Mass",
+        icon = Icons.Default.FitnessCenter,
+        category = ToolCategory.UnitConverters,
+        description = "Convert mass and weight between kilograms, grams, milligrams, pounds, ounces, stones, and metric tons.",
+        searchKeywords = listOf("weight", "mass", "kg", "gram", "pound", "lbs", "ounce", "oz", "stone", "ton"),
+    ),
+    ToolDefinition(
+        id = "temperature_converter",
+        name = "Temperature",
+        icon = Icons.Default.Flare,
+        category = ToolCategory.UnitConverters,
+        description = "Instant bidirectional conversion between Celsius, Fahrenheit, Kelvin, and Rankine with physical reference marks.",
+        searchKeywords = listOf("temperature", "celsius", "fahrenheit", "kelvin", "rankine", "degrees", "heat", "weather"),
+    ),
+    ToolDefinition(
+        id = "storage_converter",
+        name = "Data Storage",
+        icon = Icons.Default.Tag,
+        category = ToolCategory.UnitConverters,
+        description = "Data storage and memory units: Bytes, KB, MB, GB, TB, as well as binary standards KiB, MiB, GiB, TiB.",
+        searchKeywords = listOf("storage", "data", "byte", "kb", "mb", "gb", "tb", "gigabyte", "megabyte", "binary"),
     ),
     ToolDefinition(
         id = "percentage",
@@ -1020,5 +1101,37 @@ val allTools = listOf(
         category = ToolCategory.Calculators,
         description = "Mathematical tools: Prime number checking and factors, factorial (n!), LCM, GCD, average and descriptive statistics, and random number generator.",
         searchKeywords = listOf("math", "prime", "factorial", "lcm", "gcd", "average", "median", "mode", "statistics", "random", "hcf"),
+    ),
+    ToolDefinition(
+        id = "bmr_calculator",
+        name = "BMR & Calories",
+        icon = Icons.Default.FitnessCenter,
+        category = ToolCategory.Calculators,
+        description = "Calculate Basal Metabolic Rate (BMR) and Total Daily Energy Expenditure (TDEE) with Mifflin-St Jeor formula and custom macro splits.",
+        searchKeywords = listOf("bmr", "tdee", "calorie", "calories", "macro", "macros", "diet", "nutrition", "protein", "carbs", "fat"),
+    ),
+    ToolDefinition(
+        id = "contrast_checker",
+        name = "Contrast Checker",
+        icon = Icons.Default.Contrast,
+        category = ToolCategory.Utilities,
+        description = "Calculate WCAG 2.1 color contrast ratio with AA and AAA compliance ratings, luminance analysis, and interactive color sliders.",
+        searchKeywords = listOf("contrast", "wcag", "accessibility", "color", "checker", "ratio", "aa", "aaa", "design"),
+    ),
+    ToolDefinition(
+        id = "recipe_scaler",
+        name = "Recipe Scaler",
+        icon = Icons.Default.Restaurant,
+        category = ToolCategory.Calculators,
+        description = "Scale recipe ingredients up or down based on original and desired serving portions with instant conversions.",
+        searchKeywords = listOf("recipe", "cook", "bake", "scale", "serving", "servings", "ingredients", "portion", "kitchen"),
+    ),
+    ToolDefinition(
+        id = "interval_timer",
+        name = "Interval Timer",
+        icon = Icons.Default.HourglassBottom,
+        category = ToolCategory.EverydayTools,
+        description = "High-Intensity Interval Training (HIIT) & Tabata workout timer with customizable Warmup, Work, Rest intervals, and Set counters.",
+        searchKeywords = listOf("hiit", "interval", "timer", "tabata", "workout", "sets", "rounds", "fitness", "training"),
     ),
 )

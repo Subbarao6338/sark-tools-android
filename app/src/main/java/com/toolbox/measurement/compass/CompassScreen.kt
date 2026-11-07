@@ -65,7 +65,10 @@ fun CompassScreen() {
     val roll = Math.toDegrees(orientationState.value[2].toDouble()).toFloat()
 
     // Normalize to 0-360
-    val bearing = ((rawAzimuth % 360) + 360) % 360
+    val rawBearing = ((rawAzimuth % 360) + 360) % 360
+    var isLocked by remember { mutableStateOf(false) }
+    var lockedBearing by remember { mutableStateOf(0f) }
+    val bearing = if (isLocked) lockedBearing else rawBearing
 
     var useMagneticNorth by remember { mutableStateOf(true) }
     val haptic = LocalHapticFeedback.current
@@ -242,15 +245,30 @@ fun CompassScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        ShareButton(
-            toolName = "Compass",
-            value = "${bearing.toInt()}",
-            unit = "°",
-            label = getCardinalDirection(bearing),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            androidx.compose.material3.Button(
+                onClick = {
+                    if (!isLocked) {
+                        lockedBearing = rawBearing
+                    }
+                    isLocked = !isLocked
+                },
+                modifier = Modifier.weight(1f).height(48.dp),
+                shape = RoundedCornerShape(24.dp),
+            ) {
+                Text(if (isLocked) "Unlock Heading" else "Hold Heading", fontWeight = FontWeight.SemiBold)
+            }
+            ShareButton(
+                toolName = "Compass",
+                value = "${bearing.toInt()}",
+                unit = "°",
+                label = getCardinalDirection(bearing),
+                modifier = Modifier.weight(1f).height(48.dp),
+            )
+        }
     }
 }
 

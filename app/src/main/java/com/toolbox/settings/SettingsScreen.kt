@@ -34,6 +34,11 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShieldMoon
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.StayCurrentPortrait
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Delete
 import com.toolbox.core.rate.PlayStoreLauncher
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -42,6 +47,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -76,6 +82,10 @@ fun SettingsScreen() {
     val repository = UserPreferencesRepository(context)
     val themeMode by repository.themeMode.collectAsState(initial = ThemeMode.System)
     val natureTheme by repository.natureTheme.collectAsState(initial = com.toolbox.core.persistence.NatureTheme.Default)
+    val themeMatchedIcons by repository.themeMatchedIcons.collectAsState(initial = true)
+    val hapticFeedbackEnabled by repository.hapticFeedbackEnabled.collectAsState(initial = true)
+    val keepScreenOn by repository.keepScreenOn.collectAsState(initial = false)
+    val measurementSystem by repository.measurementSystem.collectAsState(initial = "Metric")
     val scope = rememberCoroutineScope()
 
     Column(
@@ -183,6 +193,162 @@ fun SettingsScreen() {
                     selected = themeMode == ThemeMode.Dark,
                     onClick = { scope.launch { repository.setThemeMode(ThemeMode.Dark) } },
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Tool Display & Behavior Preferences
+        SectionHeader("Tool Preferences")
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                // Theme matched icons toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.ColorLens,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Match Icons with Theme",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = if (themeMatchedIcons) "Icons harmonize with current nature theme" else "Show original multi-colored category icons",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = themeMatchedIcons,
+                        onCheckedChange = { checked ->
+                            scope.launch { repository.setThemeMatchedIcons(checked) }
+                        },
+                    )
+                }
+
+                // Haptic feedback toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Vibration,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Haptic Tactile Feedback",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "Tactile response on button clicks and tool events",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = hapticFeedbackEnabled,
+                        onCheckedChange = { checked ->
+                            scope.launch { repository.setHapticFeedbackEnabled(checked) }
+                        },
+                    )
+                }
+
+                // Keep Screen On toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.StayCurrentPortrait,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Keep Screen On in Tools",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "Prevent screen from timing out during active use",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = keepScreenOn,
+                        onCheckedChange = { checked ->
+                            scope.launch { repository.setKeepScreenOn(checked) }
+                        },
+                    )
+                }
+
+                // Preferred Measurement Unit System
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Straighten,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Default Measurement System",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "Currently using $measurementSystem (cm, kg vs in, lbs)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                val next = if (measurementSystem == "Metric") "Imperial" else "Metric"
+                                scope.launch { repository.setMeasurementSystem(next) }
+                            },
+                        ) {
+                            Text(measurementSystem)
+                        }
+                    }
+                }
             }
         }
 

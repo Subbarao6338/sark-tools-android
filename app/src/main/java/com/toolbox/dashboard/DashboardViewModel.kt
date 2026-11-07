@@ -18,6 +18,8 @@ data class DashboardUiState(
     val totalCount: Int = allTools.size,
     val disabledToolIds: Set<String> = emptySet(),
     val favoriteToolIds: Set<String> = emptySet(),
+    val collapsedCategories: Set<ToolCategory> = emptySet(),
+    val themeMatchedIcons: Boolean = true,
 )
 
 class DashboardViewModel(application: Application) : AndroidViewModel(application) {
@@ -38,6 +40,11 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 _uiState.update { it.copy(favoriteToolIds = favorites) }
             }
         }
+        viewModelScope.launch {
+            preferencesRepository.themeMatchedIcons.collect { matched ->
+                _uiState.update { it.copy(themeMatchedIcons = matched) }
+            }
+        }
     }
 
     fun onQueryChanged(query: String) {
@@ -45,8 +52,29 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             state.copy(
                 query = query,
                 tools = filterTools(query, state.selectedCategory),
+                // When actively searching, expand categories so user sees matching tools immediately
+                collapsedCategories = if (query.isNotBlank()) emptySet() else state.collapsedCategories,
             )
         }
+    }
+
+    fun toggleCategoryCollapsed(category: ToolCategory) {
+        _uiState.update { state ->
+            val updated = if (category in state.collapsedCategories) {
+                state.collapsedCategories - category
+            } else {
+                state.collapsedCategories + category
+            }
+            state.copy(collapsedCategories = updated)
+        }
+    }
+
+    fun expandAllCategories() {
+        _uiState.update { it.copy(collapsedCategories = emptySet()) }
+    }
+
+    fun collapseAllCategories() {
+        _uiState.update { it.copy(collapsedCategories = ToolCategory.entries.toSet()) }
     }
 
     fun onCategorySelected(category: ToolCategory?) {

@@ -29,6 +29,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -36,9 +37,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -227,13 +234,54 @@ fun DashboardScreen(
             }
         } else {
             val groupedTools = state.tools.groupBy { it.category }
+            val allCollapsed = groupedTools.keys.all { it in state.collapsedCategories }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${groupedTools.size} Categories",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            if (allCollapsed) viewModel.expandAllCategories()
+                            else viewModel.collapseAllCategories()
+                        }
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = if (allCollapsed) Icons.Default.UnfoldMore else Icons.Default.UnfoldLess,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (allCollapsed) "Expand All" else "Collapse All",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 groupedTools.forEach { (category, tools) ->
+                    val isCollapsed = category in state.collapsedCategories
                     item(
                         key = category.name,
                         span = { GridItemSpan(maxLineSpan) },
@@ -242,14 +290,17 @@ fun DashboardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .animateItem()
-                                .padding(top = 12.dp, bottom = 4.dp),
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { viewModel.toggleCategoryCollapsed(category) }
+                                .padding(top = 10.dp, bottom = 6.dp, start = 4.dp, end = 4.dp),
                         ) {
+                            val catTint = category.themeIconTint(state.themeMatchedIcons)
                             Box(
                                 modifier = Modifier
                                     .width(4.dp)
-                                    .height(16.dp)
+                                    .height(18.dp)
                                     .background(
-                                        color = category.iconTint,
+                                        color = catTint,
                                         shape = RoundedCornerShape(2.dp),
                                     ),
                             )
@@ -273,48 +324,58 @@ fun DashboardScreen(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                     ),
-                                    color = category.iconTint,
+                                    color = catTint,
                                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                                 )
                             }
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                imageVector = if (isCollapsed) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                contentDescription = if (isCollapsed) "Expand" else "Collapse",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
-                    items(
-                        items = tools,
-                        key = { it.id },
-                    ) { tool ->
-                        val isDisabled = tool.id in state.disabledToolIds
-                        val isFavorite = tool.id in state.favoriteToolIds
-                        val isActive = tool.id == "stopwatch_timer" &&
-                            activeTimerRunning
-                        with(sharedTransitionScope) {
-                            ToolTile(
-                                tool = tool,
-                                isDisabled = isDisabled,
-                                isFavorite = isFavorite,
-                                isActive = isActive,
-                                onClick = {
-                                    if (isDisabled) {
-                                        scope.launch {
-                                            snackbarHostState.currentSnackbarData?.dismiss()
-                                            snackbarHostState.showSnackbar(unavailableReason(tool))
+                    if (!isCollapsed) {
+                        items(
+                            items = tools,
+                            key = { it.id },
+                        ) { tool ->
+                            val isDisabled = tool.id in state.disabledToolIds
+                            val isFavorite = tool.id in state.favoriteToolIds
+                            val isActive = tool.id == "stopwatch_timer" &&
+                                activeTimerRunning
+                            with(sharedTransitionScope) {
+                                ToolTile(
+                                    tool = tool,
+                                    isDisabled = isDisabled,
+                                    isFavorite = isFavorite,
+                                    isActive = isActive,
+                                    themeMatched = state.themeMatchedIcons,
+                                    onClick = {
+                                        if (isDisabled) {
+                                            scope.launch {
+                                                snackbarHostState.currentSnackbarData?.dismiss()
+                                                snackbarHostState.showSnackbar(unavailableReason(tool))
+                                            }
+                                        } else {
+                                            onToolClick(tool)
                                         }
-                                    } else {
-                                        onToolClick(tool)
-                                    }
-                                },
-                                onLongClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    viewModel.toggleFavorite(tool.id)
-                                },
-                                modifier = Modifier
-                                    .animateItem()
-                                    .sharedBounds(
-                                        rememberSharedContentState(key = "tool_${tool.id}"),
-                                        animatedVisibilityScope = animatedVisibilityScope,
-                                        resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
-                                    ),
-                            )
+                                    },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        viewModel.toggleFavorite(tool.id)
+                                    },
+                                    modifier = Modifier
+                                        .animateItem()
+                                        .sharedBounds(
+                                            rememberSharedContentState(key = "tool_${tool.id}"),
+                                            animatedVisibilityScope = animatedVisibilityScope,
+                                            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
+                                        ),
+                                )
+                            }
                         }
                     }
                 }
@@ -335,19 +396,23 @@ private fun ToolTile(
     isDisabled: Boolean,
     isFavorite: Boolean,
     isActive: Boolean = false,
+    themeMatched: Boolean = true,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val matchedTint = tool.category.themeIconTint(themeMatched)
+    val matchedBg = tool.category.themeTileColor(themeMatched)
+
     val iconTint = if (isDisabled) {
         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
     } else {
-        tool.category.iconTint
+        matchedTint
     }
     val iconBg = if (isDisabled) {
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     } else {
-        tool.category.tileColor
+        matchedBg
     }
 
     // Pulse animation for active timer/stopwatch

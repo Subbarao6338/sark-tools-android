@@ -52,6 +52,7 @@ fun CounterScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val haptic = LocalHapticFeedback.current
+    var stepSize by remember { mutableStateOf(1) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Counter tabs as chips
@@ -159,7 +160,7 @@ fun CounterScreen(
                         .background(MaterialTheme.colorScheme.primary)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            viewModel.increment()
+                            repeat(stepSize) { viewModel.increment() }
                         },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -168,6 +169,22 @@ fun CounterScreen(
                         contentDescription = "Increment",
                         modifier = Modifier.size(32.dp),
                         tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Step size selector chips (+1, +5, +10, +50)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                listOf(1, 5, 10, 50).forEach { size ->
+                    FilterChip(
+                        selected = stepSize == size,
+                        onClick = { stepSize = size },
+                        label = { Text("±$size") },
                     )
                 }
             }

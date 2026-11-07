@@ -51,14 +51,16 @@ fun LevelScreen() {
     var isLocked by remember { mutableStateOf(false) }
     var lockedPitch by remember { mutableStateOf(0f) }
     var lockedRoll by remember { mutableStateOf(0f) }
+    var pitchOffset by remember { mutableStateOf(0f) }
+    var rollOffset by remember { mutableStateOf(0f) }
 
     val accel = accelState.value
     val rawPitch = Math.toDegrees(
         atan2(accel[1].toDouble(), sqrt((accel[0] * accel[0] + accel[2] * accel[2]).toDouble()))
-    ).toFloat()
+    ).toFloat() - pitchOffset
     val rawRoll = Math.toDegrees(
         atan2(accel[0].toDouble(), sqrt((accel[1] * accel[1] + accel[2] * accel[2]).toDouble()))
-    ).toFloat()
+    ).toFloat() - rollOffset
 
     val pitch = if (isLocked) lockedPitch else rawPitch
     val roll = if (isLocked) lockedRoll else rawRoll
@@ -157,11 +159,28 @@ fun LevelScreen() {
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Lock and Share buttons
+        // Calibrate Tare, Lock and Share buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            androidx.compose.material3.OutlinedButton(
+                onClick = {
+                    if (pitchOffset != 0f || rollOffset != 0f) {
+                        pitchOffset = 0f
+                        rollOffset = 0f
+                    } else {
+                        val currentRawP = Math.toDegrees(atan2(accel[1].toDouble(), sqrt((accel[0] * accel[0] + accel[2] * accel[2]).toDouble()))).toFloat()
+                        val currentRawR = Math.toDegrees(atan2(accel[0].toDouble(), sqrt((accel[1] * accel[1] + accel[2] * accel[2]).toDouble()))).toFloat()
+                        pitchOffset = currentRawP
+                        rollOffset = currentRawR
+                    }
+                },
+                modifier = Modifier.height(52.dp),
+                shape = RoundedCornerShape(26.dp),
+            ) {
+                Text(if (pitchOffset != 0f || rollOffset != 0f) "Reset Tare" else "Zero Tare", fontWeight = FontWeight.SemiBold)
+            }
             Button(
                 onClick = {
                     if (!isLocked) {
@@ -172,8 +191,8 @@ fun LevelScreen() {
                 },
                 modifier = Modifier
                     .weight(1f)
-                    .height(56.dp),
-                shape = RoundedCornerShape(28.dp),
+                    .height(52.dp),
+                shape = RoundedCornerShape(26.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.primary,
@@ -184,9 +203,9 @@ fun LevelScreen() {
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isLocked) "Unlock Reading" else "Lock Reading",
+                    text = if (isLocked) "Unlock" else "Lock",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -196,7 +215,7 @@ fun LevelScreen() {
                 value = "%.1f".format(totalDeviation),
                 unit = "°",
                 label = if (isLevel) "Level" else "Pitch: ${"%.1f°".format(pitch)}, Roll: ${"%.1f°".format(roll)}",
-                modifier = Modifier.height(56.dp),
+                modifier = Modifier.height(52.dp),
             )
         }
 
