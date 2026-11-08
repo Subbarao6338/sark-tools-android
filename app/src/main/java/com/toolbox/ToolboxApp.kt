@@ -621,217 +621,202 @@ fun ToolboxApp(
                         }
                     }
                     composable<PerchanceTextGen> {
-                        ToolScreen("Perchance Text", "perchance_text_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/ai-text-generator",
-                                toolKey = "perchance_text_gen",
-                                toolName = "Perchance AI Text Generator",
-                                defaultPresets = listOf(
-                                    "Text Gen" to "https://perchance.org/ai-text-generator",
-                                    "Story Gen" to "https://perchance.org/ai-story-generator",
-                                    "Character Bio" to "https://perchance.org/character-generator",
-                                    "Writing Prompt" to "https://perchance.org/writing-prompt-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/ai-text-generator",
+                            toolKey = "perchance_text_gen",
+                            toolName = "Perchance AI Text Generator",
+                            defaultPresets = listOf(
+                                "Text Gen" to "https://perchance.org/ai-text-generator",
+                                "Story Gen" to "https://perchance.org/ai-story-generator",
+                                "Character Bio" to "https://perchance.org/character-generator",
+                                "Writing Prompt" to "https://perchance.org/writing-prompt-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchancePhotoGen> {
-                        ToolScreen("Perchance Photo", "perchance_photo_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/ai-photo-generator",
-                                toolKey = "perchance_photo_gen",
-                                toolName = "Perchance AI Photo Generator",
-                                defaultPresets = listOf(
-                                    "Photo Gen" to "https://perchance.org/ai-photo-generator",
-                                    "Anime Gen" to "https://perchance.org/ai-anime-generator",
-                                    "Art Gen" to "https://perchance.org/ai-art-generator",
-                                    "Text to Image" to "https://perchance.org/text-to-image-plugin",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/ai-photo-generator",
+                            toolKey = "perchance_photo_gen",
+                            toolName = "Perchance AI Photo Generator",
+                            defaultPresets = listOf(
+                                "Photo Gen" to "https://perchance.org/ai-photo-generator",
+                                "Anime Gen" to "https://perchance.org/ai-anime-generator",
+                                "Art Gen" to "https://perchance.org/ai-art-generator",
+                                "Text to Image" to "https://perchance.org/text-to-image-plugin",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceChat> {
-                        ToolScreen("Perchance Chat", "perchance_chat", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/ai-chat",
-                                toolKey = "perchance_chat",
-                                toolName = "Perchance AI Chat",
-                                defaultPresets = listOf(
-                                    "AI Chat" to "https://perchance.org/ai-chat",
-                                    "Character Chat" to "https://perchance.org/ai-character-chat",
-                                    "Roleplay Hub" to "https://perchance.org/ai-rpg",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/ai-chat",
+                            toolKey = "perchance_chat",
+                            toolName = "Perchance AI Chat",
+                            defaultPresets = listOf(
+                                "AI Chat" to "https://perchance.org/ai-chat",
+                                "Character Chat" to "https://perchance.org/ai-character-chat",
+                                "Roleplay Hub" to "https://perchance.org/ai-rpg",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceVideoGen> {
-                        ToolScreen("Perchance Video", "perchance_video_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/ai-video-generator",
-                                toolKey = "perchance_video_gen",
-                                toolName = "Perchance AI Video Generator",
-                                defaultPresets = listOf(
-                                    "Video Gen" to "https://perchance.org/ai-video-generator",
-                                    "Animation" to "https://perchance.org/ai-cinematic-video-generator",
-                                    "Text-to-Video" to "https://perchance.org/text-to-video",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/ai-video-generator",
+                            toolKey = "perchance_video_gen",
+                            toolName = "Perchance AI Video Generator",
+                            defaultPresets = listOf(
+                                "Video Gen" to "https://perchance.org/ai-video-generator",
+                                "Animation" to "https://perchance.org/ai-cinematic-video-generator",
+                                "Text-to-Video" to "https://perchance.org/text-to-video",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceStoryGen> {
-                        ToolScreen("Perchance Story", "perchance_story_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/ai-story-generator",
-                                toolKey = "perchance_story_gen",
-                                toolName = "Perchance AI Story Generator",
-                                defaultPresets = listOf(
-                                    "Story Gen" to "https://perchance.org/ai-story-generator",
-                                    "Novel Outline" to "https://perchance.org/ai-novel-generator",
-                                    "Plot Twist" to "https://perchance.org/plot-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/ai-story-generator",
+                            toolKey = "perchance_story_gen",
+                            toolName = "Perchance AI Story Generator",
+                            defaultPresets = listOf(
+                                "Story Gen" to "https://perchance.org/ai-story-generator",
+                                "Novel Outline" to "https://perchance.org/ai-novel-generator",
+                                "Plot Twist" to "https://perchance.org/plot-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceCharacterGen> {
-                        ToolScreen("Perchance Character", "perchance_character_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/character-generator",
-                                toolKey = "perchance_character_gen",
-                                toolName = "Perchance Character Generator",
-                                defaultPresets = listOf(
-                                    "Character Bio" to "https://perchance.org/character-generator",
-                                    "NPC Maker" to "https://perchance.org/npc-generator",
-                                    "Persona" to "https://perchance.org/ai-character-profile",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/character-generator",
+                            toolKey = "perchance_character_gen",
+                            toolName = "Perchance Character Generator",
+                            defaultPresets = listOf(
+                                "Character Bio" to "https://perchance.org/character-generator",
+                                "NPC Maker" to "https://perchance.org/npc-generator",
+                                "Persona" to "https://perchance.org/ai-character-profile",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceAnimeGen> {
-                        ToolScreen("Perchance Anime", "perchance_anime_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/ai-anime-generator",
-                                toolKey = "perchance_anime_gen",
-                                toolName = "Perchance AI Anime Generator",
-                                defaultPresets = listOf(
-                                    "Anime Gen" to "https://perchance.org/ai-anime-generator",
-                                    "Manga Art" to "https://perchance.org/manga-generator",
-                                    "Anime Avatar" to "https://perchance.org/anime-character-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/ai-anime-generator",
+                            toolKey = "perchance_anime_gen",
+                            toolName = "Perchance AI Anime Generator",
+                            defaultPresets = listOf(
+                                "Anime Gen" to "https://perchance.org/ai-anime-generator",
+                                "Manga Art" to "https://perchance.org/manga-generator",
+                                "Anime Avatar" to "https://perchance.org/anime-character-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceRpgGen> {
-                        ToolScreen("Perchance RPG", "perchance_rpg_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/ai-rpg",
-                                toolKey = "perchance_rpg_gen",
-                                toolName = "Perchance AI RPG",
-                                defaultPresets = listOf(
-                                    "RPG Hub" to "https://perchance.org/ai-rpg",
-                                    "Text Adventure" to "https://perchance.org/ai-text-adventure",
-                                    "Dungeon Crawl" to "https://perchance.org/dungeon-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/ai-rpg",
+                            toolKey = "perchance_rpg_gen",
+                            toolName = "Perchance AI RPG",
+                            defaultPresets = listOf(
+                                "RPG Hub" to "https://perchance.org/ai-rpg",
+                                "Text Adventure" to "https://perchance.org/ai-text-adventure",
+                                "Dungeon Crawl" to "https://perchance.org/dungeon-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceWritingPrompt> {
-                        ToolScreen("Writing Prompts", "perchance_writing_prompt", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/writing-prompt-generator",
-                                toolKey = "perchance_writing_prompt",
-                                toolName = "Perchance Writing Prompts",
-                                defaultPresets = listOf(
-                                    "Writing Prompt" to "https://perchance.org/writing-prompt-generator",
-                                    "Dialogue Prompts" to "https://perchance.org/dialogue-prompt-generator",
-                                    "First Lines" to "https://perchance.org/first-line-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/writing-prompt-generator",
+                            toolKey = "perchance_writing_prompt",
+                            toolName = "Perchance Writing Prompts",
+                            defaultPresets = listOf(
+                                "Writing Prompt" to "https://perchance.org/writing-prompt-generator",
+                                "Dialogue Prompts" to "https://perchance.org/dialogue-prompt-generator",
+                                "First Lines" to "https://perchance.org/first-line-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceLoreGen> {
-                        ToolScreen("World & Lore", "perchance_lore_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/fantasy-world-generator",
-                                toolKey = "perchance_lore_gen",
-                                toolName = "Perchance World & Lore",
-                                defaultPresets = listOf(
-                                    "World Gen" to "https://perchance.org/fantasy-world-generator",
-                                    "Magic System" to "https://perchance.org/magic-system-generator",
-                                    "Faction Maker" to "https://perchance.org/faction-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/fantasy-world-generator",
+                            toolKey = "perchance_lore_gen",
+                            toolName = "Perchance World & Lore",
+                            defaultPresets = listOf(
+                                "World Gen" to "https://perchance.org/fantasy-world-generator",
+                                "Magic System" to "https://perchance.org/magic-system-generator",
+                                "Faction Maker" to "https://perchance.org/faction-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceDialogueGen> {
-                        ToolScreen("AI Dialogue", "perchance_dialogue_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/dialogue-generator",
-                                toolKey = "perchance_dialogue_gen",
-                                toolName = "Perchance AI Dialogue",
-                                defaultPresets = listOf(
-                                    "Dialogue Gen" to "https://perchance.org/dialogue-generator",
-                                    "Script Banter" to "https://perchance.org/banter-generator",
-                                    "Quotes" to "https://perchance.org/quote-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/dialogue-generator",
+                            toolKey = "perchance_dialogue_gen",
+                            toolName = "Perchance AI Dialogue",
+                            defaultPresets = listOf(
+                                "Dialogue Gen" to "https://perchance.org/dialogue-generator",
+                                "Script Banter" to "https://perchance.org/banter-generator",
+                                "Quotes" to "https://perchance.org/quote-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceVoiceActor> {
-                        ToolScreen("AI Voice & Audio", "perchance_voice_actor", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/ai-voice-generator",
-                                toolKey = "perchance_voice_actor",
-                                toolName = "Perchance AI Voice & Audio",
-                                defaultPresets = listOf(
-                                    "Voice Gen" to "https://perchance.org/ai-voice-generator",
-                                    "TTS Engine" to "https://perchance.org/text-to-speech-generator",
-                                    "Sound Effects" to "https://perchance.org/sound-effect-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/ai-voice-generator",
+                            toolKey = "perchance_voice_actor",
+                            toolName = "Perchance AI Voice & Audio",
+                            defaultPresets = listOf(
+                                "Voice Gen" to "https://perchance.org/ai-voice-generator",
+                                "TTS Engine" to "https://perchance.org/text-to-speech-generator",
+                                "Sound Effects" to "https://perchance.org/sound-effect-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceArtPlugin> {
-                        ToolScreen("Perchance Art Plugin", "perchance_art_plugin", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/text-to-image-plugin",
-                                toolKey = "perchance_art_plugin",
-                                toolName = "Perchance Art Plugin",
-                                defaultPresets = listOf(
-                                    "Art Plugin" to "https://perchance.org/text-to-image-plugin",
-                                    "AI Art Studio" to "https://perchance.org/ai-art-generator",
-                                    "Styles" to "https://perchance.org/art-style-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/text-to-image-plugin",
+                            toolKey = "perchance_art_plugin",
+                            toolName = "Perchance Art Plugin",
+                            defaultPresets = listOf(
+                                "Art Plugin" to "https://perchance.org/text-to-image-plugin",
+                                "AI Art Studio" to "https://perchance.org/ai-art-generator",
+                                "Styles" to "https://perchance.org/art-style-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<PerchanceNameGen> {
-                        ToolScreen("Fantasy Names", "perchance_name_gen", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://perchance.org/fantasy-name-generator",
-                                toolKey = "perchance_name_gen",
-                                toolName = "Perchance Fantasy Names",
-                                defaultPresets = listOf(
-                                    "Fantasy Names" to "https://perchance.org/fantasy-name-generator",
-                                    "Sci-Fi Names" to "https://perchance.org/scifi-name-generator",
-                                    "Town Names" to "https://perchance.org/town-name-generator",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://perchance.org/fantasy-name-generator",
+                            toolKey = "perchance_name_gen",
+                            toolName = "Perchance Fantasy Names",
+                            defaultPresets = listOf(
+                                "Fantasy Names" to "https://perchance.org/fantasy-name-generator",
+                                "Sci-Fi Names" to "https://perchance.org/scifi-name-generator",
+                                "Town Names" to "https://perchance.org/town-name-generator",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<HuggingFaceAi> {
-                        ToolScreen("Hugging Face AI", "huggingface_ai", navController, this@SharedTransitionLayout, this@composable) {
-                            AiWebViewScreen(
-                                initialUrl = "https://huggingface.co/chat",
-                                toolKey = "huggingface_ai",
-                                toolName = "Hugging Face AI",
-                                defaultPresets = listOf(
-                                    "HuggingChat" to "https://huggingface.co/chat",
-                                    "Models" to "https://huggingface.co/models",
-                                    "Spaces" to "https://huggingface.co/spaces",
-                                    "Datasets" to "https://huggingface.co/datasets",
-                                ),
-                            )
-                        }
+                        AiWebViewScreen(
+                            initialUrl = "https://huggingface.co/chat",
+                            toolKey = "huggingface_ai",
+                            toolName = "Hugging Face AI",
+                            defaultPresets = listOf(
+                                "HuggingChat" to "https://huggingface.co/chat",
+                                "Models" to "https://huggingface.co/models",
+                                "Spaces" to "https://huggingface.co/spaces",
+                                "Datasets" to "https://huggingface.co/datasets",
+                            ),
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                 }
             }

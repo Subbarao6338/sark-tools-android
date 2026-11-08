@@ -124,4 +124,32 @@ class AiToolsAndWebProfilesTest {
         assertTrue(customProfile.isIncognito)
         assertEquals("CustomAgent/1.0", customProfile.customUserAgent)
     }
+
+    @Test
+    fun testPwaWebToolsCapabilities() {
+        // Validate PWA Web tools keys
+        val supportedWebTools = listOf(
+            "perchance_text_gen",
+            "perchance_photo_gen",
+            "perchance_chat",
+            "perchance_video_gen",
+            "perchance_story_gen",
+            "perchance_character_gen",
+            "perchance_anime_gen",
+            "perchance_rpg_gen",
+            "perchance_writing_prompt",
+            "perchance_lore_gen",
+            "perchance_dialogue_gen",
+            "perchance_voice_actor",
+            "perchance_art_plugin",
+            "perchance_name_gen",
+            "huggingface_ai",
+        )
+
+        for (toolId in supportedWebTools) {
+            val tool = allTools.firstOrNull { it.id == toolId }
+            assertNotNull("Web tool $toolId should exist in allTools", tool)
+            assertTrue("Web tool description should not be blank", tool!!.description.isNotBlank())
+        }
+    }
 }
