@@ -51,4 +51,22 @@ class PeriodicTableTest {
         val resultsByNumber = PeriodicTableData.search("26")
         assertTrue(resultsByNumber.any { it.name == "Iron" })
     }
+    @Test
+    fun testBohrShellsAndChemicalProperties() {
+        val h = PeriodicTableData.getByNumber(1)
+        assertNotNull(h)
+        assertEquals(listOf(1), h?.bohrShells)
+        assertEquals(2.20, h?.electronegativityPauling)
+        assertEquals(53, h?.atomicRadiusPm)
+
+        val c = PeriodicTableData.getByNumber(6)
+        assertNotNull(c)
+        assertEquals(listOf(2, 4), c?.bohrShells)
+        assertEquals(2.55, c?.electronegativityPauling)
+
+        val fe = PeriodicTableData.getByNumber(26)
+        assertNotNull(fe)
+        assertEquals(156, fe?.atomicRadiusPm)
+        assertEquals("+2, +3, +6", fe?.oxidationStatesDisplay)
+    }
 }

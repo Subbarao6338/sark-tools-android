@@ -100,6 +100,8 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.CatchingPokemon
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Biotech
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -1168,6 +1170,38 @@ val allTools = listOf(
         category = ToolCategory.Education,
         description = "Comprehensive science, physics, chemistry laws, interactive 118-element periodic table, physical constants, and games.",
         searchKeywords = listOf("education", "school", "learn", "study", "physics", "chemistry", "quiz", "elements", "periodic table", "games"),
+    ),
+    ToolDefinition(
+        id = "periodic_table",
+        name = "Periodic Table",
+        icon = Icons.Default.Science,
+        category = ToolCategory.Education,
+        description = "Complete 118-element interactive periodic table with 18-column grid view, Bohr atomic shells, detailed chemical properties, and state filters.",
+        searchKeywords = listOf("periodic table", "chemistry", "elements", "atoms", "mendeleev", "science", "chemical"),
+    ),
+    ToolDefinition(
+        id = "chemistry_games",
+        name = "Chemistry Games",
+        icon = Icons.Default.Science,
+        category = ToolCategory.Games,
+        description = "Element Symbol Quiz, Atomic Number Speed Run, and Compound Synthesis Reaction Lab.",
+        searchKeywords = listOf("chemistry", "game", "quiz", "element quiz", "compounds", "reactions", "lab"),
+    ),
+    ToolDefinition(
+        id = "science_labs",
+        name = "Science Labs",
+        icon = Icons.Default.Biotech,
+        category = ToolCategory.Education,
+        description = "Interactive physics simulations (Harmonic Pendulum, Projectile Motion) and genetics labs (DNA/RNA codon synthesizer, Punnett square).",
+        searchKeywords = listOf("physics", "biology", "dna", "pendulum", "projectile", "punnett", "lab", "simulation", "stem"),
+    ),
+    ToolDefinition(
+        id = "brain_games",
+        name = "Brain & IQ Games",
+        icon = Icons.Default.Psychology,
+        category = ToolCategory.Games,
+        description = "Speed Math workout, Sequence Solver pattern game, Visual Memory Matrix recall test, and Science Trivia quiz.",
+        searchKeywords = listOf("brain", "iq", "math", "memory", "trivia", "quiz", "puzzle", "games"),
     ),
     ToolDefinition(
         id = "pokedex",

@@ -176,4 +176,46 @@ class PokedexTest {
         assertFalse(otherTools.any { it.id == "heart_rate" })
         assertFalse(otherTools.any { it.id == "paint_calculator" })
     }
+    @Test
+    fun testPokemonGenderClassification() {
+        assertEquals(PokemonGenderClassification.Genderless, PokemonGenderClassification.forPokemon("Mewtwo"))
+        assertEquals(PokemonGenderClassification.Genderless, PokemonGenderClassification.forPokemon("Magnemite"))
+        assertEquals(PokemonGenderClassification.FemaleOnly, PokemonGenderClassification.forPokemon("Chansey"))
+        assertEquals(PokemonGenderClassification.MaleOnly, PokemonGenderClassification.forPokemon("Tauros"))
+        assertEquals(PokemonGenderClassification.StarterRatio, PokemonGenderClassification.forPokemon("Bulbasaur"))
+        assertEquals(PokemonGenderClassification.MaleAndFemaleEqual, PokemonGenderClassification.forPokemon("Pikachu"))
+
+        // Form gender classification
+        val megaGallade = PokemonForm(
+            name = "Mega Gallade",
+            types = listOf("Psychic", "Fighting"),
+            hp = 68,
+            atk = 165,
+            def = 95,
+            spAtk = 65,
+            spDef = 115,
+            spd = 110,
+            isMega = true
+        )
+        assertEquals(PokemonGenderClassification.MaleOnly, megaGallade.genderClassification)
+    }
+
+    @Test
+    fun testSeparateEducationAndGamesTools() {
+        val periodicTable = allTools.find { it.id == "periodic_table" }
+        assertNotNull(periodicTable)
+        assertEquals(ToolCategory.Education, periodicTable?.category)
+
+        val chemistryGames = allTools.find { it.id == "chemistry_games" }
+        assertNotNull(chemistryGames)
+        assertEquals(ToolCategory.Games, chemistryGames?.category)
+
+        val scienceLabs = allTools.find { it.id == "science_labs" }
+        assertNotNull(scienceLabs)
+        assertEquals(ToolCategory.Education, scienceLabs?.category)
+
+        val brainGames = allTools.find { it.id == "brain_games" }
+        assertNotNull(brainGames)
+        assertEquals(ToolCategory.Games, brainGames?.category)
+    }
 }

@@ -126,58 +126,207 @@ fun PokemonProceduralBadge(
     isFemale: Boolean,
     modifier: Modifier = Modifier,
     hasGenderDiff: Boolean = false,
+    types: List<String> = emptyList(),
+    isMega: Boolean = false,
+    isGigantamax: Boolean = false,
+    isLegendsZa: Boolean = false,
+    isSilhouette: Boolean = false,
 ) {
-    val displayColor = if (isShiny) getShinyPalette(primaryColor, id) else primaryColor
+    val displayColor = if (isSilhouette) Color(0xFF263238) else if (isShiny) getShinyPalette(primaryColor, id) else primaryColor
+    val secondaryColor = if (isSilhouette) Color(0xFF37474F) else {
+        val secType = types.getOrNull(1)
+        if (secType != null) {
+            PokemonType.fromString(secType)?.color ?: displayColor.copy(alpha = 0.7f)
+        } else {
+            displayColor.copy(alpha = 0.5f)
+        }
+    }
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(
                 Brush.linearGradient(
-                    colors = listOf(
-                        displayColor.copy(alpha = 0.85f),
-                        displayColor.copy(alpha = 0.35f)
-                    )
+                    colors = if (isSilhouette) {
+                        listOf(Color(0xFF1E272C), Color(0xFF101417))
+                    } else {
+                        listOf(
+                            displayColor.copy(alpha = 0.90f),
+                            secondaryColor.copy(alpha = 0.45f)
+                        )
+                    }
                 )
             )
-            .border(1.5.dp, displayColor, RoundedCornerShape(12.dp)),
+            .border(
+                1.5.dp,
+                if (isSilhouette) Color(0xFF455A64) else displayColor,
+                RoundedCornerShape(12.dp)
+            ),
         contentAlignment = Alignment.Center,
     ) {
-        // Detailed procedural canvas emblem
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
 
-            // Outer Pokeball ring
+            // Background subtle radial energy glow
             drawCircle(
-                color = Color.White.copy(alpha = 0.25f),
-                radius = w * 0.42f,
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        (if (isSilhouette) Color.Black else Color.White).copy(alpha = 0.35f),
+                        Color.Transparent
+                    ),
+                    center = Offset(w * 0.5f, h * 0.5f),
+                    radius = w * 0.55f
+                ),
+                radius = w * 0.55f,
+                center = Offset(w * 0.5f, h * 0.5f)
+            )
+
+            // Stylized Pokeball background watermark
+            drawCircle(
+                color = Color.White.copy(alpha = if (isSilhouette) 0.08f else 0.18f),
+                radius = w * 0.40f,
                 center = Offset(w * 0.5f, h * 0.5f),
-                style = Stroke(width = 3.dp.toPx())
+                style = Stroke(width = 2.5.dp.toPx())
             )
-
-            // Inner button
-            drawCircle(
-                color = Color.White.copy(alpha = 0.6f),
-                radius = w * 0.16f,
-                center = Offset(w * 0.5f, h * 0.5f)
-            )
-            drawCircle(
-                color = displayColor,
-                radius = w * 0.08f,
-                center = Offset(w * 0.5f, h * 0.5f)
-            )
-
-            // Horizontal dividing line
             drawLine(
-                color = Color.White.copy(alpha = 0.35f),
-                start = Offset(w * 0.08f, h * 0.5f),
-                end = Offset(w * 0.92f, h * 0.5f),
+                color = Color.White.copy(alpha = if (isSilhouette) 0.08f else 0.18f),
+                start = Offset(w * 0.10f, h * 0.5f),
+                end = Offset(w * 0.90f, h * 0.5f),
                 strokeWidth = 2.dp.toPx()
             )
+            drawCircle(
+                color = Color.White.copy(alpha = if (isSilhouette) 0.12f else 0.28f),
+                radius = w * 0.12f,
+                center = Offset(w * 0.5f, h * 0.5f)
+            )
+
+            // Procedural Pokémon Artwork Silhouette / Creature Geometry
+            val artPath = Path().apply {
+                val cx = w * 0.5f
+                val cy = h * 0.52f
+                val archetype = (id + name.length) % 6
+
+                when (archetype) {
+                    0 -> { // Quadruped (e.g. Bulbasaur, Eevee, Arcanine)
+                        moveTo(cx - w * 0.25f, cy + h * 0.22f) // back leg
+                        lineTo(cx - w * 0.28f, cy - h * 0.02f) // back
+                        cubicTo(cx - w * 0.20f, cy - h * 0.22f, cx - w * 0.05f, cy - h * 0.28f, cx + w * 0.12f, cy - h * 0.22f) // torso & neck
+                        lineTo(cx + w * 0.24f, cy - h * 0.28f) // ear/crest
+                        lineTo(cx + w * 0.28f, cy - h * 0.12f) // snout
+                        lineTo(cx + w * 0.20f, cy - h * 0.02f) // chin
+                        lineTo(cx + w * 0.22f, cy + h * 0.22f) // front leg
+                        lineTo(cx + w * 0.12f, cy + h * 0.22f)
+                        lineTo(cx + w * 0.08f, cy + h * 0.06f) // belly
+                        lineTo(cx - w * 0.12f, cy + h * 0.06f)
+                        lineTo(cx - w * 0.16f, cy + h * 0.22f)
+                        close()
+                    }
+                    1 -> { // Winged / Avian (e.g. Charizard, Pidgeot, Zapdos)
+                        moveTo(cx, cy + h * 0.22f) // tail
+                        lineTo(cx - w * 0.35f, cy - h * 0.10f) // left wing tip
+                        cubicTo(cx - w * 0.25f, cy - h * 0.24f, cx - w * 0.12f, cy - h * 0.12f, cx, cy - h * 0.18f) // neck
+                        lineTo(cx + w * 0.05f, cy - h * 0.30f) // crest/head
+                        lineTo(cx + w * 0.12f, cy - h * 0.18f)
+                        cubicTo(cx + w * 0.22f, cy - h * 0.12f, cx + w * 0.35f, cy - h * 0.24f, cx + w * 0.35f, cy - h * 0.10f) // right wing
+                        lineTo(cx + w * 0.08f, cy + h * 0.14f) // body
+                        close()
+                    }
+                    2 -> { // Bipedal Warrior / Dragon (e.g. Mewtwo, Lucario, Gengar)
+                        moveTo(cx - w * 0.18f, cy + h * 0.25f) // left foot
+                        lineTo(cx - w * 0.15f, cy + h * 0.02f) // hip
+                        lineTo(cx - w * 0.28f, cy - h * 0.08f) // left arm
+                        lineTo(cx - w * 0.14f, cy - h * 0.12f) // shoulder
+                        lineTo(cx - w * 0.12f, cy - h * 0.28f) // left ear/horn
+                        lineTo(cx, cy - h * 0.22f) // crown
+                        lineTo(cx + w * 0.12f, cy - h * 0.28f) // right ear/horn
+                        lineTo(cx + w * 0.14f, cy - h * 0.12f)
+                        lineTo(cx + w * 0.28f, cy - h * 0.08f) // right arm
+                        lineTo(cx + w * 0.15f, cy + h * 0.02f)
+                        lineTo(cx + w * 0.18f, cy + h * 0.25f) // right foot
+                        lineTo(cx, cy + h * 0.12f) // groin
+                        close()
+                    }
+                    3 -> { // Serpentine / Draconic (e.g. Rayquaza, Onix, Milotic, Gyarados)
+                        moveTo(cx - w * 0.30f, cy + h * 0.18f)
+                        cubicTo(cx - w * 0.28f, cy - h * 0.08f, cx - w * 0.10f, cy + h * 0.22f, cx, cy - h * 0.02f)
+                        cubicTo(cx + w * 0.10f, cy - h * 0.22f, cx + w * 0.28f, cy - h * 0.28f, cx + w * 0.28f, cy - h * 0.15f)
+                        cubicTo(cx + w * 0.20f, cy, cx - w * 0.05f, cy - h * 0.12f, cx - w * 0.12f, cy + h * 0.08f)
+                        close()
+                    }
+                    4 -> { // Aquatic / Fish / Cetacean (e.g. Squirtle, Kyogre, Vaporeon, Lapras)
+                        moveTo(cx - w * 0.32f, cy) // tail fin
+                        lineTo(cx - w * 0.18f, cy - h * 0.15f) // dorsal ridge
+                        cubicTo(cx - w * 0.05f, cy - h * 0.24f, cx + w * 0.18f, cy - h * 0.20f, cx + w * 0.28f, cy - h * 0.05f) // head
+                        lineTo(cx + w * 0.15f, cy + h * 0.12f) // flipper
+                        cubicTo(cx, cy + h * 0.22f, cx - w * 0.18f, cy + h * 0.12f, cx - w * 0.32f, cy)
+                        close()
+                    }
+                    else -> { // Spherical / Mineral / Ghost / Fairy (e.g. Gengar, Jigglypuff, Gastly, Solosis)
+                        val r = w * 0.25f
+                        moveTo(cx, cy - r)
+                        cubicTo(cx + r * 1.2f, cy - r, cx + r * 1.2f, cy + r, cx, cy + r)
+                        cubicTo(cx - r * 1.2f, cy + r, cx - r * 1.2f, cy - r, cx, cy - r)
+                        // ears / spikes
+                        moveTo(cx - r * 0.8f, cy - r * 0.4f)
+                        lineTo(cx - r * 1.1f, cy - r * 1.1f)
+                        lineTo(cx - r * 0.3f, cy - r * 0.9f)
+                        moveTo(cx + r * 0.8f, cy - r * 0.4f)
+                        lineTo(cx + r * 1.1f, cy - r * 1.1f)
+                        lineTo(cx + r * 0.3f, cy - r * 0.9f)
+                    }
+                }
+            }
+
+            // Draw creature silhouette / body
+            val creatureFill = if (isSilhouette) {
+                Color(0xFF1A1A1A)
+            } else {
+                Color.White.copy(alpha = 0.92f)
+            }
+            drawPath(artPath, creatureFill)
+
+            // Stylized inner accents / eye / glowing feature
+            if (!isSilhouette) {
+                val eyeColor = displayColor
+                val cx = w * 0.5f
+                val cy = h * 0.52f
+                drawCircle(
+                    color = eyeColor,
+                    radius = w * 0.035f,
+                    center = Offset(cx + w * 0.05f, cy - h * 0.08f)
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = w * 0.015f,
+                    center = Offset(cx + w * 0.06f, cy - h * 0.09f)
+                )
+            }
+
+            // Mega / Z-A / Gigantamax crest
+            if (isMega || isLegendsZa) {
+                val megaColor = if (isLegendsZa) Color(0xFF7E57C2) else Color(0xFFFF4081)
+                drawCircle(
+                    color = megaColor.copy(alpha = 0.9f),
+                    radius = w * 0.10f,
+                    center = Offset(w * 0.82f, h * 0.20f)
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = w * 0.04f,
+                    center = Offset(w * 0.82f, h * 0.20f)
+                )
+            } else if (isGigantamax) {
+                val gmaxColor = Color(0xFFE53935)
+                drawCircle(
+                    color = gmaxColor.copy(alpha = 0.85f),
+                    radius = w * 0.09f,
+                    center = Offset(w * 0.82f, h * 0.20f)
+                )
+            }
 
             // Female heart marking
-            if (isFemale && hasGenderDiff) {
+            if (isFemale && hasGenderDiff && !isSilhouette) {
                 val path = Path().apply {
                     val cx = w * 0.78f
                     val cy = h * 0.25f
@@ -190,7 +339,7 @@ fun PokemonProceduralBadge(
             }
 
             // Shiny stars sparkles
-            if (isShiny) {
+            if (isShiny && !isSilhouette) {
                 drawCircle(
                     color = Color(0xFFFFD700),
                     radius = 3.5.dp.toPx(),
@@ -204,13 +353,23 @@ fun PokemonProceduralBadge(
             }
         }
 
-        Text(
-            text = "#$id",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = Color.White,
-            modifier = Modifier.padding(top = 18.dp)
-        )
+        // Pokémon Number Badge
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(4.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color.Black.copy(alpha = 0.45f))
+                .padding(horizontal = 4.dp, vertical = 1.dp)
+        ) {
+            Text(
+                text = if (isSilhouette) "???" else "#$id",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White,
+                fontSize = 9.sp
+            )
+        }
     }
 }
 
@@ -550,7 +709,11 @@ fun PokemonListItem(
                     isShiny = isGlobalShiny,
                     isFemale = false,
                     hasGenderDiff = pokemon.hasGenderDiff,
-                    modifier = Modifier.size(52.dp)
+                    types = pokemon.types,
+                    isMega = pokemon.forms.any { it.isMega },
+                    isGigantamax = pokemon.forms.any { it.isGigantamax },
+                    isLegendsZa = pokemon.isLegendsZa || pokemon.forms.any { it.isLegendsZa },
+                    modifier = Modifier.size(58.dp)
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -578,13 +741,76 @@ fun PokemonListItem(
                                 )
                             }
                         }
-                        if (pokemon.hasGenderDiff) {
-                            Icon(
-                                imageVector = Icons.Default.Female,
-                                contentDescription = "Gender Differences",
-                                tint = Color(0xFFE91E63),
-                                modifier = Modifier.size(14.dp)
-                            )
+                        val genderType = pokemon.genderClassification
+                        when {
+                            genderType.isGenderless -> {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF90A4AE).copy(alpha = 0.2f))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "⚲ Genderless",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF78909C)
+                                    )
+                                }
+                            }
+                            genderType == PokemonGenderClassification.FemaleOnly -> {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFE91E63).copy(alpha = 0.15f))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "100% ♀",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE91E63)
+                                    )
+                                }
+                            }
+                            genderType == PokemonGenderClassification.MaleOnly -> {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF1976D2).copy(alpha = 0.15f))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "100% ♂",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1976D2)
+                                    )
+                                }
+                            }
+                            pokemon.hasGenderDiff -> {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFAB47BC).copy(alpha = 0.15f))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "♂/♀ Diff",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFAB47BC)
+                                    )
+                                }
+                            }
+                            else -> {
+                                Text(
+                                    text = "♂/♀",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
 
@@ -652,8 +878,8 @@ fun PokemonDetailSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var isShiny by remember { mutableStateOf(initialShiny) }
-    var selectedGenderFemale by remember { mutableStateOf(false) }
     var selectedFormIndex by remember { mutableIntStateOf(-1) } // -1 means Base Form
+    var selectedGenderFemale by remember(pokemon, selectedFormIndex) { mutableStateOf(pokemon.genderClassification == PokemonGenderClassification.FemaleOnly) }
 
     val activeName = if (selectedFormIndex >= 0 && selectedFormIndex < pokemon.forms.size) {
         pokemon.forms[selectedFormIndex].name
@@ -705,6 +931,8 @@ fun PokemonDetailSheet(
 
     val activeTotalStats = activeHp + activeAtk + activeDef + activeSpAtk + activeSpDef + activeSpd
     val activePrimaryColor = PokemonType.fromString(activeTypes.firstOrNull() ?: "")?.color ?: Color(0xFF90A4AE)
+    val activeForm = if (selectedFormIndex >= 0 && selectedFormIndex < pokemon.forms.size) pokemon.forms[selectedFormIndex] else null
+    val activeGenderClassification = activeForm?.genderClassification ?: pokemon.genderClassification
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -734,7 +962,11 @@ fun PokemonDetailSheet(
                         isShiny = isShiny,
                         isFemale = selectedGenderFemale,
                         hasGenderDiff = pokemon.hasGenderDiff,
-                        modifier = Modifier.size(70.dp)
+                        types = activeTypes,
+                        isMega = selectedFormIndex >= 0 && pokemon.forms.getOrNull(selectedFormIndex)?.isMega == true,
+                        isGigantamax = selectedFormIndex >= 0 && pokemon.forms.getOrNull(selectedFormIndex)?.isGigantamax == true,
+                        isLegendsZa = (selectedFormIndex >= 0 && pokemon.forms.getOrNull(selectedFormIndex)?.isLegendsZa == true) || pokemon.isLegendsZa,
+                        modifier = Modifier.size(90.dp)
                     )
 
                     Column {
@@ -801,66 +1033,129 @@ fun PokemonDetailSheet(
                     }
                 }
 
-                // Gender Toggle Card (if species has gender differences)
-                if (pokemon.hasGenderDiff) {
-                    Card(
+                // Gender Card & Toggle for All Pokémon & Forms
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(enabled = activeGenderClassification.canBeMale && activeGenderClassification.canBeFemale) {
+                            selectedGenderFemale = !selectedGenderFemale
+                        },
+                    colors = CardDefaults.cardColors(
+                        containerColor = when {
+                            activeGenderClassification.isGenderless -> MaterialTheme.colorScheme.surfaceContainerHigh
+                            activeGenderClassification == PokemonGenderClassification.FemaleOnly || (selectedGenderFemale && activeGenderClassification.canBeFemale) -> Color(0xFFF48FB1).copy(alpha = 0.35f)
+                            else -> Color(0xFF90CAF9).copy(alpha = 0.35f)
+                        }
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = when {
+                        activeGenderClassification.isGenderless -> null
+                        activeGenderClassification == PokemonGenderClassification.FemaleOnly || (selectedGenderFemale && activeGenderClassification.canBeFemale) -> androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFE91E63))
+                        else -> androidx.compose.foundation.BorderStroke(2.dp, Color(0xFF1976D2))
+                    }
+                ) {
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .clickable { selectedGenderFemale = !selectedGenderFemale },
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (selectedGenderFemale) Color(0xFFF48FB1).copy(alpha = 0.35f) else Color(0xFF90CAF9).copy(alpha = 0.35f)
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            2.dp,
-                            if (selectedGenderFemale) Color(0xFFE91E63) else Color(0xFF1976D2)
-                        )
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(10.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (selectedGenderFemale) Icons.Default.Female else Icons.Default.Male,
-                                contentDescription = "Gender",
-                                tint = if (selectedGenderFemale) Color(0xFFE91E63) else Color(0xFF1976D2)
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = if (selectedGenderFemale) "Female Form" else "Male Form",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                        when {
+                            activeGenderClassification.isGenderless -> {
+                                Text(
+                                    text = "⚲ Genderless",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            activeGenderClassification == PokemonGenderClassification.FemaleOnly -> {
+                                Icon(
+                                    imageVector = Icons.Default.Female,
+                                    contentDescription = "Female Only",
+                                    tint = Color(0xFFE91E63)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "Female (100% ♀)",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                            activeGenderClassification == PokemonGenderClassification.MaleOnly -> {
+                                Icon(
+                                    imageVector = Icons.Default.Male,
+                                    contentDescription = "Male Only",
+                                    tint = Color(0xFF1976D2)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "Male (100% ♂)",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                            else -> {
+                                Icon(
+                                    imageVector = if (selectedGenderFemale) Icons.Default.Female else Icons.Default.Male,
+                                    contentDescription = "Gender",
+                                    tint = if (selectedGenderFemale) Color(0xFFE91E63) else Color(0xFF1976D2)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = if (selectedGenderFemale) "Female ♀ (Tap)" else "Male ♂ (Tap)",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Gender Differences Lore Banner
-            if (pokemon.hasGenderDiff && pokemon.genderDiffDesc.isNotEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                    shape = RoundedCornerShape(10.dp),
-                ) {
+            // Gender Distribution & Differences Information Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                shape = RoundedCornerShape(10.dp),
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Female,
-                            contentDescription = "Gender Note",
-                            tint = Color(0xFFE91E63)
+                        Text(
+                            text = "Gender Ratio:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = pokemon.genderDiffDesc,
+                            text = activeGenderClassification.ratioDescription,
                             style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
                         )
+                    }
+
+                    if (pokemon.hasGenderDiff && pokemon.genderDiffDesc.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Female,
+                                contentDescription = "Gender Differences",
+                                tint = Color(0xFFE91E63),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Form Difference: ${pokemon.genderDiffDesc}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }
@@ -1118,7 +1413,9 @@ fun PokemonGuessingGame() {
                     isShiny = isAnswerSubmitted && isShinyChance,
                     isFemale = false,
                     hasGenderDiff = targetPokemon.hasGenderDiff,
-                    modifier = Modifier.size(90.dp)
+                    types = targetPokemon.types,
+                    isSilhouette = !isAnswerSubmitted,
+                    modifier = Modifier.size(110.dp)
                 )
 
                 Text(

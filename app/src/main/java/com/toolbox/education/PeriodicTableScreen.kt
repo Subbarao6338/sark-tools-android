@@ -1,5 +1,11 @@
 package com.toolbox.education
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.cos
+import kotlin.math.sin
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -504,6 +510,119 @@ private fun ElementListView(
     }
 }
 
+
+@Composable
+fun BohrAtomicModelView(
+    element: ElementDetails,
+    modifier: Modifier = Modifier,
+) {
+    val shells = element.bohrShells
+    val categoryColor = element.category.color
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Bohr Atomic Model (${element.number} Electrons)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+
+            Box(
+                modifier = Modifier
+                    .size(200.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF0F172A)),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    val maxRadius = size.width * 0.44f
+                    val shellCount = shells.size
+
+                    // Nucleus
+                    drawCircle(
+                        color = categoryColor,
+                        radius = 16.dp.toPx(),
+                        center = Offset(cx, cy)
+                    )
+
+                    // Draw electron shells and orbiting electrons
+                    shells.forEachIndexed { sIdx, electronCount ->
+                        val r = (maxRadius / (shellCount + 0.5f)) * (sIdx + 1.2f)
+
+                        // Orbit circle
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.22f),
+                            radius = r,
+                            center = Offset(cx, cy),
+                            style = Stroke(width = 1.2.dp.toPx())
+                        )
+
+                        // Electrons on this shell
+                        val step = (2 * Math.PI) / electronCount.coerceAtLeast(1)
+                        for (i in 0 until electronCount) {
+                            val angle = i * step + (sIdx * 0.5)
+                            val ex = (cx + r * cos(angle)).toFloat()
+                            val ey = (cy + r * sin(angle)).toFloat()
+
+                            drawCircle(
+                                color = Color(0xFF67E8F9),
+                                radius = 3.5.dp.toPx(),
+                                center = Offset(ex, ey)
+                            )
+                        }
+                    }
+                }
+
+                // Nucleus text: Symbol
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = element.symbol,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                    )
+                    Text(
+                        text = "+${element.number}",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.85f),
+                    )
+                }
+            }
+
+            // Shell distribution text
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Shells [K..Q]: ",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = shells.joinToString(" • "),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ElementDetailSheet(
@@ -568,6 +687,9 @@ fun ElementDetailSheet(
 
             HorizontalDivider()
 
+            // Bohr Atomic Model Visualizer
+            BohrAtomicModelView(element = element)
+
             // Key Properties Grid
             Text(
                 text = "Physical & Chemical Properties",
@@ -591,6 +713,10 @@ fun ElementDetailSheet(
                     DetailRow("Melting Point", element.meltingPointK?.let { "%.2f K (%.1f °C)".format(it, it - 273.15) } ?: "Unknown")
                     DetailRow("Boiling Point", element.boilingPointK?.let { "%.2f K (%.1f °C)".format(it, it - 273.15) } ?: "Unknown")
                     DetailRow("Density", element.density?.let { "$it g/cm³" } ?: "Unknown")
+                    DetailRow("Electronegativity (Pauling)", element.electronegativityPauling?.let { "$it" } ?: "Not defined")
+                    DetailRow("1st Ionization Energy", element.firstIonizationEnergyKjMol?.let { "$it kJ/mol" } ?: "N/A")
+                    DetailRow("Oxidation States", element.oxidationStatesDisplay)
+                    DetailRow("Atomic Radius", element.atomicRadiusPm?.let { "$it pm" } ?: "N/A")
                     DetailRow("Discovered By", element.discoveredBy)
                 }
             }
