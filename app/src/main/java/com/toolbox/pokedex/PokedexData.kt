@@ -33,6 +33,27 @@ enum class PokemonType(val typeName: String, val color: Color) {
 }
 
 @Serializable
+data class PokemonForm(
+    val name: String,
+    val types: List<String>,
+    val hp: Int,
+    val atk: Int,
+    val def: Int,
+    val spAtk: Int,
+    val spDef: Int,
+    val spd: Int,
+    val isMega: Boolean = false,
+    val isRegional: Boolean = false,
+    val isGigantamax: Boolean = false,
+    val isLegendsZa: Boolean = false,
+) {
+    val totalStats: Int get() = hp + atk + def + spAtk + spDef + spd
+
+    val primaryTypeColor: Color
+        get() = PokemonType.fromString(types.firstOrNull() ?: "")?.color ?: Color(0xFF90A4AE)
+}
+
+@Serializable
 data class Pokemon(
     val id: Int,
     val name: String,
@@ -47,6 +68,12 @@ data class Pokemon(
     val description: String = "",
     val height: String = "",
     val weight: String = "",
+    val color: String = "",
+    val hasGenderDiff: Boolean = false,
+    val genderDiffDesc: String = "",
+    val generation: Int = 1,
+    val isLegendsZa: Boolean = false,
+    val forms: List<PokemonForm> = emptyList(),
 ) {
     val totalStats: Int get() = hp + atk + def + spAtk + spDef + spd
 

@@ -183,6 +183,16 @@ enum class ToolCategory(
         tileColor = Color(0xFFF3E5F5),
         iconTint = Color(0xFF8E24AA),
     ),
+    Education(
+        label = "Education",
+        tileColor = Color(0xFFEDE7F6),
+        iconTint = Color(0xFF5E35B1),
+    ),
+    Games(
+        label = "Games",
+        tileColor = Color(0xFFFCE4EC),
+        iconTint = Color(0xFFC2185B),
+    ),
     Others(
         label = "Others",
         tileColor = Color(0xFFFBE9E7),
@@ -207,6 +217,8 @@ fun ToolCategory.themeTileColor(matchWithTheme: Boolean): Color {
         ToolCategory.Social -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.50f)
         ToolCategory.Sensors -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
         ToolCategory.Device -> MaterialTheme.colorScheme.surfaceContainerHighest
+        ToolCategory.Education -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        ToolCategory.Games -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.50f)
         ToolCategory.Others -> MaterialTheme.colorScheme.surfaceContainerHigh
     }
 }
@@ -228,6 +240,8 @@ fun ToolCategory.themeIconTint(matchWithTheme: Boolean): Color {
         ToolCategory.Social -> MaterialTheme.colorScheme.tertiary
         ToolCategory.Sensors -> MaterialTheme.colorScheme.secondary
         ToolCategory.Device -> MaterialTheme.colorScheme.primary
+        ToolCategory.Education -> MaterialTheme.colorScheme.primary
+        ToolCategory.Games -> MaterialTheme.colorScheme.secondary
         ToolCategory.Others -> MaterialTheme.colorScheme.secondary
     }
 }
@@ -594,7 +608,7 @@ val allTools = listOf(
         id = "random_generator",
         name = "Random/Dice",
         icon = Icons.Default.Casino,
-        category = ToolCategory.EverydayTools,
+        category = ToolCategory.Games,
         description = "Generate random numbers, flip coins, and roll dice. Set custom ranges for number generation. Features animated coin flip and dice roll for games and decision making.",
         searchKeywords = listOf("random", "coin", "flip", "dice", "number"),
     ),
@@ -629,7 +643,7 @@ val allTools = listOf(
         id = "heart_rate",
         name = "Heart Rate",
         icon = Icons.Default.Favorite,
-        category = ToolCategory.Others,
+        category = ToolCategory.Sensors,
         description = "Measure your heart rate by placing your finger over the camera lens. Uses photoplethysmography (PPG) to detect pulse from blood flow changes. For reference only, not a medical device.",
         requiresCamera = true,
         searchKeywords = listOf("heart", "pulse", "bpm", "heartbeat", "ppg", "monitor"),
@@ -764,7 +778,7 @@ val allTools = listOf(
         id = "formula_reference",
         name = "Formulas",
         icon = Icons.Default.Functions,
-        category = ToolCategory.Others,
+        category = ToolCategory.Education,
         description = "Browse and solve formulas from Math, Physics, Chemistry, and Finance. Enter known values to solve for any unknown with step-by-step substitution. Search, browse by subject, and favorite formulas.",
         searchKeywords = listOf("formula", "solver", "math", "physics", "chemistry", "finance", "equation", "reference"),
     ),
@@ -828,7 +842,7 @@ val allTools = listOf(
         id = "wire_gauge",
         name = "Wire Gauge",
         icon = Icons.Default.ElectricalServices,
-        category = ToolCategory.Others,
+        category = ToolCategory.Converters,
         description = "AWG wire gauge reference table with metric (mm², diameter) equivalents and approximate ampacity for chassis and power-transmission use.",
         searchKeywords = listOf("wire", "gauge", "awg", "ampacity", "amp", "current", "electrical", "cable", "mm2"),
     ),
@@ -836,7 +850,7 @@ val allTools = listOf(
         id = "paint_calculator",
         name = "Paint Calculator",
         icon = Icons.Default.Brush,
-        category = ToolCategory.Others,
+        category = ToolCategory.Calculators,
         description = "Estimate paint needed for a room. Enter dimensions, doors, windows, and number of coats — get liters or gallons required.",
         searchKeywords = listOf("paint", "wall", "coverage", "room", "gallon", "liter", "renovation"),
     ),
@@ -844,7 +858,7 @@ val allTools = listOf(
         id = "screw_bolt",
         name = "Screw & Bolt",
         icon = Icons.Default.Hardware,
-        category = ToolCategory.Others,
+        category = ToolCategory.Converters,
         description = "Reference table of metric (M3-M20) and imperial (UNC) fasteners with thread pitch, tap drill, clearance hole, and hex wrench size.",
         searchKeywords = listOf("screw", "bolt", "thread", "metric", "imperial", "tap", "drill", "hex", "wrench", "fastener", "unc"),
     ),
@@ -888,7 +902,7 @@ val allTools = listOf(
         id = "unit_circle",
         name = "Unit Circle",
         icon = Icons.Default.PieChart,
-        category = ToolCategory.Others,
+        category = ToolCategory.Education,
         description = "Interactive unit circle for visualizing trigonometric functions. Drag to set the angle and see sin, cos, and tan values along with degree and radian readouts.",
         searchKeywords = listOf("unit", "circle", "trigonometry", "trig", "sin", "cos", "tan", "angle", "degree", "radian", "math"),
     ),
@@ -980,7 +994,7 @@ val allTools = listOf(
         id = "eye_test",
         name = "Eye Test",
         icon = Icons.Default.Visibility,
-        category = ToolCategory.Others,
+        category = ToolCategory.Education,
         description = "Quick self-checks: a visual-acuity chart, an astigmatism fan, and a color-discrimination game. Not a medical diagnosis.",
         searchKeywords = listOf("eye", "test", "vision", "acuity", "snellen", "astigmatism", "color blind", "sight"),
     ),
@@ -1038,7 +1052,7 @@ val allTools = listOf(
         id = "duplicate_photos",
         name = "Duplicate Photos",
         icon = Icons.Default.Photo,
-        category = ToolCategory.Others,
+        category = ToolCategory.ImageTools,
         description = "Find and delete exact duplicate photos to free up space. All comparison happens on-device — nothing is uploaded.",
         searchKeywords = listOf("duplicate", "photos", "dupes", "clean", "space", "gallery", "storage"),
     ),
@@ -1046,7 +1060,7 @@ val allTools = listOf(
         id = "storage_analyzer",
         name = "Storage Analyzer",
         icon = Icons.Default.PieChart,
-        category = ToolCategory.Others,
+        category = ToolCategory.Device,
         description = "See what's using your storage — largest files, biggest folders, and a breakdown by file type. Delete space hogs with confirmation.",
         searchKeywords = listOf("storage", "analyzer", "space", "cleaner", "files", "folders", "disk", "usage"),
     ),
@@ -1135,7 +1149,7 @@ val allTools = listOf(
         id = "call_logs_analytics",
         name = "Call Analytics",
         icon = Icons.Default.Call,
-        category = ToolCategory.Others,
+        category = ToolCategory.Device,
         description = "Analyze incoming, outgoing, and missed call statistics, total conversation duration, and top frequent contacts.",
         searchKeywords = listOf("call", "calls", "log", "analytics", "stats", "duration", "contacts", "phone"),
     ),
@@ -1143,7 +1157,7 @@ val allTools = listOf(
         id = "messages_analytics",
         name = "SMS Analytics",
         icon = Icons.Default.Sms,
-        category = ToolCategory.Others,
+        category = ToolCategory.Social,
         description = "Visualize messaging volume, sent versus received ratio, and top SMS senders and conversation threads.",
         searchKeywords = listOf("sms", "messages", "analytics", "stats", "texts", "senders", "threads", "inbox"),
     ),
@@ -1151,7 +1165,7 @@ val allTools = listOf(
         id = "education_hub",
         name = "Education",
         icon = Icons.Default.School,
-        category = ToolCategory.Others,
+        category = ToolCategory.Education,
         description = "Comprehensive science, physics, chemistry laws, interactive 118-element periodic table, physical constants, and games.",
         searchKeywords = listOf("education", "school", "learn", "study", "physics", "chemistry", "quiz", "elements", "periodic table", "games"),
     ),
@@ -1159,9 +1173,9 @@ val allTools = listOf(
         id = "pokedex",
         name = "Pokédex",
         icon = Icons.Default.CatchingPokemon,
-        category = ToolCategory.Others,
-        description = "Complete National Pokédex with 898 Pokémon across all generations. Detailed base stats, elemental types, lore, and Who's That Pokémon mini-game.",
-        searchKeywords = listOf("pokedex", "pokemon", "game", "stats", "dex", "anime", "monsters", "quiz", "types"),
+        category = ToolCategory.Games,
+        description = "Complete National Pokédex with Pokémon across all generations including forms, shinies, and Legends: Z-A. Detailed base stats, elemental types, lore, and Who's That Pokémon mini-game.",
+        searchKeywords = listOf("pokedex", "pokemon", "game", "stats", "dex", "anime", "monsters", "quiz", "types", "shiny", "mega", "za"),
     ),
     // Newly Added Offline Utility Suite Tools
     ToolDefinition(
