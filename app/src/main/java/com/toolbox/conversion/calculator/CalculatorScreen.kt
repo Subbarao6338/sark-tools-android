@@ -152,7 +152,7 @@ fun CalculatorScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = state.result.ifEmpty { " " },
+                        text = if (state.showFraction && state.fractionResult.isNotBlank()) state.fractionResult else state.result.ifEmpty { " " },
                         fontSize = if (state.result.length > 12) 36.sp else 46.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -161,11 +161,70 @@ fun CalculatorScreen(
                         textAlign = TextAlign.End,
                         modifier = Modifier.horizontalScroll(rememberScrollState()),
                     )
+                    if (state.fractionResult.isNotBlank() && state.fractionResult != state.result) {
+                        Text(
+                            text = if (state.showFraction) "= ${state.result}" else "= ${state.fractionResult}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Memory & Fraction Utility Bar (MC, MR, M+, M-, Fraction toggle)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalButton(
+                onClick = { viewModel.memoryClear() },
+                modifier = Modifier.weight(1f).height(36.dp),
+                enabled = state.hasMemory,
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Text("MC", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            FilledTonalButton(
+                onClick = { viewModel.memoryRecall() },
+                modifier = Modifier.weight(1f).height(36.dp),
+                enabled = state.hasMemory,
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Text("MR", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            FilledTonalButton(
+                onClick = { viewModel.memoryAdd() },
+                modifier = Modifier.weight(1f).height(36.dp),
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Text("M+", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            FilledTonalButton(
+                onClick = { viewModel.memorySubtract() },
+                modifier = Modifier.weight(1f).height(36.dp),
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Text("M−", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            FilledTonalButton(
+                onClick = { viewModel.toggleFraction() },
+                modifier = Modifier.weight(1.1f).height(36.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = if (state.showFraction) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
+            ) {
+                Text("a b/c", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Tool bar: Mode toggle (Basic vs Scientific) + Angle Mode (DEG/RAD) + Use Result
         Row(

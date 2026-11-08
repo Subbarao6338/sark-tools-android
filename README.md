@@ -15,6 +15,10 @@ A privacy-respecting, offline-first Android utility suite with 60+ tools across 
 |:---------:|:------------:|:-------:|:--------:|:---------:|
 | ![Dashboard](docs/screenshots/home.png) | ![Bubble Level](docs/screenshots/bubble-level.png) | ![Compass](docs/screenshots/compass.png) | ![Settings](docs/screenshots/settings.png) | ![Favorites](docs/screenshots/favorites.png) |
 
+| Equation Solver | Geometry & Construction | Investment & TVM | Perchance AI Studio |
+|:---------------:|:-----------------------:|:----------------:|:-------------------:|
+| ![Equation Solver](docs/screenshots/equation-solver.png) | ![Geometry](docs/screenshots/geometry.png) | ![Investment](docs/screenshots/investment.png) | ![Perchance AI](docs/screenshots/perchance-ai.png) |
+
 ## Features
 
 ### Science, Education & Games
@@ -44,14 +48,27 @@ A privacy-respecting, offline-first Android utility suite with 60+ tools across 
 | Vibrometer | Vibration intensity from accelerometer |
 | Spectrum Analyzer | Real-time audio frequency spectrum via FFT |
 
-### Conversion
+### Calculators & Mathematics
+*(Inspired by All-in-One Calculator, OneCalc Everyday Calculation, and Crystal Calculator)*
+
 | Tool | Description |
 |------|-------------|
+| **Scientific Calculator** | Precision calculator with trig, logarithms, roots, real-time expression evaluation, tape history, full memory registers (MC, MR, M+, M-), and fractional result conversion (`a b/c`). |
+| **Equation Solver** | Solves Linear equations ($ax + b = 0$), $2 \times 2$ systems of linear equations via Cramer's Rule, Quadratic equations ($ax^2 + bx + c = 0$) with discriminant $\Delta$ and real/complex roots, and Cubic equations ($ax^3 + bx^2 + cx + d = 0$) using exact Cardano's method. |
+| **Geometry & Construction** | Right triangle solver (Pythagoras, 3-4-5 rule), 2D shapes (Circle, Rectangle, Triangle, Trapezoid with area/perimeter), 3D solids (Sphere, Cylinder, Cone, Rectangular Prism with surface area/volume), and Construction estimators (Tile calculator with waste buffer %, Concrete slab volume & required dry premix bags). |
+| **Investment & TVM** | Return on Investment (ROI) & annualized CAGR, Time Value of Money (TVM) compound wealth growth, savings goal planner, and 30-year fixed mortgage amortization with monthly principal & interest breakdown. |
+| **GPA & CGPA Calculator** | College & school GPA calculator supporting dynamic multi-course credits, standard grade scales (A to F), cumulative CGPA combiner, and Target GPA planner. |
+| **Loan & EMI Calculator** | Monthly repayment calculator with amortization breakdown, total interest cost, and quick preset amount chips. |
 | Unit Converter | 17+ dedicated multi-unit conversion screens across length, weight, temperature, volume, area, speed, pressure, energy, power, and more |
-| Percentage Calculator | Percent of, percent change, and reverse calculations |
-| Tip Calculator | Bill splitting with custom tip % |
-| Number Base | Convert between binary, octal, decimal, and hex |
-| Currency Converter | Offline benchmark currency conversion |
+| Percentage Calculator | Percent of, percent change, markups/discounts, and reverse calculations |
+| Tip Calculator | Bill splitting with custom tip %, tax inclusion, and round-up |
+| Number Base | Convert between binary, octal, decimal, and hex with bitwise previews |
+| Currency Converter | Offline benchmark currency conversion with editable exchange rates |
+
+### AI Tools (Perchance AI Studio)
+| Tool | Description |
+|------|-------------|
+| **Perchance AI Studio** | Hybrid offline-first generative tool suite inspired by Perchance AI. Includes an offline procedural generation engine for rich character backstories, cinematographic image prompts (35mm anamorphic, neon noir, hyperrealism), narrative story hooks, and Kotlin coding challenges—plus direct one-touch launchers to the official Perchance AI Web Hub (AI Text Generator, AI Photo Generator, AI Character Chat, and Generator Studio) with zero telemetry and total privacy. |
 
 ### Everyday
 | Tool | Description |

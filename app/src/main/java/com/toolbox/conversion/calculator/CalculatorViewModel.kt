@@ -29,6 +29,10 @@ import kotlin.math.tanh
 data class CalculatorUiState(
     val expression: String = "",
     val result: String = "",
+    val fractionResult: String = "",
+    val showFraction: Boolean = false,
+    val memoryValue: Double = 0.0,
+    val hasMemory: Boolean = false,
     val useDegrees: Boolean = true,
     val history: List<Pair<String, String>> = emptyList(),
 )
@@ -44,7 +48,7 @@ class CalculatorViewModel : ViewModel() {
     }
 
     fun onClear() {
-        _state.update { it.copy(expression = "", result = "") }
+        _state.update { it.copy(expression = "", result = "", fractionResult = "") }
     }
 
     fun onBackspace() {
@@ -78,6 +82,41 @@ class CalculatorViewModel : ViewModel() {
                     result = "",
                 )
             }
+            tryEvaluate()
+        }
+    }
+
+    fun toggleFraction() {
+        _state.update { it.copy(showFraction = !it.showFraction) }
+    }
+
+    fun memoryClear() {
+        _state.update { it.copy(memoryValue = 0.0, hasMemory = false) }
+    }
+
+    fun memoryRecall() {
+        val mem = _state.value.memoryValue
+        val memStr = if (mem == mem.toLong().toDouble()) mem.toLong().toString() else mem.toString()
+        onInput(memStr)
+    }
+
+    fun memoryAdd() {
+        val currentNum = _state.value.result.toDoubleOrNull()
+            ?: _state.value.expression.toDoubleOrNull()
+            ?: 0.0
+        _state.update {
+            val newMem = it.memoryValue + currentNum
+            it.copy(memoryValue = newMem, hasMemory = true)
+        }
+    }
+
+    fun memorySubtract() {
+        val currentNum = _state.value.result.toDoubleOrNull()
+            ?: _state.value.expression.toDoubleOrNull()
+            ?: 0.0
+        _state.update {
+            val newMem = it.memoryValue - currentNum
+            it.copy(memoryValue = newMem, hasMemory = true)
         }
     }
 
@@ -111,17 +150,17 @@ class CalculatorViewModel : ViewModel() {
     private fun tryEvaluate() {
         val expr = _state.value.expression
         if (expr.isBlank()) {
-            _state.update { it.copy(result = "") }
+            _state.update { it.copy(result = "", fractionResult = "") }
             return
         }
         try {
             val result = evaluate(expr, _state.value.useDegrees)
             if (result.isNaN()) {
-                _state.update { it.copy(result = "NaN") }
+                _state.update { it.copy(result = "NaN", fractionResult = "") }
                 return
             }
             if (result.isInfinite()) {
-                _state.update { it.copy(result = if (result > 0) "∞" else "-∞") }
+                _state.update { it.copy(result = if (result > 0) "∞" else "-∞", fractionResult = "") }
                 return
             }
             val formatted = if (result == result.toLong().toDouble() && abs(result) < 1e14) {
@@ -129,10 +168,44 @@ class CalculatorViewModel : ViewModel() {
             } else {
                 "%.10f".format(result).trimEnd('0').trimEnd('.')
             }
-            _state.update { it.copy(result = formatted) }
+            val frac = toFraction(result)
+            _state.update { it.copy(result = formatted, fractionResult = frac) }
         } catch (_: Exception) {
-            _state.update { it.copy(result = "") }
+            _state.update { it.copy(result = "", fractionResult = "") }
         }
+    }
+
+    private fun toFraction(valIn: Double, maxDenominator: Long = 1000L): String {
+        if (valIn.isNaN() || valIn.isInfinite() || abs(valIn) > 1e7) return ""
+        if (valIn == 0.0) return "0"
+        val sign = if (valIn < 0) "-" else ""
+        val v = abs(valIn)
+        val whole = v.toLong()
+        val frac = v - whole
+        if (frac < 1e-9) return "$sign$whole"
+
+        var p0 = 0L
+        var q0 = 1L
+        var p1 = 1L
+        var q1 = 0L
+        var x = frac
+        while (true) {
+            val a = x.toLong()
+            val p2 = a * p1 + p0
+            val q2 = a * q1 + q0
+            if (q2 > maxDenominator) break
+            p0 = p1
+            q0 = q1
+            p1 = p2
+            q1 = q2
+            val diff = x - a
+            if (abs(diff) < 1e-9) break
+            x = 1.0 / diff
+        }
+        if (q1 == 0L || q1 == 1L) return "$sign${whole * q1 + p1}"
+        val num = whole * q1 + p1
+        val den = q1
+        return "$sign$num/$den"
     }
 
     private fun evaluate(expr: String, useDegrees: Boolean): Double {

@@ -27,6 +27,9 @@ import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Pin
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Grade
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.EditNote
@@ -1394,5 +1397,46 @@ val allTools = listOf(
         category = ToolCategory.Utilities,
         description = "Create custom home screen shortcuts with custom colors & labels, and manage 20+ predefined 1-tap app shortcuts.",
         searchKeywords = listOf("shortcut", "shortcuts", "pin", "launcher", "creator", "manager", "icon"),
+    ),
+    // All-in-One Calculator Suite & Perchance AI Additions
+    ToolDefinition(
+        id = "equation_solver",
+        name = "Equation Solver",
+        icon = Icons.Default.Functions,
+        category = ToolCategory.Calculators,
+        description = "Solve linear equations, 2x2 linear systems with Cramer's Rule, quadratic equations (real & complex conjugate roots), and cubic equations with Cardano's method.",
+        searchKeywords = listOf("equation", "solver", "algebra", "quadratic", "linear", "system", "cramer", "cubic", "roots", "math"),
+    ),
+    ToolDefinition(
+        id = "geometry_calculator",
+        name = "Geometry & Shapes",
+        icon = Icons.Default.Architecture,
+        category = ToolCategory.Calculators,
+        description = "Right triangle (3-4-5 rule, Pythagoras), 2D shapes area & perimeter, 3D bodies volume & surface, and construction concrete & tile estimators.",
+        searchKeywords = listOf("geometry", "shape", "triangle", "pythagoras", "circle", "cylinder", "sphere", "tile", "concrete", "construction"),
+    ),
+    ToolDefinition(
+        id = "investment_calculator",
+        name = "Investment & TVM",
+        icon = Icons.Default.AccountBalanceWallet,
+        category = ToolCategory.Calculators,
+        description = "ROI & annualized CAGR, time value of money (TVM) compound growth, savings target goals, and fixed mortgage amortization.",
+        searchKeywords = listOf("investment", "tvm", "compound", "interest", "roi", "cagr", "wealth", "mortgage", "savings", "goal", "finance"),
+    ),
+    ToolDefinition(
+        id = "gpa_calculator",
+        name = "GPA / CGPA",
+        icon = Icons.Default.Grade,
+        category = ToolCategory.Education,
+        description = "Calculate semester GPA, cumulative CGPA across terms, and project required grades with the target GPA planner.",
+        searchKeywords = listOf("gpa", "cgpa", "grade", "college", "university", "credits", "semester", "education", "target gpa"),
+    ),
+    ToolDefinition(
+        id = "perchance_ai",
+        name = "Perchance AI",
+        icon = Icons.Default.AutoAwesome,
+        category = ToolCategory.Utilities,
+        description = "Offline procedural generator inspired by Perchance engine (characters, AI art prompts, story hooks, code challenges) and direct Perchance Web Hub launcher.",
+        searchKeywords = listOf("perchance", "ai", "generator", "prompt", "creative", "story", "art", "character", "chat"),
     ),
 )

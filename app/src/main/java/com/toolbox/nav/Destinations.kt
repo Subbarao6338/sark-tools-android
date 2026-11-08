@@ -194,3 +194,10 @@ import kotlinx.serialization.Serializable
 @Serializable object WidgetsManager
 @Serializable object QuickTilesManager
 @Serializable object ShortcutsManager
+
+// All-in-One Suite & Perchance AI Additions
+@Serializable object EquationSolver
+@Serializable object GeometryCalculator
+@Serializable object InvestmentCalculator
+@Serializable object GpaCalculator
+@Serializable object PerchanceAi
