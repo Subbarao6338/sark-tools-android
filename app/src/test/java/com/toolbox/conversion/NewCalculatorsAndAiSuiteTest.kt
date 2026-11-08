@@ -27,7 +27,7 @@ class NewCalculatorsAndAiSuiteTest {
         assertEquals(ToolCategory.Calculators, eqTool.category)
 
         val aiTool = allTools.first { it.id == "perchance_ai" }
-        assertEquals(ToolCategory.Utilities, aiTool.category)
+        assertEquals(ToolCategory.AiTools, aiTool.category)
     }
 
     @Test

@@ -113,6 +113,10 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.HourglassBottom
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
@@ -198,6 +202,11 @@ enum class ToolCategory(
         tileColor = Color(0xFFFCE4EC),
         iconTint = Color(0xFFC2185B),
     ),
+    AiTools(
+        label = "AI tools",
+        tileColor = Color(0xFFEDE7F6),
+        iconTint = Color(0xFF7C4DFF),
+    ),
     Others(
         label = "Others",
         tileColor = Color(0xFFFBE9E7),
@@ -224,6 +233,7 @@ fun ToolCategory.themeTileColor(matchWithTheme: Boolean): Color {
         ToolCategory.Device -> MaterialTheme.colorScheme.surfaceContainerHighest
         ToolCategory.Education -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
         ToolCategory.Games -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.50f)
+        ToolCategory.AiTools -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.60f)
         ToolCategory.Others -> MaterialTheme.colorScheme.surfaceContainerHigh
     }
 }
@@ -247,6 +257,7 @@ fun ToolCategory.themeIconTint(matchWithTheme: Boolean): Color {
         ToolCategory.Device -> MaterialTheme.colorScheme.primary
         ToolCategory.Education -> MaterialTheme.colorScheme.primary
         ToolCategory.Games -> MaterialTheme.colorScheme.secondary
+        ToolCategory.AiTools -> MaterialTheme.colorScheme.primary
         ToolCategory.Others -> MaterialTheme.colorScheme.secondary
     }
 }
@@ -1435,8 +1446,40 @@ val allTools = listOf(
         id = "perchance_ai",
         name = "Perchance AI",
         icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Utilities,
-        description = "Offline procedural generator inspired by Perchance engine (characters, AI art prompts, story hooks, code challenges) and direct Perchance Web Hub launcher.",
+        category = ToolCategory.AiTools,
+        description = "Offline procedural generator inspired by Perchance engine (characters, AI art prompts, story hooks, code challenges) and integrated in-app Web Hub launcher.",
         searchKeywords = listOf("perchance", "ai", "generator", "prompt", "creative", "story", "art", "character", "chat"),
+    ),
+    ToolDefinition(
+        id = "perchance_text_gen",
+        name = "Perchance Text",
+        icon = Icons.Default.Draw,
+        category = ToolCategory.AiTools,
+        description = "AI text generator and interactive story writing sandbox running directly in-app with multi-profile support.",
+        searchKeywords = listOf("perchance", "ai", "text", "story", "generator", "writing", "fiction", "novel"),
+    ),
+    ToolDefinition(
+        id = "perchance_photo_gen",
+        name = "Perchance Photo",
+        icon = Icons.Default.Image,
+        category = ToolCategory.AiTools,
+        description = "AI image and art generator powered by text-to-image models directly in-app with multi-profile support.",
+        searchKeywords = listOf("perchance", "ai", "photo", "image", "art", "picture", "diffusion", "generator"),
+    ),
+    ToolDefinition(
+        id = "perchance_chat",
+        name = "Perchance Chat",
+        icon = Icons.AutoMirrored.Filled.Chat,
+        category = ToolCategory.AiTools,
+        description = "AI character conversational playground and roleplay chat directly in-app with multi-profile support.",
+        searchKeywords = listOf("perchance", "ai", "chat", "character", "bot", "assistant", "roleplay"),
+    ),
+    ToolDefinition(
+        id = "huggingface_ai",
+        name = "Hugging Face AI",
+        icon = Icons.Default.SmartToy,
+        category = ToolCategory.AiTools,
+        description = "Direct access to Hugging Face AI models, HuggingChat, AI Spaces, and assistants inside the app with multi-profile support.",
+        searchKeywords = listOf("huggingface", "ai", "huggingchat", "spaces", "models", "llm", "chat", "assistant", "ml"),
     ),
 )

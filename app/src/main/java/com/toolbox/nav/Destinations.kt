@@ -201,3 +201,9 @@ import kotlinx.serialization.Serializable
 @Serializable object InvestmentCalculator
 @Serializable object GpaCalculator
 @Serializable object PerchanceAi
+
+// AI Tools Category Additions
+@Serializable object PerchanceTextGen
+@Serializable object PerchancePhotoGen
+@Serializable object PerchanceChat
+@Serializable object HuggingFaceAi

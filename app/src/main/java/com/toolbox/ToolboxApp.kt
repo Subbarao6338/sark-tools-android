@@ -313,6 +313,11 @@ import com.toolbox.nav.GeometryCalculator
 import com.toolbox.nav.InvestmentCalculator
 import com.toolbox.nav.GpaCalculator
 import com.toolbox.nav.PerchanceAi
+import com.toolbox.nav.PerchanceTextGen
+import com.toolbox.nav.PerchancePhotoGen
+import com.toolbox.nav.PerchanceChat
+import com.toolbox.nav.HuggingFaceAi
+import com.toolbox.ai.AiWebViewScreen
 
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -590,7 +595,79 @@ fun ToolboxApp(
                     composable<GeometryCalculator> { ToolScreen("Geometry & Shapes", "geometry_calculator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.geometry.GeometryCalculatorScreen() } }
                     composable<InvestmentCalculator> { ToolScreen("Investment & TVM", "investment_calculator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.financial.InvestmentCalculatorScreen() } }
                     composable<GpaCalculator> { ToolScreen("GPA / CGPA", "gpa_calculator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.gpa.GpaCalculatorScreen() } }
-                    composable<PerchanceAi> { ToolScreen("Perchance AI", "perchance_ai", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.ai.PerchanceAiScreen() } }
+                    composable<PerchanceAi> {
+                        ToolScreen("Perchance AI", "perchance_ai", navController, this@SharedTransitionLayout, this@composable) {
+                            com.toolbox.ai.PerchanceAiScreen(
+                                onLaunchWebView = { url, _, _ ->
+                                    when {
+                                        url.contains("text-generator") || url.contains("story") -> navController.navigate(PerchanceTextGen)
+                                        url.contains("photo-generator") || url.contains("art") || url.contains("anime") -> navController.navigate(PerchancePhotoGen)
+                                        url.contains("chat") -> navController.navigate(PerchanceChat)
+                                        else -> navController.navigate(PerchanceTextGen)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    composable<PerchanceTextGen> {
+                        ToolScreen("Perchance Text", "perchance_text_gen", navController, this@SharedTransitionLayout, this@composable) {
+                            AiWebViewScreen(
+                                initialUrl = "https://perchance.org/ai-text-generator",
+                                toolKey = "perchance_text_gen",
+                                toolName = "Perchance AI Text Generator",
+                                defaultPresets = listOf(
+                                    "Text Gen" to "https://perchance.org/ai-text-generator",
+                                    "Story Gen" to "https://perchance.org/ai-story-generator",
+                                    "Character Bio" to "https://perchance.org/character-generator",
+                                    "Writing Prompt" to "https://perchance.org/writing-prompt-generator",
+                                ),
+                            )
+                        }
+                    }
+                    composable<PerchancePhotoGen> {
+                        ToolScreen("Perchance Photo", "perchance_photo_gen", navController, this@SharedTransitionLayout, this@composable) {
+                            AiWebViewScreen(
+                                initialUrl = "https://perchance.org/ai-photo-generator",
+                                toolKey = "perchance_photo_gen",
+                                toolName = "Perchance AI Photo Generator",
+                                defaultPresets = listOf(
+                                    "Photo Gen" to "https://perchance.org/ai-photo-generator",
+                                    "Anime Gen" to "https://perchance.org/ai-anime-generator",
+                                    "Art Gen" to "https://perchance.org/ai-art-generator",
+                                    "Text to Image" to "https://perchance.org/text-to-image-plugin",
+                                ),
+                            )
+                        }
+                    }
+                    composable<PerchanceChat> {
+                        ToolScreen("Perchance Chat", "perchance_chat", navController, this@SharedTransitionLayout, this@composable) {
+                            AiWebViewScreen(
+                                initialUrl = "https://perchance.org/ai-chat",
+                                toolKey = "perchance_chat",
+                                toolName = "Perchance AI Chat",
+                                defaultPresets = listOf(
+                                    "AI Chat" to "https://perchance.org/ai-chat",
+                                    "Character Chat" to "https://perchance.org/ai-character-chat",
+                                    "Roleplay Hub" to "https://perchance.org/ai-rpg",
+                                ),
+                            )
+                        }
+                    }
+                    composable<HuggingFaceAi> {
+                        ToolScreen("Hugging Face AI", "huggingface_ai", navController, this@SharedTransitionLayout, this@composable) {
+                            AiWebViewScreen(
+                                initialUrl = "https://huggingface.co/chat",
+                                toolKey = "huggingface_ai",
+                                toolName = "Hugging Face AI",
+                                defaultPresets = listOf(
+                                    "HuggingChat" to "https://huggingface.co/chat",
+                                    "Models" to "https://huggingface.co/models",
+                                    "Spaces" to "https://huggingface.co/spaces",
+                                    "Datasets" to "https://huggingface.co/datasets",
+                                ),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -857,5 +934,9 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "investment_calculator" -> InvestmentCalculator
     "gpa_calculator" -> GpaCalculator
     "perchance_ai" -> PerchanceAi
+    "perchance_text_gen" -> PerchanceTextGen
+    "perchance_photo_gen" -> PerchancePhotoGen
+    "perchance_chat" -> PerchanceChat
+    "huggingface_ai" -> HuggingFaceAi
     else -> null
 }
