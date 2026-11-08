@@ -136,6 +136,10 @@ import kotlinx.serialization.Serializable
 @Serializable object MessagesAnalytics
 
 @Serializable object EducationHub
+@Serializable object PeriodicTableNav
+@Serializable object ChemistryGamesNav
+@Serializable object ScienceLabsNav
+@Serializable object BrainGamesNav
 @Serializable object Pokedex
 
 // Newly Added Tools

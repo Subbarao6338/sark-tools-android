@@ -2062,3 +2062,163 @@ object PeriodicTableData {
         }
     }
 }
+
+val ElementDetails.bohrShells: List<Int>
+    get() {
+        val total = number
+        return when {
+            total <= 2 -> listOf(total)
+            total <= 10 -> listOf(2, total - 2)
+            total <= 18 -> listOf(2, 8, total - 10)
+            total <= 36 -> {
+                val rem = total - 18
+                if (rem <= 10) listOf(2, 8, 8 + rem - minOf(rem, 2), minOf(rem, 2))
+                else listOf(2, 8, 18, rem - 10)
+            }
+            total <= 54 -> {
+                val rem = total - 36
+                if (rem <= 10) listOf(2, 8, 18, 8 + rem - minOf(rem, 2), minOf(rem, 2))
+                else listOf(2, 8, 18, 18, rem - 10)
+            }
+            total <= 86 -> {
+                val rem = total - 54
+                if (rem <= 14) listOf(2, 8, 18, 18 + rem, 8, 2)
+                else if (rem <= 24) listOf(2, 8, 18, 32, 8 + rem - 14 - 2, 2)
+                else listOf(2, 8, 18, 32, 18, rem - 24)
+            }
+            else -> {
+                val rem = total - 86
+                if (rem <= 14) listOf(2, 8, 18, 32, 18 + rem, 8, 2)
+                else if (rem <= 24) listOf(2, 8, 18, 32, 32, 8 + rem - 14 - 2, 2)
+                else listOf(2, 8, 18, 32, 32, 18, rem - 24)
+            }
+        }
+    }
+
+val ElementDetails.electronegativityPauling: Double?
+    get() = when (number) {
+        1 -> 2.20
+        2 -> null
+        3 -> 0.98
+        4 -> 1.57
+        5 -> 2.04
+        6 -> 2.55
+        7 -> 3.04
+        8 -> 3.44
+        9 -> 3.98
+        10 -> null
+        11 -> 0.93
+        12 -> 1.31
+        13 -> 1.61
+        14 -> 1.90
+        15 -> 2.19
+        16 -> 2.58
+        17 -> 3.16
+        18 -> null
+        19 -> 0.82
+        20 -> 1.00
+        26 -> 1.83
+        29 -> 1.90
+        30 -> 1.65
+        35 -> 2.96
+        47 -> 1.93
+        79 -> 2.54
+        80 -> 2.00
+        92 -> 1.38
+        else -> null
+    }
+
+val ElementDetails.firstIonizationEnergyKjMol: Double?
+    get() = when (number) {
+        1 -> 1312.0
+        2 -> 2372.3
+        3 -> 520.2
+        4 -> 899.5
+        5 -> 800.6
+        6 -> 1086.5
+        7 -> 1402.3
+        8 -> 1313.9
+        9 -> 1681.0
+        10 -> 2080.7
+        11 -> 495.8
+        12 -> 737.7
+        13 -> 577.5
+        14 -> 786.5
+        15 -> 1011.8
+        16 -> 999.6
+        17 -> 1251.2
+        18 -> 1520.6
+        19 -> 418.8
+        20 -> 589.8
+        26 -> 762.5
+        29 -> 745.5
+        30 -> 906.4
+        35 -> 1139.9
+        47 -> 731.0
+        79 -> 890.1
+        80 -> 1007.1
+        else -> null
+    }
+
+val ElementDetails.oxidationStatesDisplay: String
+    get() = when (number) {
+        1 -> "-1, +1"
+        2 -> "0"
+        3 -> "+1"
+        4 -> "+2"
+        5 -> "+3"
+        6 -> "-4, -2, 0, +2, +4"
+        7 -> "-3, -2, -1, +1, +2, +3, +4, +5"
+        8 -> "-2, -1, +2"
+        9 -> "-1"
+        10 -> "0"
+        11 -> "+1"
+        12 -> "+2"
+        13 -> "+3"
+        14 -> "-4, +2, +4"
+        15 -> "-3, +3, +5"
+        16 -> "-2, +2, +4, +6"
+        17 -> "-1, +1, +3, +5, +7"
+        18 -> "0"
+        19 -> "+1"
+        20 -> "+2"
+        26 -> "+2, +3, +6"
+        29 -> "+1, +2"
+        30 -> "+2"
+        47 -> "+1"
+        79 -> "+1, +3"
+        80 -> "+1, +2"
+        92 -> "+3, +4, +5, +6"
+        else -> if (group in 1..2) "+$group" else if (group == 18) "0" else "+2, +3"
+    }
+
+val ElementDetails.atomicRadiusPm: Int?
+    get() = when (number) {
+        1 -> 53
+        2 -> 31
+        3 -> 167
+        4 -> 112
+        5 -> 87
+        6 -> 67
+        7 -> 56
+        8 -> 48
+        9 -> 42
+        10 -> 38
+        11 -> 190
+        12 -> 145
+        13 -> 118
+        14 -> 111
+        15 -> 98
+        16 -> 88
+        17 -> 79
+        18 -> 71
+        19 -> 243
+        20 -> 194
+        26 -> 156
+        29 -> 145
+        30 -> 142
+        47 -> 165
+        79 -> 174
+        80 -> 171
+        else -> null
+    }

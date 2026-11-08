@@ -226,6 +226,14 @@ import com.toolbox.telephony.call.CallLogsAnalyticsScreen
 import com.toolbox.pokedex.PokedexScreen
 import com.toolbox.telephony.sms.MessagesAnalyticsScreen
 import com.toolbox.education.EducationHubScreen
+import com.toolbox.education.PeriodicTableScreen
+import com.toolbox.education.ChemistryGamesScreen
+import com.toolbox.education.ScienceLabsScreen
+import com.toolbox.education.BrainGamesScreen
+import com.toolbox.nav.PeriodicTableNav
+import com.toolbox.nav.ChemistryGamesNav
+import com.toolbox.nav.ScienceLabsNav
+import com.toolbox.nav.BrainGamesNav
 import com.toolbox.nav.EducationHub
 import com.toolbox.nav.ImageEditor
 import com.toolbox.nav.AudioEditor
@@ -508,6 +516,10 @@ fun ToolboxApp(
                     composable<ScreenDimmer> { ToolScreen("Screen Dimmer", "screen_dimmer", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is ScreenDimmer) { ScreenDimmerScreen() } }
                     composable<CallLogsAnalytics> { ToolScreen("Call Logs Analytics", "call_logs_analytics", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is CallLogsAnalytics, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { CallLogsAnalyticsScreen() } }
                     composable<EducationHub> { ToolScreen("Education", "education_hub", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is EducationHub, accent = androidx.compose.ui.graphics.Color(0xFF5E35B1)) { EducationHubScreen() } }
+                    composable<PeriodicTableNav> { ToolScreen("Periodic Table", "periodic_table", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is PeriodicTableNav, accent = androidx.compose.ui.graphics.Color(0xFF00897B)) { PeriodicTableScreen() } }
+                    composable<ChemistryGamesNav> { ToolScreen("Chemistry Games", "chemistry_games", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is ChemistryGamesNav, accent = androidx.compose.ui.graphics.Color(0xFFD81B60)) { ChemistryGamesScreen() } }
+                    composable<ScienceLabsNav> { ToolScreen("Science Labs", "science_labs", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is ScienceLabsNav, accent = androidx.compose.ui.graphics.Color(0xFF3949AB)) { ScienceLabsScreen() } }
+                    composable<BrainGamesNav> { ToolScreen("Brain & IQ Games", "brain_games", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is BrainGamesNav, accent = androidx.compose.ui.graphics.Color(0xFF8E24AA)) { BrainGamesScreen() } }
                     composable<Pokedex> { ToolScreen("Pokédex", "pokedex", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is Pokedex, accent = androidx.compose.ui.graphics.Color(0xFFE53935)) { PokedexScreen() } }
                     composable<MessagesAnalytics> { ToolScreen("Messages Analytics", "messages_analytics", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is MessagesAnalytics, accent = androidx.compose.ui.graphics.Color(0xFFF57F17)) { MessagesAnalyticsScreen() } }
 
@@ -784,6 +796,10 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "call_logs_analytics" -> CallLogsAnalytics
     "messages_analytics" -> MessagesAnalytics
     "education_hub" -> EducationHub
+    "periodic_table" -> PeriodicTableNav
+    "chemistry_games" -> ChemistryGamesNav
+    "science_labs" -> ScienceLabsNav
+    "brain_games" -> BrainGamesNav
     "pokedex" -> Pokedex
     "battery_info" -> BatteryInfo
     "currency_converter" -> CurrencyConverter
