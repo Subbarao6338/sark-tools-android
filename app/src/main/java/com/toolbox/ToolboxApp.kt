@@ -223,6 +223,7 @@ import com.toolbox.labs.deadpixel.DeadPixelTesterScreen
 import com.toolbox.labs.touch.TouchTesterScreen
 import com.toolbox.labs.dimmer.ScreenDimmerScreen
 import com.toolbox.telephony.call.CallLogsAnalyticsScreen
+import com.toolbox.pokedex.PokedexScreen
 import com.toolbox.telephony.sms.MessagesAnalyticsScreen
 import com.toolbox.education.EducationHubScreen
 import com.toolbox.nav.EducationHub
@@ -239,6 +240,7 @@ import com.toolbox.nav.ScreenDimmer
 import com.toolbox.nav.CallLogsAnalytics
 import com.toolbox.nav.MessagesAnalytics
 import com.toolbox.measurement.battery.BatteryInfoScreen
+import com.toolbox.nav.Pokedex
 import com.toolbox.conversion.currency.CurrencyConverterScreen
 import com.toolbox.measurement.speedtest.NetworkSpeedTestScreen
 import com.toolbox.conversion.fuel.FuelCalculatorScreen
@@ -506,6 +508,7 @@ fun ToolboxApp(
                     composable<ScreenDimmer> { ToolScreen("Screen Dimmer", "screen_dimmer", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is ScreenDimmer) { ScreenDimmerScreen() } }
                     composable<CallLogsAnalytics> { ToolScreen("Call Logs Analytics", "call_logs_analytics", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is CallLogsAnalytics, accent = androidx.compose.ui.graphics.Color(0xFF2E7D32)) { CallLogsAnalyticsScreen() } }
                     composable<EducationHub> { ToolScreen("Education", "education_hub", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is EducationHub, accent = androidx.compose.ui.graphics.Color(0xFF5E35B1)) { EducationHubScreen() } }
+                    composable<Pokedex> { ToolScreen("Pokédex", "pokedex", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is Pokedex, accent = androidx.compose.ui.graphics.Color(0xFFE53935)) { PokedexScreen() } }
                     composable<MessagesAnalytics> { ToolScreen("Messages Analytics", "messages_analytics", navController, this@SharedTransitionLayout, this@composable, isDefaultRoot = isDefaultTool && startDest is MessagesAnalytics, accent = androidx.compose.ui.graphics.Color(0xFFF57F17)) { MessagesAnalyticsScreen() } }
 
                     // Newly Integrated Offline Tools
@@ -781,6 +784,7 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "call_logs_analytics" -> CallLogsAnalytics
     "messages_analytics" -> MessagesAnalytics
     "education_hub" -> EducationHub
+    "pokedex" -> Pokedex
     "battery_info" -> BatteryInfo
     "currency_converter" -> CurrencyConverter
     "network_speed_test" -> NetworkSpeedTest

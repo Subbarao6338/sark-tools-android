@@ -44,7 +44,7 @@ import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Search
@@ -99,6 +99,7 @@ import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.CatchingPokemon
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -325,7 +326,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "pedometer",
         name = "Pedometer",
-        icon = Icons.Default.DirectionsWalk,
+        icon = Icons.AutoMirrored.Filled.DirectionsWalk,
         category = ToolCategory.Sensors,
         description = "Count your steps and estimate distance walked using the step counter sensor. Track daily walking activity with a simple start/stop interface. Shows steps, distance, and calories.",
         requiredSensorType = Sensor.TYPE_STEP_COUNTER,
@@ -1151,8 +1152,16 @@ val allTools = listOf(
         name = "Education",
         icon = Icons.Default.School,
         category = ToolCategory.Others,
-        description = "Comprehensive science, physics, chemistry laws, periodic table, physical constants, and interactive quizzes.",
-        searchKeywords = listOf("education", "school", "learn", "study", "physics", "chemistry", "quiz", "elements"),
+        description = "Comprehensive science, physics, chemistry laws, interactive 118-element periodic table, physical constants, and games.",
+        searchKeywords = listOf("education", "school", "learn", "study", "physics", "chemistry", "quiz", "elements", "periodic table", "games"),
+    ),
+    ToolDefinition(
+        id = "pokedex",
+        name = "Pokédex",
+        icon = Icons.Default.CatchingPokemon,
+        category = ToolCategory.Others,
+        description = "Complete National Pokédex with 898 Pokémon across all generations. Detailed base stats, elemental types, lore, and Who's That Pokémon mini-game.",
+        searchKeywords = listOf("pokedex", "pokemon", "game", "stats", "dex", "anime", "monsters", "quiz", "types"),
     ),
     // Newly Added Offline Utility Suite Tools
     ToolDefinition(
