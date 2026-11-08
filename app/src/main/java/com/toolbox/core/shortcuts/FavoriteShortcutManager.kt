@@ -83,7 +83,13 @@ object FavoriteShortcutManager {
         } catch (_: Exception) {}
     }
 
-    fun pinShortcut(context: Context, toolId: String, customTitle: String? = null, customBgColor: Int? = null): Boolean {
+    fun pinShortcut(
+        context: Context,
+        toolId: String,
+        customTitle: String? = null,
+        customBgColor: Int? = null,
+        iconBitmap: Bitmap? = null,
+    ): Boolean {
         if (!ShortcutManagerCompat.isRequestPinShortcutSupported(context)) {
             return false
         }
@@ -96,17 +102,39 @@ object FavoriteShortcutManager {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
 
-        val bitmap = generateShortcutIconBitmap(title, customBgColor ?: 0xFF325DA8.toInt())
+        val bitmap = iconBitmap ?: generateShortcutIconBitmap(title, customBgColor ?: 0xFF325DA8.toInt())
         val iconCompat = IconCompat.createWithBitmap(bitmap)
 
         val pinShortcutInfo = ShortcutInfoCompat.Builder(context, "pinned_${toolId}_${System.currentTimeMillis()}")
-            .setShortLabel(title)
+            .setShortLabel(title.take(20))
             .setLongLabel(tool?.description?.take(25) ?: title)
             .setIcon(iconCompat)
             .setIntent(intent)
             .build()
 
         return ShortcutManagerCompat.requestPinShortcut(context, pinShortcutInfo, null)
+    }
+
+    fun pinWebPwaShortcut(
+        context: Context,
+        toolId: String,
+        pageTitle: String,
+        pageUrl: String,
+        favicon: Bitmap? = null,
+        accentColor: Int? = null,
+    ): Boolean {
+        val title = pageTitle.takeIf { it.isNotBlank() } ?: "PWA App"
+        val resolvedBitmap = if (favicon != null && !favicon.isRecycled) {
+            favicon
+        } else {
+            generateShortcutIconBitmap(title, accentColor ?: 0xFF0288D1.toInt())
+        }
+        return pinShortcut(
+            context = context,
+            toolId = toolId,
+            customTitle = title,
+            iconBitmap = resolvedBitmap,
+        )
     }
 
     private fun generateShortcutIconBitmap(label: String, bgColor: Int): Bitmap {
