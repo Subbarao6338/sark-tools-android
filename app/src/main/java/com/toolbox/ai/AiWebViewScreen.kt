@@ -262,8 +262,8 @@ fun AiWebViewScreen(
         }
     }
 
-    // Frameless Edge-to-Edge Container
-    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
+    // Frameless Website Container respecting system status bar and nav bar
+    Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Fullscreen Custom View overlay (if active)
         if (customView != null) {
             AndroidView(
@@ -271,253 +271,258 @@ fun AiWebViewScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            // Android WebView container occupying entire frameless screen
-            key(webViewKey) {
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+            ) {
+                // Android WebView container respecting status bar and nav bar
+                key(webViewKey) {
+                    AndroidView(
+                        factory = { ctx ->
+                            WebView(ctx).apply {
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                )
 
-                            // Hardware acceleration
-                            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                                // Hardware acceleration
+                                setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
-                            settings.apply {
-                                javaScriptEnabled = true
-                                domStorageEnabled = true
-                                databaseEnabled = true
-                                useWideViewPort = true
-                                loadWithOverviewMode = true
-                                setSupportZoom(true)
-                                builtInZoomControls = true
-                                displayZoomControls = false
-                                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                                allowFileAccess = true
-                                allowContentAccess = true
-
-                                // Aggressive Caching & Instant Loading Optimization
-                                if (activeProfile.isIncognito) {
-                                    cacheMode = WebSettings.LOAD_NO_CACHE
-                                } else {
-                                    cacheMode = WebSettings.LOAD_DEFAULT
-                                }
-
-                                // High render performance
-                                @Suppress("DEPRECATION")
-                                setRenderPriority(WebSettings.RenderPriority.HIGH)
-                                offscreenPreRaster = true
-                                mediaPlaybackRequiresUserGesture = false
-
-                                // PWA and ServiceWorker setup
-                                javaScriptCanOpenWindowsAutomatically = true
-
-                                // Desktop vs Mobile UA
-                                val defaultUa = userAgentString.replace("; wv", "")
-                                userAgentString = if (isDesktopMode) {
-                                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                                } else {
-                                    defaultUa
-                                }
-                            }
-
-                            // ServiceWorker Cache & Instant Offline PWA loading
-                            try {
-                                val swController = ServiceWorkerController.getInstance()
-                                swController.serviceWorkerWebSettings.apply {
-                                    allowContentAccess = true
+                                settings.apply {
+                                    javaScriptEnabled = true
+                                    domStorageEnabled = true
+                                    databaseEnabled = true
+                                    useWideViewPort = true
+                                    loadWithOverviewMode = true
+                                    setSupportZoom(true)
+                                    builtInZoomControls = true
+                                    displayZoomControls = false
+                                    mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                                     allowFileAccess = true
-                                    cacheMode = if (activeProfile.isIncognito) {
-                                        WebSettings.LOAD_NO_CACHE
+                                    allowContentAccess = true
+
+                                    // Aggressive Caching & Instant Loading Optimization
+                                    if (activeProfile.isIncognito) {
+                                        cacheMode = WebSettings.LOAD_NO_CACHE
                                     } else {
-                                        WebSettings.LOAD_DEFAULT
+                                        cacheMode = WebSettings.LOAD_DEFAULT
+                                    }
+
+                                    // High render performance
+                                    @Suppress("DEPRECATION")
+                                    setRenderPriority(WebSettings.RenderPriority.HIGH)
+                                    offscreenPreRaster = true
+                                    mediaPlaybackRequiresUserGesture = false
+
+                                    // PWA and ServiceWorker setup
+                                    javaScriptCanOpenWindowsAutomatically = true
+
+                                    // Desktop vs Mobile UA
+                                    val defaultUa = userAgentString.replace("; wv", "")
+                                    userAgentString = if (isDesktopMode) {
+                                        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                                    } else {
+                                        defaultUa
                                     }
                                 }
-                            } catch (_: Exception) {}
 
-                            val cookieManager = CookieManager.getInstance()
-                            cookieManager.setAcceptCookie(true)
-                            cookieManager.setAcceptThirdPartyCookies(this, true)
+                                // ServiceWorker Cache & Instant Offline PWA loading
+                                try {
+                                    val swController = ServiceWorkerController.getInstance()
+                                    swController.serviceWorkerWebSettings.apply {
+                                        allowContentAccess = true
+                                        allowFileAccess = true
+                                        cacheMode = if (activeProfile.isIncognito) {
+                                            WebSettings.LOAD_NO_CACHE
+                                        } else {
+                                            WebSettings.LOAD_DEFAULT
+                                        }
+                                    }
+                                } catch (_: Exception) {}
 
-                            if (activeProfile.isIncognito) {
-                                clearCache(true)
-                                clearHistory()
-                                clearFormData()
-                            }
+                                val cookieManager = CookieManager.getInstance()
+                                cookieManager.setAcceptCookie(true)
+                                cookieManager.setAcceptThirdPartyCookies(this, true)
 
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                    isLoading = true
-                                    url?.let { currentUrl = it }
-                                    if (favicon != null) pageFavicon = favicon
-                                    canGoBack = canGoBack()
-                                    canGoForward = canGoForward()
+                                if (activeProfile.isIncognito) {
+                                    clearCache(true)
+                                    clearHistory()
+                                    clearFormData()
                                 }
 
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    isLoading = false
-                                    url?.let { currentUrl = it }
-                                    pageTitle = view?.title ?: toolName
-                                    if (view?.favicon != null) pageFavicon = view.favicon
-                                    canGoBack = canGoBack()
-                                    canGoForward = canGoForward()
-                                }
+                                webViewClient = object : WebViewClient() {
+                                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                        isLoading = true
+                                        url?.let { currentUrl = it }
+                                        if (favicon != null) pageFavicon = favicon
+                                        canGoBack = canGoBack()
+                                        canGoForward = canGoForward()
+                                    }
 
-                                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                                    val reqUrl = request?.url?.toString() ?: return false
-                                    return if (reqUrl.startsWith("http://") || reqUrl.startsWith("https://")) {
-                                        false
-                                    } else {
-                                        try {
-                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(reqUrl)).apply {
-                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    override fun onPageFinished(view: WebView?, url: String?) {
+                                        isLoading = false
+                                        url?.let { currentUrl = it }
+                                        pageTitle = view?.title ?: toolName
+                                        if (view?.favicon != null) pageFavicon = view.favicon
+                                        canGoBack = canGoBack()
+                                        canGoForward = canGoForward()
+                                    }
+
+                                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                        val reqUrl = request?.url?.toString() ?: return false
+                                        return if (reqUrl.startsWith("http://") || reqUrl.startsWith("https://")) {
+                                            false
+                                        } else {
+                                            try {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(reqUrl)).apply {
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                }
+                                                context.startActivity(intent)
+                                                true
+                                            } catch (_: Exception) {
+                                                true
                                             }
-                                            context.startActivity(intent)
-                                            true
-                                        } catch (_: Exception) {
-                                            true
                                         }
                                     }
                                 }
-                            }
 
-                            webChromeClient = object : WebChromeClient() {
-                                override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                    loadProgress = newProgress / 100f
-                                    if (newProgress == 100) isLoading = false
-                                }
-
-                                override fun onReceivedTitle(view: WebView?, title: String?) {
-                                    title?.let { if (it.isNotBlank()) pageTitle = it }
-                                }
-
-                                override fun onReceivedIcon(view: WebView?, icon: Bitmap?) {
-                                    if (icon != null) pageFavicon = icon
-                                }
-
-                                // Fullscreen HTML5 Video/View Support
-                                override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                                    customView = view
-                                    customViewCallback = callback
-                                }
-
-                                override fun onHideCustomView() {
-                                    customView = null
-                                    customViewCallback?.onCustomViewHidden()
-                                    customViewCallback = null
-                                }
-
-                                // PWA File Upload Chooser
-                                override fun onShowFileChooser(
-                                    webView: WebView?,
-                                    filePathCallbackParam: ValueCallback<Array<Uri>>?,
-                                    fileChooserParams: FileChooserParams?,
-                                ): Boolean {
-                                    filePathCallback?.onReceiveValue(null)
-                                    filePathCallback = filePathCallbackParam
-                                    val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                                        type = "*/*"
+                                webChromeClient = object : WebChromeClient() {
+                                    override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                        loadProgress = newProgress / 100f
+                                        if (newProgress == 100) isLoading = false
                                     }
-                                    try {
-                                        filePickerLauncher.launch(intent)
-                                    } catch (e: Exception) {
+
+                                    override fun onReceivedTitle(view: WebView?, title: String?) {
+                                        title?.let { if (it.isNotBlank()) pageTitle = it }
+                                    }
+
+                                    override fun onReceivedIcon(view: WebView?, icon: Bitmap?) {
+                                        if (icon != null) pageFavicon = icon
+                                    }
+
+                                    // Fullscreen HTML5 Video/View Support
+                                    override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                                        customView = view
+                                        customViewCallback = callback
+                                    }
+
+                                    override fun onHideCustomView() {
+                                        customView = null
+                                        customViewCallback?.onCustomViewHidden()
+                                        customViewCallback = null
+                                    }
+
+                                    // PWA File Upload Chooser
+                                    override fun onShowFileChooser(
+                                        webView: WebView?,
+                                        filePathCallbackParam: ValueCallback<Array<Uri>>?,
+                                        fileChooserParams: FileChooserParams?,
+                                    ): Boolean {
                                         filePathCallback?.onReceiveValue(null)
-                                        filePathCallback = null
-                                        return false
+                                        filePathCallback = filePathCallbackParam
+                                        val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                                            type = "*/*"
+                                        }
+                                        try {
+                                            filePickerLauncher.launch(intent)
+                                        } catch (e: Exception) {
+                                            filePathCallback?.onReceiveValue(null)
+                                            filePathCallback = null
+                                            return false
+                                        }
+                                        return true
                                     }
-                                    return true
+
+                                    // HTML5 Geolocation
+                                    override fun onGeolocationPermissionsShowPrompt(
+                                        origin: String?,
+                                        callback: GeolocationPermissions.Callback?,
+                                    ) {
+                                        callback?.invoke(origin, true, false)
+                                    }
+
+                                    // HTML5 Media Permissions (Camera, Mic)
+                                    override fun onPermissionRequest(request: PermissionRequest?) {
+                                        request?.grant(request.resources)
+                                    }
+
+                                    // JavaScript Alert
+                                    override fun onJsAlert(
+                                        view: WebView?,
+                                        url: String?,
+                                        message: String?,
+                                        result: JsResult?,
+                                    ): Boolean {
+                                        jsAlertDialogMessage = message ?: ""
+                                        jsAlertCallback = result
+                                        return true
+                                    }
+
+                                    // JavaScript Confirm
+                                    override fun onJsConfirm(
+                                        view: WebView?,
+                                        url: String?,
+                                        message: String?,
+                                        result: JsResult?,
+                                    ): Boolean {
+                                        jsConfirmDialogMessage = message ?: ""
+                                        jsConfirmCallback = result
+                                        return true
+                                    }
                                 }
 
-                                // HTML5 Geolocation
-                                override fun onGeolocationPermissionsShowPrompt(
-                                    origin: String?,
-                                    callback: GeolocationPermissions.Callback?,
-                                ) {
-                                    callback?.invoke(origin, true, false)
-                                }
-
-                                // HTML5 Media Permissions (Camera, Mic)
-                                override fun onPermissionRequest(request: PermissionRequest?) {
-                                    request?.grant(request.resources)
-                                }
-
-                                // JavaScript Alert
-                                override fun onJsAlert(
-                                    view: WebView?,
-                                    url: String?,
-                                    message: String?,
-                                    result: JsResult?,
-                                ): Boolean {
-                                    jsAlertDialogMessage = message ?: ""
-                                    jsAlertCallback = result
-                                    return true
-                                }
-
-                                // JavaScript Confirm
-                                override fun onJsConfirm(
-                                    view: WebView?,
-                                    url: String?,
-                                    message: String?,
-                                    result: JsResult?,
-                                ): Boolean {
-                                    jsConfirmDialogMessage = message ?: ""
-                                    jsConfirmCallback = result
-                                    return true
-                                }
+                                loadUrl(currentUrl)
+                                webViewInstance = this
                             }
+                        },
+                        update = { wv ->
+                            webViewInstance = wv
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
 
-                            loadUrl(currentUrl)
-                            webViewInstance = this
-                        }
-                    },
-                    update = { wv ->
-                        webViewInstance = wv
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                // Top Thin Instant Loading Progress Indicator (at top of web view content)
+                if (isLoading) {
+                    LinearProgressIndicator(
+                        progress = { loadProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .align(Alignment.TopCenter),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = Color.Transparent,
+                    )
+                }
+
+                // Draggable Floating Options Menu Button (Floating Bubble FAB)
+                FloatingActionButton(
+                    onClick = { showFloatingMenu = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(24.dp)
+                        .offset { IntOffset(fabOffsetX.roundToInt(), fabOffsetY.roundToInt()) }
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                fabOffsetX += dragAmount.x
+                                fabOffsetY += dragAmount.y
+                            }
+                        },
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Web Options Menu",
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
-        }
-
-        // Top Thin Instant Loading Progress Indicator (Frameless Edge-to-Edge)
-        if (isLoading) {
-            LinearProgressIndicator(
-                progress = { loadProgress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding(),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = Color.Transparent,
-            )
-        }
-
-        // Draggable Floating Options Menu Button (Floating Bubble FAB)
-        FloatingActionButton(
-            onClick = { showFloatingMenu = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(24.dp)
-                .navigationBarsPadding()
-                .offset { IntOffset(fabOffsetX.roundToInt(), fabOffsetY.roundToInt()) }
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        fabOffsetX += dragAmount.x
-                        fabOffsetY += dragAmount.y
-                    }
-                },
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f),
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Default.Menu,
-                contentDescription = "Web Options Menu",
-                modifier = Modifier.size(24.dp),
-            )
         }
     }
 
