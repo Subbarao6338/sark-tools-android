@@ -206,4 +206,15 @@ import kotlinx.serialization.Serializable
 @Serializable object PerchanceTextGen
 @Serializable object PerchancePhotoGen
 @Serializable object PerchanceChat
+@Serializable object PerchanceVideoGen
+@Serializable object PerchanceStoryGen
+@Serializable object PerchanceCharacterGen
+@Serializable object PerchanceAnimeGen
+@Serializable object PerchanceRpgGen
+@Serializable object PerchanceWritingPrompt
+@Serializable object PerchanceLoreGen
+@Serializable object PerchanceDialogueGen
+@Serializable object PerchanceVoiceActor
+@Serializable object PerchanceArtPlugin
+@Serializable object PerchanceNameGen
 @Serializable object HuggingFaceAi

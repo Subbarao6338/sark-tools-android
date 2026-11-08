@@ -117,6 +117,30 @@ object PerchanceGeneratorEngine {
         return "Prompt: $subject.\n\nStyle & Aesthetics: $style.\nNegative Prompt: blurry, deformed, lowres, watermark, oversaturated, text artifact."
     }
 
+    fun generateAiVideoPrompt(): String {
+        val cameraMotion = listOf(
+            "Slow cinematic aerial drone orbit rotating 360 degrees",
+            "Dynamic FPV dive descending smoothly through volumetric clouds",
+            "Subtle handheld push-in with shallow depth of field and soft bokeh",
+            "Smooth continuous tracking dolly shot following footsteps in motion",
+            "High-speed hyperlapse transition from dusk to vibrant bioluminescent night"
+        ).random()
+        val videoScene = listOf(
+            "A cybernetic falcon unfurling solar wings and taking flight from a crystalline skyscraper rooftop",
+            "Steam billowing from brass pipes inside an underwater Victorian observatory as giant manta rays drift past",
+            "A solitary wanderer in a glowing neon parka walking through a misty rain-slicked cyberpunk alleyway",
+            "Ancient sandstone monoliths illuminating with golden runes as lightning crackles across a desert sky",
+            "A mystical forest canopy where glowing jellyfish-like spores drift gently in an autumn breeze"
+        ).random()
+        val lighting = listOf(
+            "Anamorphic lens flare, volumetric morning sunlight, hyperrealistic 4k 60fps render",
+            "Moody chiaroscuro neon lighting, wet floor reflections, film grain, cinematic color grade",
+            "Golden hour backlight, particle embers floating in air, slow-motion fluid physics",
+            "Ethereal twilight glow, bioluminescent cyan and violet hues, photorealistic raytracing"
+        ).random()
+        return "Scene: $videoScene.\n\nCamera Dynamics: $cameraMotion.\n\nLighting & Render: $lighting."
+    }
+
     fun generateStoryHook(): String {
         val hook = listOf(
             "The morning broadcast announced that the sun had set 14 minutes ahead of schedule.",
@@ -143,7 +167,7 @@ object PerchanceGeneratorEngine {
 fun PerchanceAiScreen(onLaunchWebView: ((String, String, List<Pair<String, String>>) -> Unit)? = null) {
     val context = LocalContext.current
     var selectedCategory by rememberSaveable { mutableIntStateOf(0) }
-    val categories = listOf("Character & Backstory", "AI Image Prompts", "Story Hooks", "Code Prompts", "Perchance Web Hub")
+    val categories = listOf("Character & Backstory", "AI Image Prompts", "AI Video Prompts", "Story Hooks", "Code Prompts", "Perchance Web Hub")
 
     var generatedText by rememberSaveable { mutableStateOf(PerchanceGeneratorEngine.generateCreativeBackstory()) }
 
@@ -151,8 +175,9 @@ fun PerchanceAiScreen(onLaunchWebView: ((String, String, List<Pair<String, Strin
         generatedText = when (cat) {
             0 -> PerchanceGeneratorEngine.generateCreativeBackstory()
             1 -> PerchanceGeneratorEngine.generateAiPhotoPrompt()
-            2 -> PerchanceGeneratorEngine.generateStoryHook()
-            3 -> PerchanceGeneratorEngine.generateCodingChallenge()
+            2 -> PerchanceGeneratorEngine.generateAiVideoPrompt()
+            3 -> PerchanceGeneratorEngine.generateStoryHook()
+            4 -> PerchanceGeneratorEngine.generateCodingChallenge()
             else -> generatedText
         }
     }
@@ -163,7 +188,7 @@ fun PerchanceAiScreen(onLaunchWebView: ((String, String, List<Pair<String, Strin
             selectedIndex = selectedCategory,
             onSelectIndex = {
                 selectedCategory = it
-                if (it < 4) refreshGeneration(it)
+                if (it < 5) refreshGeneration(it)
             },
         )
 
@@ -174,7 +199,7 @@ fun PerchanceAiScreen(onLaunchWebView: ((String, String, List<Pair<String, Strin
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (selectedCategory < 4) {
+            if (selectedCategory < 5) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
@@ -200,7 +225,7 @@ fun PerchanceAiScreen(onLaunchWebView: ((String, String, List<Pair<String, Strin
                             text = generatedText,
                             style = MaterialTheme.typography.bodyLarge,
                             lineHeight = 24.sp,
-                            fontFamily = if (selectedCategory == 3) FontFamily.Monospace else FontFamily.Default,
+                            fontFamily = if (selectedCategory == 4) FontFamily.Monospace else FontFamily.Default,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
 
@@ -229,6 +254,27 @@ fun PerchanceAiScreen(onLaunchWebView: ((String, String, List<Pair<String, Strin
                             "Launch official Perchance AI cloud generators directly inside the app with full multi-profile webview support, or open in browser.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+
+                        PerchanceHubButton(
+                            title = "Perchance AI Video Generator",
+                            subtitle = "AI motion and cinematic video clip synthesis",
+                            url = "https://perchance.org/ai-video-generator",
+                            onLaunchInApp = {
+                                if (onLaunchWebView != null) {
+                                    onLaunchWebView(
+                                        "https://perchance.org/ai-video-generator",
+                                        "Perchance AI Video",
+                                        listOf(
+                                            "Video Gen" to "https://perchance.org/ai-video-generator",
+                                            "Cinematic" to "https://perchance.org/ai-cinematic-video-generator",
+                                        ),
+                                    )
+                                } else {
+                                    launchUrl(context, it)
+                                }
+                            },
+                            onLaunchExternal = { launchUrl(context, it) },
                         )
 
                         PerchanceHubButton(
@@ -287,6 +333,69 @@ fun PerchanceAiScreen(onLaunchWebView: ((String, String, List<Pair<String, Strin
                                         listOf(
                                             "AI Chat" to "https://perchance.org/ai-chat",
                                             "Roleplay" to "https://perchance.org/ai-character-chat",
+                                        ),
+                                    )
+                                } else {
+                                    launchUrl(context, it)
+                                }
+                            },
+                            onLaunchExternal = { launchUrl(context, it) },
+                        )
+
+                        PerchanceHubButton(
+                            title = "Perchance Story & Novel Generator",
+                            subtitle = "Full-length dynamic narrative & fiction writer",
+                            url = "https://perchance.org/ai-story-generator",
+                            onLaunchInApp = {
+                                if (onLaunchWebView != null) {
+                                    onLaunchWebView(
+                                        "https://perchance.org/ai-story-generator",
+                                        "Perchance Story",
+                                        listOf(
+                                            "Story Gen" to "https://perchance.org/ai-story-generator",
+                                            "Plot Twist" to "https://perchance.org/plot-generator",
+                                        ),
+                                    )
+                                } else {
+                                    launchUrl(context, it)
+                                }
+                            },
+                            onLaunchExternal = { launchUrl(context, it) },
+                        )
+
+                        PerchanceHubButton(
+                            title = "Perchance Anime & Manga Generator",
+                            subtitle = "Stylized anime characters and illustrations",
+                            url = "https://perchance.org/ai-anime-generator",
+                            onLaunchInApp = {
+                                if (onLaunchWebView != null) {
+                                    onLaunchWebView(
+                                        "https://perchance.org/ai-anime-generator",
+                                        "Perchance Anime",
+                                        listOf(
+                                            "Anime Gen" to "https://perchance.org/ai-anime-generator",
+                                            "Manga" to "https://perchance.org/manga-generator",
+                                        ),
+                                    )
+                                } else {
+                                    launchUrl(context, it)
+                                }
+                            },
+                            onLaunchExternal = { launchUrl(context, it) },
+                        )
+
+                        PerchanceHubButton(
+                            title = "Perchance RPG Adventure Hub",
+                            subtitle = "Interactive fantasy RPG and dungeon adventures",
+                            url = "https://perchance.org/ai-rpg",
+                            onLaunchInApp = {
+                                if (onLaunchWebView != null) {
+                                    onLaunchWebView(
+                                        "https://perchance.org/ai-rpg",
+                                        "Perchance RPG",
+                                        listOf(
+                                            "RPG Hub" to "https://perchance.org/ai-rpg",
+                                            "Dungeon" to "https://perchance.org/dungeon-generator",
                                         ),
                                     )
                                 } else {

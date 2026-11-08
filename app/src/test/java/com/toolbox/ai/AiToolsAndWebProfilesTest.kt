@@ -13,13 +13,24 @@ class AiToolsAndWebProfilesTest {
     @Test
     fun testAiToolsCategoryRegistration() {
         val aiTools = allTools.filter { it.category == ToolCategory.AiTools }
-        assertTrue("AI Tools category should have at least 5 tools", aiTools.size >= 5)
+        assertTrue("AI Tools category should have at least 15 tools", aiTools.size >= 15)
 
         val aiToolIds = aiTools.map { it.id }.toSet()
         assertTrue(aiToolIds.contains("perchance_ai"))
         assertTrue(aiToolIds.contains("perchance_text_gen"))
         assertTrue(aiToolIds.contains("perchance_photo_gen"))
         assertTrue(aiToolIds.contains("perchance_chat"))
+        assertTrue(aiToolIds.contains("perchance_video_gen"))
+        assertTrue(aiToolIds.contains("perchance_story_gen"))
+        assertTrue(aiToolIds.contains("perchance_character_gen"))
+        assertTrue(aiToolIds.contains("perchance_anime_gen"))
+        assertTrue(aiToolIds.contains("perchance_rpg_gen"))
+        assertTrue(aiToolIds.contains("perchance_writing_prompt"))
+        assertTrue(aiToolIds.contains("perchance_lore_gen"))
+        assertTrue(aiToolIds.contains("perchance_dialogue_gen"))
+        assertTrue(aiToolIds.contains("perchance_voice_actor"))
+        assertTrue(aiToolIds.contains("perchance_art_plugin"))
+        assertTrue(aiToolIds.contains("perchance_name_gen"))
         assertTrue(aiToolIds.contains("huggingface_ai"))
 
         val category = ToolCategory.AiTools
@@ -45,6 +56,37 @@ class AiToolsAndWebProfilesTest {
         val chatTool = allTools.first { it.id == "perchance_chat" }
         assertEquals("Perchance Chat", chatTool.name)
         assertEquals(ToolCategory.AiTools, chatTool.category)
+
+        val videoTool = allTools.first { it.id == "perchance_video_gen" }
+        assertEquals("Perchance Video", videoTool.name)
+        assertEquals(ToolCategory.AiTools, videoTool.category)
+        assertTrue(videoTool.searchKeywords.contains("video"))
+        assertTrue(videoTool.searchKeywords.contains("generator"))
+
+        val storyTool = allTools.first { it.id == "perchance_story_gen" }
+        assertEquals("Perchance Story", storyTool.name)
+        assertEquals(ToolCategory.AiTools, storyTool.category)
+
+        val charTool = allTools.first { it.id == "perchance_character_gen" }
+        assertEquals("Perchance Character", charTool.name)
+        assertEquals(ToolCategory.AiTools, charTool.category)
+
+        val animeTool = allTools.first { it.id == "perchance_anime_gen" }
+        assertEquals("Perchance Anime", animeTool.name)
+        assertEquals(ToolCategory.AiTools, animeTool.category)
+
+        val rpgTool = allTools.first { it.id == "perchance_rpg_gen" }
+        assertEquals("Perchance RPG", rpgTool.name)
+        assertEquals(ToolCategory.AiTools, rpgTool.category)
+    }
+
+    @Test
+    fun testPerchanceVideoGenerationPrompt() {
+        val prompt = PerchanceGeneratorEngine.generateAiVideoPrompt()
+        assertTrue(prompt.isNotBlank())
+        assertTrue(prompt.contains("Scene:"))
+        assertTrue(prompt.contains("Camera Dynamics:"))
+        assertTrue(prompt.contains("Lighting & Render:"))
     }
 
     @Test
