@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -139,7 +140,7 @@ object PerchanceGeneratorEngine {
 }
 
 @Composable
-fun PerchanceAiScreen() {
+fun PerchanceAiScreen(onLaunchWebView: ((String, String, List<Pair<String, String>>) -> Unit)? = null) {
     val context = LocalContext.current
     var selectedCategory by rememberSaveable { mutableIntStateOf(0) }
     val categories = listOf("Character & Backstory", "AI Image Prompts", "Story Hooks", "Code Prompts", "Perchance Web Hub")
@@ -225,7 +226,7 @@ fun PerchanceAiScreen() {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Perchance AI Online Services", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(
-                            "Launch official Perchance AI cloud generators directly in your browser. All external services run safely with zero app telemetry.",
+                            "Launch official Perchance AI cloud generators directly inside the app with full multi-profile webview support, or open in browser.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -234,28 +235,86 @@ fun PerchanceAiScreen() {
                             title = "Perchance AI Text Generator",
                             subtitle = "Interactive neural text completion & story sandbox",
                             url = "https://perchance.org/ai-text-generator",
-                            onLaunch = { launchUrl(context, it) },
+                            onLaunchInApp = {
+                                if (onLaunchWebView != null) {
+                                    onLaunchWebView(
+                                        "https://perchance.org/ai-text-generator",
+                                        "Perchance AI Text",
+                                        listOf(
+                                            "Text Gen" to "https://perchance.org/ai-text-generator",
+                                            "Writing" to "https://perchance.org/ai-story-generator",
+                                            "Summary" to "https://perchance.org/summarizer",
+                                        ),
+                                    )
+                                } else {
+                                    launchUrl(context, it)
+                                }
+                            },
+                            onLaunchExternal = { launchUrl(context, it) },
                         )
 
                         PerchanceHubButton(
                             title = "Perchance AI Photo Generator",
                             subtitle = "Free text-to-image synthesis powered by Stable Diffusion",
                             url = "https://perchance.org/ai-photo-generator",
-                            onLaunch = { launchUrl(context, it) },
+                            onLaunchInApp = {
+                                if (onLaunchWebView != null) {
+                                    onLaunchWebView(
+                                        "https://perchance.org/ai-photo-generator",
+                                        "Perchance AI Photo",
+                                        listOf(
+                                            "Photo Gen" to "https://perchance.org/ai-photo-generator",
+                                            "Anime Gen" to "https://perchance.org/ai-anime-generator",
+                                            "Art Gen" to "https://perchance.org/ai-art-generator",
+                                        ),
+                                    )
+                                } else {
+                                    launchUrl(context, it)
+                                }
+                            },
+                            onLaunchExternal = { launchUrl(context, it) },
                         )
 
                         PerchanceHubButton(
                             title = "Perchance AI Chat",
                             subtitle = "Conversational AI character playground",
                             url = "https://perchance.org/ai-chat",
-                            onLaunch = { launchUrl(context, it) },
+                            onLaunchInApp = {
+                                if (onLaunchWebView != null) {
+                                    onLaunchWebView(
+                                        "https://perchance.org/ai-chat",
+                                        "Perchance AI Chat",
+                                        listOf(
+                                            "AI Chat" to "https://perchance.org/ai-chat",
+                                            "Roleplay" to "https://perchance.org/ai-character-chat",
+                                        ),
+                                    )
+                                } else {
+                                    launchUrl(context, it)
+                                }
+                            },
+                            onLaunchExternal = { launchUrl(context, it) },
                         )
 
                         PerchanceHubButton(
                             title = "Perchance Generator Studio",
                             subtitle = "Community repository of 10,000+ procedural generators",
                             url = "https://perchance.org/welcome",
-                            onLaunch = { launchUrl(context, it) },
+                            onLaunchInApp = {
+                                if (onLaunchWebView != null) {
+                                    onLaunchWebView(
+                                        "https://perchance.org/welcome",
+                                        "Perchance Studio",
+                                        listOf(
+                                            "Welcome" to "https://perchance.org/welcome",
+                                            "Generators" to "https://perchance.org/generators",
+                                        ),
+                                    )
+                                } else {
+                                    launchUrl(context, it)
+                                }
+                            },
+                            onLaunchExternal = { launchUrl(context, it) },
                         )
                     }
                 }
@@ -269,27 +328,36 @@ private fun PerchanceHubButton(
     title: String,
     subtitle: String,
     url: String,
-    onLaunch: (String) -> Unit,
+    onLaunchInApp: (String) -> Unit,
+    onLaunchExternal: (String) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            OutlinedButton(onClick = { onLaunch(url) }) {
-                Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.padding(horizontal = 2.dp))
-                Text("Open")
+            Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = { onLaunchExternal(url) }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.OpenInBrowser, contentDescription = "External Browser", modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(6.dp))
+                Button(onClick = { onLaunchInApp(url) }) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Open In App")
+                }
             }
         }
     }
