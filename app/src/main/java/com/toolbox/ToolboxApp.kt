@@ -308,6 +308,11 @@ import com.toolbox.nav.QuoteMaker
 import com.toolbox.nav.WidgetsManager
 import com.toolbox.nav.QuickTilesManager
 import com.toolbox.nav.ShortcutsManager
+import com.toolbox.nav.EquationSolver
+import com.toolbox.nav.GeometryCalculator
+import com.toolbox.nav.InvestmentCalculator
+import com.toolbox.nav.GpaCalculator
+import com.toolbox.nav.PerchanceAi
 
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -579,6 +584,13 @@ fun ToolboxApp(
                     composable<ShortcutsManager> {
                         com.toolbox.core.shortcuts.ShortcutsManagementScreen(onBack = { navController.popBackStack() })
                     }
+
+                    // All-in-One Calculator Suite & Perchance AI Additions
+                    composable<EquationSolver> { ToolScreen("Equation Solver", "equation_solver", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.algebra.EquationSolverScreen() } }
+                    composable<GeometryCalculator> { ToolScreen("Geometry & Shapes", "geometry_calculator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.geometry.GeometryCalculatorScreen() } }
+                    composable<InvestmentCalculator> { ToolScreen("Investment & TVM", "investment_calculator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.financial.InvestmentCalculatorScreen() } }
+                    composable<GpaCalculator> { ToolScreen("GPA / CGPA", "gpa_calculator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.gpa.GpaCalculatorScreen() } }
+                    composable<PerchanceAi> { ToolScreen("Perchance AI", "perchance_ai", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.ai.PerchanceAiScreen() } }
                 }
             }
         }
@@ -840,5 +852,10 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "widgets_manager" -> WidgetsManager
     "quick_tiles_manager" -> QuickTilesManager
     "shortcuts_manager" -> ShortcutsManager
+    "equation_solver" -> EquationSolver
+    "geometry_calculator" -> GeometryCalculator
+    "investment_calculator" -> InvestmentCalculator
+    "gpa_calculator" -> GpaCalculator
+    "perchance_ai" -> PerchanceAi
     else -> null
 }

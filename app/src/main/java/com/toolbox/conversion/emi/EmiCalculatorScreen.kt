@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.pow
@@ -161,11 +162,25 @@ fun EmiCalculatorScreen() {
         OutlinedTextField(
             value = loanAmountText,
             onValueChange = { loanAmountText = it },
-            label = { Text("Loan Amount") },
+            label = { Text("Principal / Loan Amount") },
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
         )
+
+        // Quick amount chips
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            listOf("10,000" to "10000", "50,000" to "50000", "100,000" to "100000", "500,000" to "500000").forEach { (label, value) ->
+                FilterChip(
+                    selected = loanAmountText == value,
+                    onClick = { loanAmountText = value },
+                    label = { Text(label, fontSize = 11.sp) },
+                )
+            }
+        }
 
         OutlinedTextField(
             value = interestRateText,
