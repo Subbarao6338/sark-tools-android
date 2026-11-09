@@ -193,7 +193,16 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Category filter chips with counts
+        // Sorted category filter chips with counts
+        val sortedTabCategories = remember(state.categorySortOrder) {
+            when (state.categorySortOrder) {
+                CategorySortOrder.Default -> ToolCategory.entries.toList()
+                CategorySortOrder.AlphabeticalAsc -> ToolCategory.entries.sortedBy { it.label }
+                CategorySortOrder.AlphabeticalDesc -> ToolCategory.entries.sortedByDescending { it.label }
+                CategorySortOrder.ToolCountDesc -> ToolCategory.entries.sortedByDescending { cat -> allTools.count { it.category == cat } }
+            }
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -211,7 +220,7 @@ fun DashboardScreen(
                     selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                 ),
             )
-            ToolCategory.entries.forEach { category ->
+            sortedTabCategories.forEach { category ->
                 val categoryToolCount = allTools.count { it.category == category }
                 FilterChip(
                     selected = state.selectedCategory == category,
@@ -243,7 +252,7 @@ fun DashboardScreen(
             val rawGrouped = state.tools.groupBy { it.category }
             // Sort categories according to state.categorySortOrder
             val sortedCategories = when (state.categorySortOrder) {
-                CategorySortOrder.Default -> rawGrouped.keys.toList()
+                CategorySortOrder.Default -> ToolCategory.entries.filter { it in rawGrouped }
                 CategorySortOrder.AlphabeticalAsc -> rawGrouped.keys.sortedBy { it.label }
                 CategorySortOrder.AlphabeticalDesc -> rawGrouped.keys.sortedByDescending { it.label }
                 CategorySortOrder.ToolCountDesc -> rawGrouped.keys.sortedByDescending { rawGrouped[it]?.size ?: 0 }
