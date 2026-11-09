@@ -151,6 +151,7 @@ data class PokemonForm(
     val isRegional: Boolean = false,
     val isGigantamax: Boolean = false,
     val isLegendsZa: Boolean = false,
+    val abilities: List<String> = emptyList(),
 ) {
     val totalStats: Int get() = hp + atk + def + spAtk + spDef + spd
 
@@ -159,6 +160,9 @@ data class PokemonForm(
 
     val genderClassification: PokemonGenderClassification
         get() = PokemonGenderClassification.forPokemon(name)
+
+    val typeMatchups: PokemonTypeMatchups
+        get() = PokemonTypeMatchups.calculate(types)
 }
 
 @Serializable
@@ -182,6 +186,16 @@ data class Pokemon(
     val generation: Int = 1,
     val isLegendsZa: Boolean = false,
     val forms: List<PokemonForm> = emptyList(),
+    val category: String = "",
+    val introduced: String = "",
+    val abilities: List<String> = emptyList(),
+    val moves: List<String> = emptyList(),
+    val evolutionPrev: String? = null,
+    val evolutionNext: List<String> = emptyList(),
+    val heldItems: List<String> = emptyList(),
+    val gamesAppeared: List<String> = emptyList(),
+    val locations: List<String> = emptyList(),
+    val costumes: List<String> = emptyList(),
 ) {
     val totalStats: Int get() = hp + atk + def + spAtk + spDef + spd
 
@@ -190,6 +204,69 @@ data class Pokemon(
 
     val genderClassification: PokemonGenderClassification
         get() = PokemonGenderClassification.forPokemon(name)
+
+    val typeMatchups: PokemonTypeMatchups
+        get() = PokemonTypeMatchups.calculate(types)
+}
+
+data class TypeMultiplier(
+    val typeName: String,
+    val multiplier: Float,
+)
+
+data class PokemonTypeMatchups(
+    val weaknesses: List<TypeMultiplier>, // 2x or 4x
+    val resistances: List<TypeMultiplier>, // 0.5x or 0.25x
+    val immunities: List<String>, // 0x
+) {
+    companion object {
+        // Attack type -> Defender type -> multiplier
+        private val TYPE_CHART = mapOf(
+            "Normal" to mapOf("Rock" to 0.5f, "Ghost" to 0.0f, "Steel" to 0.5f),
+            "Fire" to mapOf("Fire" to 0.5f, "Water" to 0.5f, "Grass" to 2.0f, "Ice" to 2.0f, "Bug" to 2.0f, "Rock" to 0.5f, "Dragon" to 0.5f, "Steel" to 2.0f),
+            "Water" to mapOf("Fire" to 2.0f, "Water" to 0.5f, "Grass" to 0.5f, "Ground" to 2.0f, "Rock" to 2.0f, "Dragon" to 0.5f),
+            "Electric" to mapOf("Water" to 2.0f, "Electric" to 0.5f, "Grass" to 0.5f, "Ground" to 0.0f, "Flying" to 2.0f, "Dragon" to 0.5f),
+            "Grass" to mapOf("Fire" to 0.5f, "Water" to 2.0f, "Grass" to 0.5f, "Poison" to 0.5f, "Ground" to 2.0f, "Flying" to 0.5f, "Bug" to 0.5f, "Rock" to 2.0f, "Dragon" to 0.5f, "Steel" to 0.5f),
+            "Ice" to mapOf("Fire" to 0.5f, "Water" to 0.5f, "Grass" to 2.0f, "Ice" to 0.5f, "Ground" to 2.0f, "Flying" to 2.0f, "Dragon" to 2.0f, "Steel" to 0.5f),
+            "Fighting" to mapOf("Normal" to 2.0f, "Ice" to 2.0f, "Poison" to 0.5f, "Flying" to 0.5f, "Psychic" to 0.5f, "Bug" to 0.5f, "Rock" to 2.0f, "Ghost" to 0.0f, "Dark" to 2.0f, "Steel" to 2.0f, "Fairy" to 0.5f),
+            "Poison" to mapOf("Grass" to 2.0f, "Poison" to 0.5f, "Ground" to 0.5f, "Rock" to 0.5f, "Ghost" to 0.5f, "Steel" to 0.0f, "Fairy" to 2.0f),
+            "Ground" to mapOf("Fire" to 2.0f, "Electric" to 2.0f, "Grass" to 0.5f, "Poison" to 2.0f, "Flying" to 0.0f, "Bug" to 0.5f, "Rock" to 2.0f, "Steel" to 2.0f),
+            "Flying" to mapOf("Electric" to 0.5f, "Grass" to 2.0f, "Fighting" to 2.0f, "Bug" to 2.0f, "Rock" to 0.5f, "Steel" to 0.5f),
+            "Psychic" to mapOf("Fighting" to 2.0f, "Poison" to 2.0f, "Psychic" to 0.5f, "Dark" to 0.0f, "Steel" to 0.5f),
+            "Bug" to mapOf("Fire" to 0.5f, "Grass" to 2.0f, "Fighting" to 0.5f, "Poison" to 0.5f, "Flying" to 0.5f, "Psychic" to 2.0f, "Ghost" to 0.5f, "Dark" to 2.0f, "Steel" to 0.5f, "Fairy" to 0.5f),
+            "Rock" to mapOf("Fire" to 2.0f, "Ice" to 2.0f, "Fighting" to 0.5f, "Ground" to 0.5f, "Flying" to 2.0f, "Bug" to 2.0f, "Steel" to 0.5f),
+            "Ghost" to mapOf("Normal" to 0.0f, "Psychic" to 2.0f, "Ghost" to 2.0f, "Dark" to 0.5f),
+            "Dragon" to mapOf("Dragon" to 2.0f, "Steel" to 0.5f, "Fairy" to 0.0f),
+            "Dark" to mapOf("Fighting" to 0.5f, "Psychic" to 2.0f, "Ghost" to 2.0f, "Dark" to 0.5f, "Fairy" to 0.5f),
+            "Steel" to mapOf("Fire" to 0.5f, "Water" to 0.5f, "Electric" to 0.5f, "Ice" to 2.0f, "Rock" to 2.0f, "Steel" to 0.5f, "Fairy" to 2.0f),
+            "Fairy" to mapOf("Fire" to 0.5f, "Fighting" to 2.0f, "Poison" to 0.5f, "Dragon" to 2.0f, "Dark" to 2.0f, "Steel" to 0.5f)
+        )
+
+        fun calculate(defendingTypes: List<String>): PokemonTypeMatchups {
+            val weaknesses = mutableListOf<TypeMultiplier>()
+            val resistances = mutableListOf<TypeMultiplier>()
+            val immunities = mutableListOf<String>()
+
+            PokemonType.entries.forEach { attackType ->
+                var mult = 1.0f
+                defendingTypes.forEach { defType ->
+                    val factor = TYPE_CHART[attackType.typeName]?.get(defType) ?: 1.0f
+                    mult *= factor
+                }
+
+                when {
+                    mult == 0.0f -> immunities.add(attackType.typeName)
+                    mult > 1.0f -> weaknesses.add(TypeMultiplier(attackType.typeName, mult))
+                    mult in 0.01f..0.99f -> resistances.add(TypeMultiplier(attackType.typeName, mult))
+                }
+            }
+
+            weaknesses.sortByDescending { it.multiplier }
+            resistances.sortBy { it.multiplier }
+
+            return PokemonTypeMatchups(weaknesses, resistances, immunities)
+        }
+    }
 }
 
 object PokedexRepository {

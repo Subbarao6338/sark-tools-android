@@ -713,11 +713,59 @@ fun ElementDetailSheet(
                     DetailRow("Melting Point", element.meltingPointK?.let { "%.2f K (%.1f °C)".format(it, it - 273.15) } ?: "Unknown")
                     DetailRow("Boiling Point", element.boilingPointK?.let { "%.2f K (%.1f °C)".format(it, it - 273.15) } ?: "Unknown")
                     DetailRow("Density", element.density?.let { "$it g/cm³" } ?: "Unknown")
-                    DetailRow("Electronegativity (Pauling)", element.electronegativityPauling?.let { "$it" } ?: "Not defined")
-                    DetailRow("1st Ionization Energy", element.firstIonizationEnergyKjMol?.let { "$it kJ/mol" } ?: "N/A")
+                    DetailRow("Electronegativity (Pauling)", element.electronegativity?.let { "$it" } ?: "Not defined")
+                    DetailRow("Electron Affinity", element.electronAffinityKjMol?.let { "$it kJ/mol" } ?: "N/A")
+                    DetailRow("1st Ionization Energy", element.ionizationEnergyKjMol?.let { "$it kJ/mol" } ?: "N/A")
                     DetailRow("Oxidation States", element.oxidationStatesDisplay)
-                    DetailRow("Atomic Radius", element.atomicRadiusPm?.let { "$it pm" } ?: "N/A")
+                    DetailRow("Bonding Type", element.bondingType.ifEmpty { "N/A" })
+                    DetailRow("Crystal Structure", element.crystalStructure.ifEmpty { "N/A" })
                     DetailRow("Discovered By", element.discoveredBy)
+                    DetailRow("Year Discovered", element.yearDiscovered.ifEmpty { "Unknown" })
+                }
+            }
+
+            // Atomic & Structural Dimensions
+            Text(
+                text = "Atomic & Thermal Radii",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    DetailRow("Atomic Radius (Empirical)", element.atomicRadiusPm?.let { "$it pm" } ?: "N/A")
+                    DetailRow("Van der Waals Radius", element.vanDerWaalsRadiusPm?.let { "$it pm" } ?: "N/A")
+                    DetailRow("Thermal Conductivity", element.thermalConductivity?.let { "$it W/(m·K)" } ?: "N/A")
+                    DetailRow("Specific Heat Capacity", element.specificHeat?.let { "$it J/(kg·K)" } ?: "N/A")
+                    if (element.cpkColorHex.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("CPK Color Hex", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val cpkColor = try {
+                                    Color(android.graphics.Color.parseColor("#" + element.cpkColorHex))
+                                } catch (_: Exception) {
+                                    Color.Gray
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .background(cpkColor, CircleShape)
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                )
+                                Text("#${element.cpkColorHex}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
                 }
             }
 

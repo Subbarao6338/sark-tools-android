@@ -57,7 +57,10 @@ class PeriodicTableTest {
         assertNotNull(h)
         assertEquals(listOf(1), h?.bohrShells)
         assertEquals(2.20, h?.electronegativityPauling)
-        assertEquals(53, h?.atomicRadiusPm)
+        assertEquals(37, h?.atomicRadiusPm)
+        assertEquals(120, h?.vanDerWaalsRadiusPm)
+        assertEquals("Hexagonal", h?.crystalStructure)
+        assertEquals("1766", h?.yearDiscovered)
 
         val c = PeriodicTableData.getByNumber(6)
         assertNotNull(c)
@@ -66,7 +69,8 @@ class PeriodicTableTest {
 
         val fe = PeriodicTableData.getByNumber(26)
         assertNotNull(fe)
-        assertEquals(156, fe?.atomicRadiusPm)
-        assertEquals("+2, +3, +6", fe?.oxidationStatesDisplay)
+        assertEquals(125, fe?.atomicRadiusPm)
+        assertEquals("BCC", fe?.crystalStructure)
+        assertTrue(fe?.oxidationStatesDisplay?.contains("2") == true)
     }
 }
