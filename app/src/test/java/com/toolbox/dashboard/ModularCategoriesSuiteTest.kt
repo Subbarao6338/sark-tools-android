@@ -4,10 +4,11 @@ import com.toolbox.apptools.AppToolsRegistry
 import com.toolbox.core.persistence.CategorySortOrder
 import com.toolbox.devtools.DevToolsRegistry
 import com.toolbox.filestools.FilesToolsRegistry
+import com.toolbox.healthfitness.HealthFitnessRegistry
 import com.toolbox.imagetools.ImageToolsRegistry
-import com.toolbox.mediaconverters.MediaConvertersRegistry
 import com.toolbox.networktools.NetworkToolsRegistry
 import com.toolbox.programmingtools.ProgrammingToolsRegistry
+import com.toolbox.securityprivacy.SecurityPrivacyRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -23,7 +24,8 @@ class ModularCategoriesSuiteTest {
             ToolCategory.ProgrammingTools to "Programming tools",
             ToolCategory.FilesTools to "Files tools",
             ToolCategory.NetworkTools to "Network tools",
-            ToolCategory.MediaConverters to "Media converters",
+            ToolCategory.HealthFitness to "Health & Fitness",
+            ToolCategory.SecurityPrivacy to "Security & Privacy",
         )
 
         for ((category, label) in expectedLabels) {
@@ -51,6 +53,7 @@ class ModularCategoriesSuiteTest {
         val progTools = allTools.filter { it.category == ToolCategory.ProgrammingTools }.map { it.id }.toSet()
         assertTrue(progTools.contains("hash_encode"))
         assertTrue(progTools.contains("number_base"))
+        assertTrue(progTools.contains("binary_bitwise"))
 
         // Files tools
         val filesTools = allTools.filter { it.category == ToolCategory.FilesTools }.map { it.id }.toSet()
@@ -65,10 +68,27 @@ class ModularCategoriesSuiteTest {
         assertTrue(networkTools.contains("network_speed_test"))
         assertTrue(networkTools.contains("web_tools"))
 
-        // Media converters
-        val mediaConverters = allTools.filter { it.category == ToolCategory.MediaConverters }.map { it.id }.toSet()
-        assertTrue(mediaConverters.contains("image_resizer"))
-        assertTrue(mediaConverters.contains("image_format_converter"))
+        // Image tools (including moved media converter tools)
+        val imageTools = allTools.filter { it.category == ToolCategory.ImageTools }.map { it.id }.toSet()
+        assertTrue(imageTools.contains("image_resizer"))
+        assertTrue(imageTools.contains("image_format_converter"))
+        assertTrue(imageTools.contains("color_palette_gen"))
+
+        // Health & Fitness tools
+        val healthTools = allTools.filter { it.category == ToolCategory.HealthFitness }.map { it.id }.toSet()
+        assertTrue(healthTools.contains("water_intake_calc"))
+        assertTrue(healthTools.contains("body_fat_calc"))
+        assertTrue(healthTools.contains("target_heart_rate"))
+        assertTrue(healthTools.contains("macro_calc"))
+        assertTrue(healthTools.contains("pace_calc"))
+
+        // Security & Privacy tools
+        val securityTools = allTools.filter { it.category == ToolCategory.SecurityPrivacy }.map { it.id }.toSet()
+        assertTrue(securityTools.contains("password_audit"))
+        assertTrue(securityTools.contains("aes_encryption"))
+        assertTrue(securityTools.contains("checksum_verifier"))
+        assertTrue(securityTools.contains("steganography"))
+        assertTrue(securityTools.contains("uuid_validator"))
     }
 
     @Test
@@ -78,8 +98,9 @@ class ModularCategoriesSuiteTest {
         assertNotNull(ProgrammingToolsRegistry)
         assertNotNull(FilesToolsRegistry)
         assertNotNull(NetworkToolsRegistry)
-        assertNotNull(MediaConvertersRegistry)
         assertNotNull(ImageToolsRegistry)
+        assertNotNull(HealthFitnessRegistry)
+        assertNotNull(SecurityPrivacyRegistry)
     }
 
     @Test
