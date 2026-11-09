@@ -218,3 +218,36 @@ import kotlinx.serialization.Serializable
 @Serializable object PerchanceArtPlugin
 @Serializable object PerchanceNameGen
 @Serializable object HuggingFaceAi
+
+// MultiTool Clean-Room Spec Suite Destinations
+@Serializable object BasicCalculator
+@Serializable object FractionCalculator
+@Serializable object RatioCalculator
+@Serializable object SortDedupeLines
+@Serializable object FindReplace
+@Serializable object TextDiff
+@Serializable object LoremIpsum
+@Serializable object NumberToWords
+@Serializable object RomanNumerals
+@Serializable object FancyText
+@Serializable object EmojiPicker
+@Serializable object ImageResizer
+@Serializable object ImageFormatConverter
+@Serializable object PdfToImages
+@Serializable object CompressPdf
+@Serializable object BarcodeGenerator
+@Serializable object ScanHistory
+@Serializable object JsonFormatter
+@Serializable object UuidGenerator
+@Serializable object ColorConverter
+@Serializable object HtmlEntityTool
+@Serializable object TimestampConverter
+@Serializable object RegexTester
+@Serializable object WorkingDaysCalculator
+@Serializable object WaterReminder
+@Serializable object PregnancyCalculator
+@Serializable object IdealWeightCalculator
+@Serializable object SleepCycleCalculator
+@Serializable object SpinWheel
+@Serializable object RandomNamePicker
+@Serializable object PassphraseGenerator

@@ -118,6 +118,9 @@ val allUnits: List<UnitDef> = buildList {
     add(linearUnit("sq in", "in²", UnitCategory.Area, 0.00064516))
     add(linearUnit("sq ft", "ft²", UnitCategory.Area, 0.092903))
     add(linearUnit("Acre", "ac", UnitCategory.Area, 4046.86))
+    add(linearUnit("Cent", "ct", UnitCategory.Area, 40.4686))
+    add(linearUnit("Gunta", "gunta", UnitCategory.Area, 101.1714))
+    add(linearUnit("Bigha", "bigha", UnitCategory.Area, 2529.285))
     add(linearUnit("sq mi", "mi²", UnitCategory.Area, 2_589_988.0))
 
     // Time (base: second)
