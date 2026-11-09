@@ -87,6 +87,7 @@ fun WidgetsManagementScreen(
             WidgetInfoItem("bmi", "BMI Index Widget", "2x2", "Keep track of your Body Mass Index and health category", BmiCalculatorWidgetReceiver::class.java, "Calculators"),
             WidgetInfoItem("notes", "Quick Notes Scratchpad", "3x2", "View your latest thoughts and notes right on your home screen", NotesWidgetReceiver::class.java, "Everyday"),
             WidgetInfoItem("world_clock", "World Clock Widget", "3x2", "Dual local time and UTC global time synchronization", WorldClockWidgetReceiver::class.java, "DateTime"),
+            WidgetInfoItem("digital_clock", "Digital Clock Widget", "3x2", "Material Expressive live clock with seconds, date, custom colors, and transparency", DigitalClockWidgetProvider::class.java, "DateTime"),
         )
     }
 

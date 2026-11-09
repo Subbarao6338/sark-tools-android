@@ -1,5 +1,20 @@
 package com.toolbox
 
+import com.toolbox.ai.EpicAiScreen
+import com.toolbox.automation.AutomationScreen
+import com.toolbox.conversion.EpicConvertersCalculatorsScreen
+import com.toolbox.datalab.DataLabScreen
+import com.toolbox.datetime.EpicDateTimeScreen
+import com.toolbox.devtools.EpicDevToolsScreen
+import com.toolbox.doctools.EpicDocToolsScreen
+import com.toolbox.lifestyle.LifestyleScreen
+import com.toolbox.networktools.EpicNetworkToolsScreen
+import com.toolbox.systemtools.SystemToolsScreen
+import com.toolbox.web.EpicWebToolsScreen
+import com.toolbox.widgets.DigitalClockConfigScreen
+import com.toolbox.nav.*
+
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -961,6 +976,88 @@ fun ToolboxApp(
                     composable<BinaryBitwise> { ToolScreen("Bitwise Calculator", "binary_bitwise", navController, this@SharedTransitionLayout, this@composable) { BinaryBitwiseScreen() } }
                     composable<MorseTrainer> { ToolScreen("Morse Trainer", "morse_trainer", navController, this@SharedTransitionLayout, this@composable) { MorseTrainerScreen() } }
                     composable<ResistorColorCalc> { ToolScreen("Resistor Color Code", "resistor_color_calc", navController, this@SharedTransitionLayout, this@composable) { ResistorColorCalcScreen() } }
+                    composable<EpicImageGen> { ToolScreen("AI Image Gen", "image-gen", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.ai.EpicAiScreen("image-gen") } }
+                    composable<EpicChat> { ToolScreen("AI Chat Assistant", "chat", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.ai.EpicAiScreen("chat") } }
+                    composable<EpicLocal> { ToolScreen("Local AI Utilities", "local", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.ai.EpicAiScreen("local") } }
+                    composable<EpicAgentIngest> { ToolScreen("Code Ingestion", "agent-ingest", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.automation.AutomationScreen("agent-ingest") } }
+                    composable<EpicAgentGenerate> { ToolScreen("Test Generation", "agent-generate", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.automation.AutomationScreen("agent-generate") } }
+                    composable<EpicAgentResults> { ToolScreen("View Results", "agent-results", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.automation.AutomationScreen("agent-results") } }
+                    composable<EpicAgentSetup> { ToolScreen("API Setup", "agent-setup", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.automation.AutomationScreen("agent-setup") } }
+                    composable<EpicNotionIngest> { ToolScreen("Notion Ingest", "notion-ingest", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.automation.AutomationScreen("notion-ingest") } }
+                    composable<EpicNotionFolder> { ToolScreen("Folder Sync", "notion-folder", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.automation.AutomationScreen("notion-folder") } }
+                    composable<EpicNotionScraper> { ToolScreen("Web Scraper", "notion-scraper", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.automation.AutomationScreen("notion-scraper") } }
+                    composable<EpicNotionHistory> { ToolScreen("Sync History", "notion-history", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.automation.AutomationScreen("notion-history") } }
+                    composable<EpicNotionSetup> { ToolScreen("Integration Setup", "notion-setup", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.automation.AutomationScreen("notion-setup") } }
+                    composable<EpicDatediff> { ToolScreen("Date Difference", "datediff", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.EpicConvertersCalculatorsScreen("datediff") } }
+                    composable<EpicSubnet> { ToolScreen("Subnet Calculator", "subnet", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.EpicConvertersCalculatorsScreen("subnet") } }
+                    composable<EpicWordRank> { ToolScreen("Word Rank Calculator", "word-rank", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.EpicConvertersCalculatorsScreen("word-rank") } }
+                    composable<EpicJsonCsv> { ToolScreen("JSON ↔ CSV Converter", "json-csv", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.EpicConvertersCalculatorsScreen("json-csv") } }
+                    composable<EpicXmlJson> { ToolScreen("XML ↔ JSON Converter", "xml-json", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.EpicConvertersCalculatorsScreen("xml-json") } }
+                    composable<EpicYaml> { ToolScreen("YAML ↔ JSON Converter", "yaml", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.EpicConvertersCalculatorsScreen("yaml") } }
+                    composable<EpicBase64> { ToolScreen("Base64 Converter", "base64", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.EpicConvertersCalculatorsScreen("base64") } }
+                    composable<EpicTimezone> { ToolScreen("Timezone Converter", "timezone", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.EpicConvertersCalculatorsScreen("timezone") } }
+                    composable<EpicBatch> { ToolScreen("Batch Converter", "batch", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.EpicConvertersCalculatorsScreen("batch") } }
+                    composable<EpicViewer> { ToolScreen("Data Viewer", "viewer", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datalab.DataLabScreen("viewer") } }
+                    composable<EpicScience> { ToolScreen("Data Science Hub", "science", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datalab.DataLabScreen("science") } }
+                    composable<EpicAdvData> { ToolScreen("Advanced Data Hub", "adv-data", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datalab.DataLabScreen("adv-data") } }
+                    composable<EpicReconcile> { ToolScreen("Reconciliation Tool", "reconcile", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datalab.DataLabScreen("reconcile") } }
+                    composable<EpicMock> { ToolScreen("Mock Data Generator", "mock", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datalab.DataLabScreen("mock") } }
+                    composable<EpicSynthetic> { ToolScreen("Synthetic Data Tool", "synthetic", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datalab.DataLabScreen("synthetic") } }
+                    composable<EpicPomodoro> { ToolScreen("Pomodoro Timer", "pomodoro", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datetime.EpicDateTimeScreen("pomodoro") } }
+                    composable<EpicCountdown> { ToolScreen("Countdown Timer", "countdown", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datetime.EpicDateTimeScreen("countdown") } }
+                    composable<EpicPanchangam> { ToolScreen("Telugu Panchangam", "panchangam", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datetime.EpicDateTimeScreen("panchangam") } }
+                    composable<EpicApiTester> { ToolScreen("REST API Tester", "api-tester", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("api-tester") } }
+                    composable<EpicSql> { ToolScreen("SQL Formatter", "sql", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("sql") } }
+                    composable<EpicXmlFmt> { ToolScreen("XML Formatter", "xml-fmt", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("xml-fmt") } }
+                    composable<EpicJsonTs> { ToolScreen("JSON to TS Interface", "json-ts", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("json-ts") } }
+                    composable<EpicKusto> { ToolScreen("KQL Formatter", "kusto", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("kusto") } }
+                    composable<EpicDiff> { ToolScreen("Diff Viewer", "diff", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("diff") } }
+                    composable<EpicJwt> { ToolScreen("JWT Debugger", "jwt", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("jwt") } }
+                    composable<EpicUrl> { ToolScreen("URL Tool", "url", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("url") } }
+                    composable<EpicCron> { ToolScreen("Cron Parser", "cron", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("cron") } }
+                    composable<EpicMinifier> { ToolScreen("Code Minifier", "minifier", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("minifier") } }
+                    composable<EpicQrBarcode> { ToolScreen("QR & Barcode Generator", "qr-barcode", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("qr-barcode") } }
+                    composable<EpicInspiration> { ToolScreen("Code Inspiration", "inspiration", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("inspiration") } }
+                    composable<EpicMdTable> { ToolScreen("Markdown Table", "md-table", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("md-table") } }
+                    composable<EpicSqlBuilder> { ToolScreen("SQL Builder", "sql-builder", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.EpicDevToolsScreen("sql-builder") } }
+                    composable<EpicPdf> { ToolScreen("PDF Hub", "pdf", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.doctools.EpicDocToolsScreen("pdf") } }
+                    composable<EpicDocxMd> { ToolScreen("Word to MD Converter", "docx-md", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.doctools.EpicDocToolsScreen("docx-md") } }
+                    composable<EpicDocTranslator> { ToolScreen("Doc Translator", "doc-translator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.doctools.EpicDocToolsScreen("doc-translator") } }
+                    composable<EpicText> { ToolScreen("Text Hub", "text", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.doctools.EpicDocToolsScreen("text") } }
+                    composable<EpicMdEditor> { ToolScreen("Markdown Editor", "md-editor", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.doctools.EpicDocToolsScreen("md-editor") } }
+                    composable<EpicFinance> { ToolScreen("Finance Hub", "finance", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.doctools.EpicDocToolsScreen("finance") } }
+                    composable<EpicImage> { ToolScreen("Image Hub", "image", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.doctools.EpicDocToolsScreen("image") } }
+                    composable<EpicImageLab> { ToolScreen("Image Lab", "image-lab", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.doctools.EpicDocToolsScreen("image-lab") } }
+                    composable<EpicFashionGuide> { ToolScreen("Fashion Styling Guide", "fashion-guide", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.lifestyle.LifestyleScreen("fashion-guide") } }
+                    composable<EpicClothesGuide> { ToolScreen("Clothes & Care Guide", "clothes-guide", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.lifestyle.LifestyleScreen("clothes-guide") } }
+                    composable<EpicTraditionalGuide> { ToolScreen("Traditional & Ethnic Guide", "traditional-guide", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.lifestyle.LifestyleScreen("traditional-guide") } }
+                    composable<EpicWorldwide> { ToolScreen("World Fashion Guide", "worldwide", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.lifestyle.LifestyleScreen("worldwide") } }
+                    composable<EpicPing> { ToolScreen("Ping Tester", "ping", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("ping") } }
+                    composable<EpicDns> { ToolScreen("DNS Lookup", "dns", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("dns") } }
+                    composable<EpicWhois> { ToolScreen("WHOIS Record", "whois", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("whois") } }
+                    composable<EpicIpInfo> { ToolScreen("IP Information", "ip-info", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("ip-info") } }
+                    composable<EpicGeo> { ToolScreen("Geolocation Tool", "geo", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("geo") } }
+                    composable<EpicSsl> { ToolScreen("SSL Checker", "ssl", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("ssl") } }
+                    composable<EpicAnonymizer> { ToolScreen("PII Anonymizer", "anonymizer", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("anonymizer") } }
+                    composable<EpicSecurity> { ToolScreen("Hash & HMAC Generator", "security", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("security") } }
+                    composable<EpicRsa> { ToolScreen("RSA Key Generator", "rsa", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("rsa") } }
+                    composable<EpicOtp> { ToolScreen("OTP Generator", "otp", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("otp") } }
+                    composable<EpicSizeGuide> { ToolScreen("Size & Body Guide", "size-guide", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.lifestyle.LifestyleScreen("size-guide") } }
+                    composable<EpicShoes> { ToolScreen("Footwear Guide", "shoes", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.lifestyle.LifestyleScreen("shoes") } }
+                    composable<EpicAccessories> { ToolScreen("Accessories Guide", "accessories", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.lifestyle.LifestyleScreen("accessories") } }
+                    composable<EpicSocial> { ToolScreen("Social Audit", "social", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("social") } }
+                    composable<EpicSocialDownloader> { ToolScreen("Social Downloader", "social-downloader", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("social-downloader") } }
+                    composable<EpicStatus> { ToolScreen("System Status", "status", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.systemtools.SystemToolsScreen("status") } }
+                    composable<EpicTelemetry> { ToolScreen("Live Telemetry", "telemetry", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.systemtools.SystemToolsScreen("telemetry") } }
+                    composable<EpicLineage> { ToolScreen("Data Lineage", "lineage", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.systemtools.SystemToolsScreen("lineage") } }
+                    composable<EpicExtensionSources> { ToolScreen("Extension Sources", "extension-sources", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("extension-sources") } }
+                    composable<EpicArchive> { ToolScreen("Web Archive", "archive", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("archive") } }
+                    composable<EpicUrl2pdf> { ToolScreen("URL to PDF", "url2pdf", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("url2pdf") } }
+                    composable<EpicUserscripts> { ToolScreen("User Scripts", "userscripts", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("userscripts") } }
+                    composable<EpicBookmarklets> { ToolScreen("Bookmarklets", "bookmarklets", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("bookmarklets") } }
+                    composable<EpicUrl2markdown> { ToolScreen("Web URL to Markdown", "url2markdown", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("url2markdown") } }
+                    composable<EpicBluetooth> { ToolScreen("Bluetooth Scanner", "bluetooth", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("bluetooth") } }
+                    composable<DigitalClockWidgetConfig> { ToolScreen("Digital Clock Widget Config", "digital_clock_widget", navController, this@SharedTransitionLayout, this@composable) { DigitalClockConfigScreen() } }
                 }
             }
         }
@@ -1289,5 +1386,87 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "binary_bitwise" -> BinaryBitwise
     "morse_trainer" -> MorseTrainer
     "resistor_color_calc" -> ResistorColorCalc
+    "image-gen" -> EpicImageGen
+    "chat" -> EpicChat
+    "local" -> EpicLocal
+    "agent-ingest" -> EpicAgentIngest
+    "agent-generate" -> EpicAgentGenerate
+    "agent-results" -> EpicAgentResults
+    "agent-setup" -> EpicAgentSetup
+    "notion-ingest" -> EpicNotionIngest
+    "notion-folder" -> EpicNotionFolder
+    "notion-scraper" -> EpicNotionScraper
+    "notion-history" -> EpicNotionHistory
+    "notion-setup" -> EpicNotionSetup
+    "datediff" -> EpicDatediff
+    "subnet" -> EpicSubnet
+    "word-rank" -> EpicWordRank
+    "json-csv" -> EpicJsonCsv
+    "xml-json" -> EpicXmlJson
+    "yaml" -> EpicYaml
+    "base64" -> EpicBase64
+    "timezone" -> EpicTimezone
+    "batch" -> EpicBatch
+    "viewer" -> EpicViewer
+    "science" -> EpicScience
+    "adv-data" -> EpicAdvData
+    "reconcile" -> EpicReconcile
+    "mock" -> EpicMock
+    "synthetic" -> EpicSynthetic
+    "pomodoro" -> EpicPomodoro
+    "countdown" -> EpicCountdown
+    "panchangam" -> EpicPanchangam
+    "api-tester" -> EpicApiTester
+    "sql" -> EpicSql
+    "xml-fmt" -> EpicXmlFmt
+    "json-ts" -> EpicJsonTs
+    "kusto" -> EpicKusto
+    "diff" -> EpicDiff
+    "jwt" -> EpicJwt
+    "url" -> EpicUrl
+    "cron" -> EpicCron
+    "minifier" -> EpicMinifier
+    "qr-barcode" -> EpicQrBarcode
+    "inspiration" -> EpicInspiration
+    "md-table" -> EpicMdTable
+    "sql-builder" -> EpicSqlBuilder
+    "pdf" -> EpicPdf
+    "docx-md" -> EpicDocxMd
+    "doc-translator" -> EpicDocTranslator
+    "text" -> EpicText
+    "md-editor" -> EpicMdEditor
+    "finance" -> EpicFinance
+    "image" -> EpicImage
+    "image-lab" -> EpicImageLab
+    "fashion-guide" -> EpicFashionGuide
+    "clothes-guide" -> EpicClothesGuide
+    "traditional-guide" -> EpicTraditionalGuide
+    "worldwide" -> EpicWorldwide
+    "ping" -> EpicPing
+    "dns" -> EpicDns
+    "whois" -> EpicWhois
+    "ip-info" -> EpicIpInfo
+    "geo" -> EpicGeo
+    "ssl" -> EpicSsl
+    "anonymizer" -> EpicAnonymizer
+    "security" -> EpicSecurity
+    "rsa" -> EpicRsa
+    "otp" -> EpicOtp
+    "size-guide" -> EpicSizeGuide
+    "shoes" -> EpicShoes
+    "accessories" -> EpicAccessories
+    "social" -> EpicSocial
+    "social-downloader" -> EpicSocialDownloader
+    "status" -> EpicStatus
+    "telemetry" -> EpicTelemetry
+    "lineage" -> EpicLineage
+    "extension-sources" -> EpicExtensionSources
+    "archive" -> EpicArchive
+    "url2pdf" -> EpicUrl2pdf
+    "userscripts" -> EpicUserscripts
+    "bookmarklets" -> EpicBookmarklets
+    "url2markdown" -> EpicUrl2markdown
+    "bluetooth" -> EpicBluetooth
+    "digital_clock_widget" -> DigitalClockWidgetConfig
     else -> null
 }
