@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.DocumentScanner
@@ -232,10 +233,15 @@ enum class ToolCategory(
         tileColor = Color(0xFFE1F5FE),
         iconTint = Color(0xFF0277BD),
     ),
-    MediaConverters(
-        label = "Media converters",
-        tileColor = Color(0xFFF3E5F5),
-        iconTint = Color(0xFF7B1FA2),
+    HealthFitness(
+        label = "Health & Fitness",
+        tileColor = Color(0xFFE8F5E9),
+        iconTint = Color(0xFF1B5E20),
+    ),
+    SecurityPrivacy(
+        label = "Security & Privacy",
+        tileColor = Color(0xFFEDE7F6),
+        iconTint = Color(0xFF4527A0),
     ),
     Others(
         label = "Others",
@@ -269,7 +275,8 @@ fun ToolCategory.themeTileColor(matchWithTheme: Boolean): Color {
         ToolCategory.ProgrammingTools -> MaterialTheme.colorScheme.surfaceContainerHigh
         ToolCategory.FilesTools -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
         ToolCategory.NetworkTools -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.50f)
-        ToolCategory.MediaConverters -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.40f)
+        ToolCategory.HealthFitness -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        ToolCategory.SecurityPrivacy -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.50f)
         ToolCategory.Others -> MaterialTheme.colorScheme.surfaceContainerHigh
     }
 }
@@ -299,7 +306,8 @@ fun ToolCategory.themeIconTint(matchWithTheme: Boolean): Color {
         ToolCategory.ProgrammingTools -> MaterialTheme.colorScheme.secondary
         ToolCategory.FilesTools -> MaterialTheme.colorScheme.primary
         ToolCategory.NetworkTools -> MaterialTheme.colorScheme.tertiary
-        ToolCategory.MediaConverters -> MaterialTheme.colorScheme.secondary
+        ToolCategory.HealthFitness -> MaterialTheme.colorScheme.primary
+        ToolCategory.SecurityPrivacy -> MaterialTheme.colorScheme.tertiary
         ToolCategory.Others -> MaterialTheme.colorScheme.secondary
     }
 }
@@ -1818,12 +1826,12 @@ val allTools = listOf(
         description = "Measure network latency ping, packet jitter, and throughput speed with latency health guidelines.",
         searchKeywords = listOf("speed", "test", "ping", "latency", "network", "throughput", "bandwidth", "jitter"),
     ),
-    // MediaConverters
+    // ImageTools (including former MediaConverters)
     ToolDefinition(
         id = "image_resizer",
         name = "Image Resizer",
         icon = Icons.Default.Photo,
-        category = ToolCategory.MediaConverters,
+        category = ToolCategory.ImageTools,
         description = "Resize images by exact pixel dimensions or percentage scale with aspect ratio lock and quick 1080p/720p presets.",
         searchKeywords = listOf("resize", "dimensions", "scale", "image", "photo", "pixel", "aspect ratio"),
     ),
@@ -1831,8 +1839,139 @@ val allTools = listOf(
         id = "image_format_converter",
         name = "Image Converter",
         icon = Icons.Default.Image,
-        category = ToolCategory.MediaConverters,
+        category = ToolCategory.ImageTools,
         description = "Convert images between JPEG, PNG, and WEBP formats with adjustable quality slider and file size estimation.",
         searchKeywords = listOf("convert", "format", "jpeg", "png", "webp", "image", "compression"),
+    ),
+    // Health & Fitness Tools
+    ToolDefinition(
+        id = "water_intake_calc",
+        name = "Hydration Calculator",
+        icon = Icons.Default.LocalDrink,
+        category = ToolCategory.HealthFitness,
+        description = "Calculate daily water intake requirements based on weight, activity level, and climate with optimal hourly hydration schedule.",
+        searchKeywords = listOf("water", "hydration", "intake", "drink", "health", "cups", "glasses", "fitness"),
+    ),
+    ToolDefinition(
+        id = "body_fat_calc",
+        name = "Body Fat Calculator",
+        icon = Icons.Default.FitnessCenter,
+        category = ToolCategory.HealthFitness,
+        description = "Estimate body fat percentage using standard US Navy circumference method with fitness classification categories.",
+        searchKeywords = listOf("body fat", "navy", "lean", "waist", "neck", "hip", "obesity", "fitness"),
+    ),
+    ToolDefinition(
+        id = "target_heart_rate",
+        name = "Target Heart Rate",
+        icon = Icons.Default.Favorite,
+        category = ToolCategory.HealthFitness,
+        description = "Calculate maximum heart rate and 5 Karvonen aerobic & anaerobic exercise intensity training zones.",
+        searchKeywords = listOf("heart rate", "hrr", "karvonen", "cardio", "zones", "fat burn", "bpm", "fitness"),
+    ),
+    ToolDefinition(
+        id = "macro_calc",
+        name = "Macro Calculator",
+        icon = Icons.Default.Restaurant,
+        category = ToolCategory.HealthFitness,
+        description = "Calculate daily macronutrient targets (protein, carbs, and fats in grams and calories) for cutting, bulking, maintenance, or keto.",
+        searchKeywords = listOf("macro", "macros", "protein", "carbs", "fats", "calories", "diet", "nutrition", "keto"),
+    ),
+    ToolDefinition(
+        id = "pace_calc",
+        name = "Running Pace",
+        icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+        category = ToolCategory.HealthFitness,
+        description = "Calculate running and walking pace (min/km & min/mile) with race finish time predictions for 5K, 10K, Half, and Marathon.",
+        searchKeywords = listOf("pace", "running", "marathon", "5k", "10k", "speed", "splits", "race", "runner"),
+    ),
+    // Security & Privacy Tools
+    ToolDefinition(
+        id = "password_audit",
+        name = "Password Auditor",
+        icon = Icons.Default.Lock,
+        category = ToolCategory.SecurityPrivacy,
+        description = "Audit password entropy bits, brute-force crack time estimates, and compliance with modern security criteria.",
+        searchKeywords = listOf("password", "security", "audit", "entropy", "strength", "crack time", "safe"),
+    ),
+    ToolDefinition(
+        id = "aes_encryption",
+        name = "AES-256 Encryptor",
+        icon = Icons.Default.Key,
+        category = ToolCategory.SecurityPrivacy,
+        description = "Encrypt and decrypt confidential text using AES-256 GCM authenticated encryption with PBKDF2 passphrase key derivation.",
+        searchKeywords = listOf("aes", "encrypt", "decrypt", "cipher", "crypto", "security", "privacy", "gcm"),
+    ),
+    ToolDefinition(
+        id = "checksum_verifier",
+        name = "Checksum Verifier",
+        icon = Icons.Default.CheckCircle,
+        category = ToolCategory.SecurityPrivacy,
+        description = "Compute and verify cryptographic checksum hashes across MD5, SHA-1, SHA-256, and SHA-512 algorithms.",
+        searchKeywords = listOf("checksum", "hash", "sha256", "md5", "sha512", "integrity", "verify", "digest"),
+    ),
+    ToolDefinition(
+        id = "steganography",
+        name = "Text Steganography",
+        icon = Icons.Default.VisibilityOff,
+        category = ToolCategory.SecurityPrivacy,
+        description = "Conceal and extract secret hidden messages inside ordinary public text using invisible zero-width Unicode characters.",
+        searchKeywords = listOf("steganography", "hidden", "secret", "invisible", "conceal", "privacy", "zero width"),
+    ),
+    ToolDefinition(
+        id = "uuid_validator",
+        name = "UUID Inspector",
+        icon = Icons.Default.Key,
+        category = ToolCategory.SecurityPrivacy,
+        description = "Inspect and validate UUID and GUID tokens for version type (v1, v4, v7), variant classification, and formatting compliance.",
+        searchKeywords = listOf("uuid", "guid", "validator", "inspector", "v4", "v1", "v7", "token"),
+    ),
+    // Additional Enhanced Tools across Categories
+    ToolDefinition(
+        id = "color_palette_gen",
+        name = "Palette Generator",
+        icon = Icons.Default.Palette,
+        category = ToolCategory.ImageTools,
+        description = "Generate aesthetic color harmonies (Complementary, Analogous, Triadic, Monochromatic) with 1-tap hex copying.",
+        searchKeywords = listOf("palette", "color", "harmony", "complementary", "analogous", "triadic", "hex", "design"),
+    ),
+    ToolDefinition(
+        id = "sound_exposure",
+        name = "Sound Exposure",
+        icon = Icons.Default.Equalizer,
+        category = ToolCategory.AudioTools,
+        description = "OSHA and NIOSH ambient sound exposure guidelines, maximum allowable safe durations, and noise risk levels.",
+        searchKeywords = listOf("sound", "exposure", "decibel", "noise", "osha", "niosh", "hearing", "ear", "safety"),
+    ),
+    ToolDefinition(
+        id = "matrix_calc",
+        name = "Matrix Calculator",
+        icon = Icons.Default.Functions,
+        category = ToolCategory.Calculators,
+        description = "Compute 2x2 matrix determinants, inverses, traces, and transpose operations with step-by-step display.",
+        searchKeywords = listOf("matrix", "determinant", "inverse", "transpose", "algebra", "math", "linear"),
+    ),
+    ToolDefinition(
+        id = "binary_bitwise",
+        name = "Bitwise Calculator",
+        icon = Icons.Default.Pin,
+        category = ToolCategory.ProgrammingTools,
+        description = "Perform 32-bit binary bitwise operations (AND, OR, XOR, NOT, bit shifts) with binary, decimal, and hex representations.",
+        searchKeywords = listOf("bitwise", "binary", "and", "or", "xor", "shift", "hex", "programming"),
+    ),
+    ToolDefinition(
+        id = "morse_trainer",
+        name = "Morse Trainer",
+        icon = Icons.Default.Casino,
+        category = ToolCategory.Games,
+        description = "Interactive flashcard quiz and learning trainer for International Morse Code letters, numbers, and symbols.",
+        searchKeywords = listOf("morse", "quiz", "trainer", "game", "code", "learn", "flashcard"),
+    ),
+    ToolDefinition(
+        id = "resistor_color_calc",
+        name = "Resistor Color Code",
+        icon = Icons.Default.Hardware,
+        category = ToolCategory.Converters,
+        description = "Calculate electronic resistor values and tolerance percentages by selecting 4-band color rings with live graphical preview.",
+        searchKeywords = listOf("resistor", "color code", "resistance", "ohm", "electronics", "circuit", "hardware"),
     ),
 )

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Expressive Monochromatic Badge Silhouette for Material You -->
+    <path
+        android:pathData="M54,22 C64,22 78,25 84,33 C90,41 92,54 90,66 C88,78 78,86 66,86 C54,86 42,86 32,84 C22,82 16,74 16,62 C16,50 22,34 38,26 C44,23 49,22 54,22 Z"
+        android:fillColor="#FFFFFF" />
+    <!-- Center Inset 'S' & Tool Cutout -->
+    <path
+        android:pathData="M52,42 C44,42 40,46 40,50 C40,56 55,54 55,60 C55,64 51,66 46,66 C41,66 38,64 36,61 L32,65 C35,69 40,71 46,71 C54,71 60,67 60,60 C60,53 45,55 45,50 C45,47 48,46 52,46 C56,46 59,48 61,51 L65,47 C62,44 57,42 52,42 Z"
+        android:fillColor="#000000" />
+    <!-- Dynamic 4-Point Spark Cutout -->
+    <path
+        android:pathData="M76,46 C76,49 80,51 83,51 C80,51 76,53 76,56 C76,53 72,51 69,51 C72,51 76,49 76,46 Z"
+        android:fillColor="#000000" />
+</vector>

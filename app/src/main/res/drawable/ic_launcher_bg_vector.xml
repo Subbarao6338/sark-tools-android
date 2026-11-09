@@ -4,13 +4,20 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Expressive Deep Gradient Backdrop -->
     <path
         android:pathData="M0,0h108v108h-108z"
-        android:fillColor="#1A237E" />
+        android:fillColor="#0D1B2A" />
+    <!-- Dynamic Expressive Angled Ribbon / M3 Color Slice -->
     <path
-        android:pathData="M0,0 L108,108 L108,0 Z"
-        android:fillColor="#283593" />
+        android:pathData="M0,0 L108,60 L108,108 L0,108 Z"
+        android:fillColor="#1B263B" />
+    <!-- Material 3 Organic Expressive Squircle / Blobitecture Layer -->
     <path
-        android:pathData="M18,18 C30,6 78,6 90,18 C102,30 102,78 90,90 C78,102 30,102 18,90 C6,78 6,30 18,18 Z"
-        android:fillColor="#303F9F" />
+        android:pathData="M22,26 C36,12 72,12 86,26 C100,40 100,68 86,82 C72,96 36,96 22,82 C8,68 8,40 22,26 Z"
+        android:fillColor="#415A77" />
+    <!-- Vibrant Dynamic Radial Glow -->
+    <path
+        android:pathData="M54,20 C72,20 88,36 88,54 C88,72 72,88 54,88 C36,88 20,72 20,54 C20,36 36,20 54,20 Z"
+        android:fillColor="#004D40" />
 </vector>

@@ -251,3 +251,20 @@ import kotlinx.serialization.Serializable
 @Serializable object SpinWheel
 @Serializable object RandomNamePicker
 @Serializable object PassphraseGenerator
+
+@Serializable object WaterIntakeCalc
+@Serializable object BodyFatCalc
+@Serializable object TargetHeartRate
+@Serializable object MacroCalc
+@Serializable object PaceCalc
+@Serializable object PasswordAudit
+@Serializable object AesEncryption
+@Serializable object ChecksumVerifier
+@Serializable object Steganography
+@Serializable object UuidValidator
+@Serializable object ColorPaletteGen
+@Serializable object SoundExposure
+@Serializable object MatrixCalc
+@Serializable object BinaryBitwise
+@Serializable object MorseTrainer
+@Serializable object ResistorColorCalc

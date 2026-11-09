@@ -360,6 +360,38 @@ import com.toolbox.nav.SleepCycleCalculator
 import com.toolbox.nav.SpinWheel
 import com.toolbox.nav.RandomNamePicker
 import com.toolbox.nav.PassphraseGenerator
+import com.toolbox.nav.WaterIntakeCalc
+import com.toolbox.nav.BodyFatCalc
+import com.toolbox.nav.TargetHeartRate
+import com.toolbox.nav.MacroCalc
+import com.toolbox.nav.PaceCalc
+import com.toolbox.nav.PasswordAudit
+import com.toolbox.nav.AesEncryption
+import com.toolbox.nav.ChecksumVerifier
+import com.toolbox.nav.Steganography
+import com.toolbox.nav.UuidValidator
+import com.toolbox.nav.ColorPaletteGen
+import com.toolbox.nav.SoundExposure
+import com.toolbox.nav.MatrixCalc
+import com.toolbox.nav.BinaryBitwise
+import com.toolbox.nav.MorseTrainer
+import com.toolbox.nav.ResistorColorCalc
+import com.toolbox.healthfitness.WaterIntakeCalcScreen
+import com.toolbox.healthfitness.BodyFatCalcScreen
+import com.toolbox.healthfitness.TargetHeartRateScreen
+import com.toolbox.healthfitness.MacroCalcScreen
+import com.toolbox.healthfitness.PaceCalcScreen
+import com.toolbox.securityprivacy.PasswordAuditScreen
+import com.toolbox.securityprivacy.AesEncryptionScreen
+import com.toolbox.securityprivacy.ChecksumVerifierScreen
+import com.toolbox.securityprivacy.SteganographyScreen
+import com.toolbox.securityprivacy.UuidValidatorScreen
+import com.toolbox.media.imagesuite.ColorPaletteGenScreen
+import com.toolbox.media.audio.SoundExposureScreen
+import com.toolbox.conversion.algebra.MatrixCalcScreen
+import com.toolbox.conversion.numberbase.BinaryBitwiseScreen
+import com.toolbox.everyday.morse.MorseTrainerScreen
+import com.toolbox.conversion.screwbolt.ResistorColorCalcScreen
 import com.toolbox.conversion.basiccalc.BasicCalculatorScreen
 import com.toolbox.conversion.fraction.FractionCalculatorScreen
 import com.toolbox.conversion.ratio.RatioCalculatorScreen
@@ -913,6 +945,22 @@ fun ToolboxApp(
                     composable<SpinWheel> { ToolScreen("Spin the Wheel", "spin_wheel", navController, this@SharedTransitionLayout, this@composable) { SpinWheelScreen() } }
                     composable<RandomNamePicker> { ToolScreen("Name / List Picker", "random_name_picker", navController, this@SharedTransitionLayout, this@composable) { RandomNamePickerScreen() } }
                     composable<PassphraseGenerator> { ToolScreen("Passphrase Generator", "passphrase_generator", navController, this@SharedTransitionLayout, this@composable) { PassphraseGeneratorScreen() } }
+                    composable<WaterIntakeCalc> { ToolScreen("Hydration Calculator", "water_intake_calc", navController, this@SharedTransitionLayout, this@composable) { WaterIntakeCalcScreen() } }
+                    composable<BodyFatCalc> { ToolScreen("Body Fat Calculator", "body_fat_calc", navController, this@SharedTransitionLayout, this@composable) { BodyFatCalcScreen() } }
+                    composable<TargetHeartRate> { ToolScreen("Target Heart Rate", "target_heart_rate", navController, this@SharedTransitionLayout, this@composable) { TargetHeartRateScreen() } }
+                    composable<MacroCalc> { ToolScreen("Macro Calculator", "macro_calc", navController, this@SharedTransitionLayout, this@composable) { MacroCalcScreen() } }
+                    composable<PaceCalc> { ToolScreen("Running Pace", "pace_calc", navController, this@SharedTransitionLayout, this@composable) { PaceCalcScreen() } }
+                    composable<PasswordAudit> { ToolScreen("Password Auditor", "password_audit", navController, this@SharedTransitionLayout, this@composable) { PasswordAuditScreen() } }
+                    composable<AesEncryption> { ToolScreen("AES-256 Encryptor", "aes_encryption", navController, this@SharedTransitionLayout, this@composable) { AesEncryptionScreen() } }
+                    composable<ChecksumVerifier> { ToolScreen("Checksum Verifier", "checksum_verifier", navController, this@SharedTransitionLayout, this@composable) { ChecksumVerifierScreen() } }
+                    composable<Steganography> { ToolScreen("Text Steganography", "steganography", navController, this@SharedTransitionLayout, this@composable) { SteganographyScreen() } }
+                    composable<UuidValidator> { ToolScreen("UUID Inspector", "uuid_validator", navController, this@SharedTransitionLayout, this@composable) { UuidValidatorScreen() } }
+                    composable<ColorPaletteGen> { ToolScreen("Palette Generator", "color_palette_gen", navController, this@SharedTransitionLayout, this@composable) { ColorPaletteGenScreen() } }
+                    composable<SoundExposure> { ToolScreen("Sound Exposure", "sound_exposure", navController, this@SharedTransitionLayout, this@composable) { SoundExposureScreen() } }
+                    composable<MatrixCalc> { ToolScreen("Matrix Calculator", "matrix_calc", navController, this@SharedTransitionLayout, this@composable) { MatrixCalcScreen() } }
+                    composable<BinaryBitwise> { ToolScreen("Bitwise Calculator", "binary_bitwise", navController, this@SharedTransitionLayout, this@composable) { BinaryBitwiseScreen() } }
+                    composable<MorseTrainer> { ToolScreen("Morse Trainer", "morse_trainer", navController, this@SharedTransitionLayout, this@composable) { MorseTrainerScreen() } }
+                    composable<ResistorColorCalc> { ToolScreen("Resistor Color Code", "resistor_color_calc", navController, this@SharedTransitionLayout, this@composable) { ResistorColorCalcScreen() } }
                 }
             }
         }
@@ -1225,5 +1273,21 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "spin_wheel" -> SpinWheel
     "random_name_picker" -> RandomNamePicker
     "passphrase_generator" -> PassphraseGenerator
+    "water_intake_calc" -> WaterIntakeCalc
+    "body_fat_calc" -> BodyFatCalc
+    "target_heart_rate" -> TargetHeartRate
+    "macro_calc" -> MacroCalc
+    "pace_calc" -> PaceCalc
+    "password_audit" -> PasswordAudit
+    "aes_encryption" -> AesEncryption
+    "checksum_verifier" -> ChecksumVerifier
+    "steganography" -> Steganography
+    "uuid_validator" -> UuidValidator
+    "color_palette_gen" -> ColorPaletteGen
+    "sound_exposure" -> SoundExposure
+    "matrix_calc" -> MatrixCalc
+    "binary_bitwise" -> BinaryBitwise
+    "morse_trainer" -> MorseTrainer
+    "resistor_color_calc" -> ResistorColorCalc
     else -> null
 }

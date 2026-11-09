@@ -4,21 +4,28 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Outer expressive decorative badge -->
+    <!-- Expressive Material 3 Rounded Polygonal Hex-Badge Container -->
     <path
-        android:pathData="M54,26 C64,26 76,28 82,34 C88,40 90,52 90,62 C90,72 82,82 72,82 C62,82 46,82 36,82 C26,82 18,74 18,62 C18,50 26,26 54,26 Z"
-        android:fillColor="#FFB300" />
-    <!-- Expressive Tool Gear / Bolt & Wrench Motif -->
-    <!-- Wrench Head -->
+        android:pathData="M54,22 C64,22 78,25 84,33 C90,41 92,54 90,66 C88,78 78,86 66,86 C54,86 42,86 32,84 C22,82 16,74 16,62 C16,50 22,34 38,26 C44,23 49,22 54,22 Z"
+        android:fillColor="#FFD166" />
+
+    <!-- Material Expressive Sleek Modern Wrench Motif -->
     <path
-        android:pathData="M68,36 C64,32 58,32 54,36 L44,46 L50,52 L60,42 C64,42 66,40 68,36 Z"
+        android:pathData="M66,32 C62,28 56,28 52,32 L40,44 L48,52 L60,40 C63,40 65,37 66,32 Z"
+        android:fillColor="#06D6A0" />
+
+    <!-- Stylized Precision Caliper / Ruler Bar Motif -->
+    <path
+        android:pathData="M34,74 L74,34 L68,28 L28,68 Z"
+        android:fillColor="#118AB2" />
+
+    <!-- Expressive Dynamic 4-Point Innovation Spark Star -->
+    <path
+        android:pathData="M76,46 C76,49 80,51 83,51 C80,51 76,53 76,56 C76,53 72,51 69,51 C72,51 76,49 76,46 Z"
         android:fillColor="#FFFFFF" />
-    <!-- Screwdriver / Stylus / Spark -->
+
+    <!-- Iconic Sark Tools Vibrant Expressive Fluid 'S' Core Glyph -->
     <path
-        android:pathData="M38,70 L34,74 L38,74 L40,72 L66,46 L62,42 Z"
-        android:fillColor="#E0F7FA" />
-    <!-- Vibrant Central Expressive "S" (Sark Tools) Accent Curve -->
-    <path
-        android:pathData="M50,44 C45,44 42,47 42,50 C42,55 54,53 54,58 C54,61 51,63 47,63 C43,63 40,61 39,59 L35,62 C37,65 41,67 47,67 C53,67 58,63 58,58 C58,52 46,54 46,49 C46,47 48,46 51,46 C54,46 57,48 58,50 L62,47 C60,45 56,44 50,44 Z"
-        android:fillColor="#004D40" />
+        android:pathData="M52,42 C44,42 40,46 40,50 C40,56 55,54 55,60 C55,64 51,66 46,66 C41,66 38,64 36,61 L32,65 C35,69 40,71 46,71 C54,71 60,67 60,60 C60,53 45,55 45,50 C45,47 48,46 52,46 C56,46 59,48 61,51 L65,47 C62,44 57,42 52,42 Z"
+        android:fillColor="#073B4C" />
 </vector>
