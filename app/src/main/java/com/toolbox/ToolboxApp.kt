@@ -329,6 +329,68 @@ import com.toolbox.nav.PerchanceArtPlugin
 import com.toolbox.nav.PerchanceNameGen
 import com.toolbox.nav.HuggingFaceAi
 import com.toolbox.ai.AiWebViewScreen
+import com.toolbox.nav.BasicCalculator
+import com.toolbox.nav.FractionCalculator
+import com.toolbox.nav.RatioCalculator
+import com.toolbox.nav.SortDedupeLines
+import com.toolbox.nav.FindReplace
+import com.toolbox.nav.TextDiff
+import com.toolbox.nav.LoremIpsum
+import com.toolbox.nav.NumberToWords
+import com.toolbox.nav.RomanNumerals
+import com.toolbox.nav.FancyText
+import com.toolbox.nav.EmojiPicker
+import com.toolbox.nav.ImageResizer
+import com.toolbox.nav.ImageFormatConverter
+import com.toolbox.nav.PdfToImages
+import com.toolbox.nav.CompressPdf
+import com.toolbox.nav.BarcodeGenerator
+import com.toolbox.nav.ScanHistory
+import com.toolbox.nav.JsonFormatter
+import com.toolbox.nav.UuidGenerator
+import com.toolbox.nav.ColorConverter
+import com.toolbox.nav.HtmlEntityTool
+import com.toolbox.nav.TimestampConverter
+import com.toolbox.nav.RegexTester
+import com.toolbox.nav.WorkingDaysCalculator
+import com.toolbox.nav.WaterReminder
+import com.toolbox.nav.PregnancyCalculator
+import com.toolbox.nav.IdealWeightCalculator
+import com.toolbox.nav.SleepCycleCalculator
+import com.toolbox.nav.SpinWheel
+import com.toolbox.nav.RandomNamePicker
+import com.toolbox.nav.PassphraseGenerator
+import com.toolbox.conversion.basiccalc.BasicCalculatorScreen
+import com.toolbox.conversion.fraction.FractionCalculatorScreen
+import com.toolbox.conversion.ratio.RatioCalculatorScreen
+import com.toolbox.everyday.textsuite.SortDedupeLinesScreen
+import com.toolbox.everyday.textsuite.FindReplaceScreen
+import com.toolbox.everyday.textsuite.TextDiffScreen
+import com.toolbox.everyday.textsuite.LoremIpsumScreen
+import com.toolbox.everyday.textsuite.NumberToWordsScreen
+import com.toolbox.everyday.textsuite.RomanNumeralsScreen
+import com.toolbox.everyday.textsuite.FancyTextScreen
+import com.toolbox.everyday.textsuite.EmojiPickerScreen
+import com.toolbox.media.imagesuite.ImageResizerScreen
+import com.toolbox.media.imagesuite.ImageFormatConverterScreen
+import com.toolbox.doctools.PdfToImagesScreen
+import com.toolbox.doctools.CompressPdfScreen
+import com.toolbox.everyday.barcodesuite.BarcodeGeneratorScreen
+import com.toolbox.everyday.barcodesuite.ScanHistoryScreen
+import com.toolbox.conversion.devsuite.JsonFormatterScreen
+import com.toolbox.conversion.devsuite.UuidGeneratorScreen
+import com.toolbox.conversion.devsuite.ColorConverterScreen
+import com.toolbox.conversion.devsuite.HtmlEntityScreen
+import com.toolbox.conversion.devsuite.TimestampConverterScreen
+import com.toolbox.conversion.devsuite.RegexTesterScreen
+import com.toolbox.datetime.workingdays.WorkingDaysScreen
+import com.toolbox.conversion.healthsuite.WaterReminderScreen
+import com.toolbox.conversion.healthsuite.PregnancyCalculatorScreen
+import com.toolbox.conversion.healthsuite.IdealWeightCalculatorScreen
+import com.toolbox.conversion.healthsuite.SleepCycleScreen
+import com.toolbox.everyday.randomsuite.SpinWheelScreen
+import com.toolbox.everyday.randomsuite.RandomNamePickerScreen
+import com.toolbox.everyday.randomsuite.PassphraseGeneratorScreen
 
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -818,6 +880,39 @@ fun ToolboxApp(
                             onBack = { navController.popBackStack() },
                         )
                     }
+
+                    // MultiTool Clean-Room Spec Routes
+                    composable<BasicCalculator> { ToolScreen("Basic Calculator", "basic_calculator", navController, this@SharedTransitionLayout, this@composable) { BasicCalculatorScreen() } }
+                    composable<FractionCalculator> { ToolScreen("Fraction Calculator", "fraction_calculator", navController, this@SharedTransitionLayout, this@composable) { FractionCalculatorScreen() } }
+                    composable<RatioCalculator> { ToolScreen("Ratio & Proportion", "ratio_calculator", navController, this@SharedTransitionLayout, this@composable) { RatioCalculatorScreen() } }
+                    composable<SortDedupeLines> { ToolScreen("Sort & Dedupe Lines", "sort_dedupe_lines", navController, this@SharedTransitionLayout, this@composable) { SortDedupeLinesScreen() } }
+                    composable<FindReplace> { ToolScreen("Find & Replace", "find_replace", navController, this@SharedTransitionLayout, this@composable) { FindReplaceScreen() } }
+                    composable<TextDiff> { ToolScreen("Text Diff", "text_diff", navController, this@SharedTransitionLayout, this@composable) { TextDiffScreen() } }
+                    composable<LoremIpsum> { ToolScreen("Lorem Ipsum", "lorem_ipsum", navController, this@SharedTransitionLayout, this@composable) { LoremIpsumScreen() } }
+                    composable<NumberToWords> { ToolScreen("Number to Words", "number_to_words", navController, this@SharedTransitionLayout, this@composable) { NumberToWordsScreen() } }
+                    composable<RomanNumerals> { ToolScreen("Roman Numerals", "roman_numerals", navController, this@SharedTransitionLayout, this@composable) { RomanNumeralsScreen() } }
+                    composable<FancyText> { ToolScreen("Fancy Text", "fancy_text", navController, this@SharedTransitionLayout, this@composable) { FancyTextScreen() } }
+                    composable<EmojiPicker> { ToolScreen("Emoji & Symbols", "emoji_picker", navController, this@SharedTransitionLayout, this@composable) { EmojiPickerScreen() } }
+                    composable<ImageResizer> { ToolScreen("Image Resizer", "image_resizer", navController, this@SharedTransitionLayout, this@composable) { ImageResizerScreen() } }
+                    composable<ImageFormatConverter> { ToolScreen("Image Converter", "image_format_converter", navController, this@SharedTransitionLayout, this@composable) { ImageFormatConverterScreen() } }
+                    composable<PdfToImages> { ToolScreen("PDF to Images", "pdf_to_images", navController, this@SharedTransitionLayout, this@composable) { PdfToImagesScreen() } }
+                    composable<CompressPdf> { ToolScreen("Compress PDF", "compress_pdf", navController, this@SharedTransitionLayout, this@composable) { CompressPdfScreen() } }
+                    composable<BarcodeGenerator> { ToolScreen("Barcode Generator", "barcode_generator", navController, this@SharedTransitionLayout, this@composable) { BarcodeGeneratorScreen() } }
+                    composable<ScanHistory> { ToolScreen("Scan History", "scan_history", navController, this@SharedTransitionLayout, this@composable) { ScanHistoryScreen() } }
+                    composable<JsonFormatter> { ToolScreen("JSON Formatter", "json_formatter", navController, this@SharedTransitionLayout, this@composable) { JsonFormatterScreen() } }
+                    composable<UuidGenerator> { ToolScreen("UUID Generator", "uuid_generator", navController, this@SharedTransitionLayout, this@composable) { UuidGeneratorScreen() } }
+                    composable<ColorConverter> { ToolScreen("Color Converter", "color_converter", navController, this@SharedTransitionLayout, this@composable) { ColorConverterScreen() } }
+                    composable<HtmlEntityTool> { ToolScreen("HTML Entities", "html_entity_tool", navController, this@SharedTransitionLayout, this@composable) { HtmlEntityScreen() } }
+                    composable<TimestampConverter> { ToolScreen("Timestamp Converter", "timestamp_converter", navController, this@SharedTransitionLayout, this@composable) { TimestampConverterScreen() } }
+                    composable<RegexTester> { ToolScreen("Regex Tester", "regex_tester", navController, this@SharedTransitionLayout, this@composable) { RegexTesterScreen() } }
+                    composable<WorkingDaysCalculator> { ToolScreen("Working Days", "working_days_calculator", navController, this@SharedTransitionLayout, this@composable) { WorkingDaysScreen() } }
+                    composable<WaterReminder> { ToolScreen("Water Tracker", "water_reminder", navController, this@SharedTransitionLayout, this@composable) { WaterReminderScreen() } }
+                    composable<PregnancyCalculator> { ToolScreen("Pregnancy Calculator", "pregnancy_calculator", navController, this@SharedTransitionLayout, this@composable) { PregnancyCalculatorScreen() } }
+                    composable<IdealWeightCalculator> { ToolScreen("Ideal Weight", "ideal_weight_calculator", navController, this@SharedTransitionLayout, this@composable) { IdealWeightCalculatorScreen() } }
+                    composable<SleepCycleCalculator> { ToolScreen("Sleep Cycle", "sleep_cycle_calculator", navController, this@SharedTransitionLayout, this@composable) { SleepCycleScreen() } }
+                    composable<SpinWheel> { ToolScreen("Spin the Wheel", "spin_wheel", navController, this@SharedTransitionLayout, this@composable) { SpinWheelScreen() } }
+                    composable<RandomNamePicker> { ToolScreen("Name / List Picker", "random_name_picker", navController, this@SharedTransitionLayout, this@composable) { RandomNamePickerScreen() } }
+                    composable<PassphraseGenerator> { ToolScreen("Passphrase Generator", "passphrase_generator", navController, this@SharedTransitionLayout, this@composable) { PassphraseGeneratorScreen() } }
                 }
             }
         }
@@ -1099,5 +1194,36 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "perchance_art_plugin" -> PerchanceArtPlugin
     "perchance_name_gen" -> PerchanceNameGen
     "huggingface_ai" -> HuggingFaceAi
+    "basic_calculator" -> BasicCalculator
+    "fraction_calculator" -> FractionCalculator
+    "ratio_calculator" -> RatioCalculator
+    "sort_dedupe_lines" -> SortDedupeLines
+    "find_replace" -> FindReplace
+    "text_diff" -> TextDiff
+    "lorem_ipsum" -> LoremIpsum
+    "number_to_words" -> NumberToWords
+    "roman_numerals" -> RomanNumerals
+    "fancy_text" -> FancyText
+    "emoji_picker" -> EmojiPicker
+    "image_resizer" -> ImageResizer
+    "image_format_converter" -> ImageFormatConverter
+    "pdf_to_images" -> PdfToImages
+    "compress_pdf" -> CompressPdf
+    "barcode_generator" -> BarcodeGenerator
+    "scan_history" -> ScanHistory
+    "json_formatter" -> JsonFormatter
+    "uuid_generator" -> UuidGenerator
+    "color_converter" -> ColorConverter
+    "html_entity_tool" -> HtmlEntityTool
+    "timestamp_converter" -> TimestampConverter
+    "regex_tester" -> RegexTester
+    "working_days_calculator" -> WorkingDaysCalculator
+    "water_reminder" -> WaterReminder
+    "pregnancy_calculator" -> PregnancyCalculator
+    "ideal_weight_calculator" -> IdealWeightCalculator
+    "sleep_cycle_calculator" -> SleepCycleCalculator
+    "spin_wheel" -> SpinWheel
+    "random_name_picker" -> RandomNamePicker
+    "passphrase_generator" -> PassphraseGenerator
     else -> null
 }

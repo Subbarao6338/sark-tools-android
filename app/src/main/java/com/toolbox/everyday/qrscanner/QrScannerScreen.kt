@@ -80,6 +80,7 @@ private fun QrScannerContent() {
         QrCodeAnalyzer { result ->
             if (scannedResult == null) {
                 scannedResult = result
+                com.toolbox.everyday.barcodesuite.ScanHistoryManager.addRecord(context, result.text, result.format.name)
             }
         }
     }
