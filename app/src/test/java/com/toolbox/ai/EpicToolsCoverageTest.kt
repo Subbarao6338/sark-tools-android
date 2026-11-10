@@ -57,5 +57,14 @@ class EpicToolsCoverageTest {
         // Total suite coverage: 81 direct + 12 merged = 93 Epic tools accounting
         assertEquals(81, expectedDirectEpicTools.size)
         assertEquals(12, mergedNativeTools.size)
+        assertEquals(93, expectedDirectEpicTools.size + mergedNativeTools.size)
+
+        // Legacy / Original 12 Epic tool IDs mapping
+        val original12EpicIds = listOf(
+            "age", "color", "currency", "json-fmt", "ocr",
+            "password", "regex", "speed", "stopwatch", "timestamp",
+            "converter", "worldclock"
+        )
+        assertEquals(12, original12EpicIds.size)
     }
 }
