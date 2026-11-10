@@ -74,7 +74,7 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun DateCalculatorScreen() {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("Age", "Difference", "Add/Sub", "Time Diff", "Countdown")
+    val tabs = listOf("Age", "Difference", "Add/Sub", "Time Diff", "Countdown", "Workdays")
 
     Column(
         modifier = Modifier
@@ -96,7 +96,119 @@ fun DateCalculatorScreen() {
                 2 -> AddSubtractTab()
                 3 -> TimeDifferenceTab()
                 4 -> CountdownTab()
+                5 -> BusinessDaysTab()
             }
+        }
+    }
+}
+
+// ----------------- Business / Workdays Tab -----------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BusinessDaysTab() {
+    var startMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var endMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var showStartPicker by rememberSaveable { mutableStateOf(false) }
+    var showEndPicker by rememberSaveable { mutableStateOf(false) }
+
+    val formatter = DateTimeFormatter.ofPattern("MMMM d, yyyy")
+
+    fun millisToDate(millis: Long): LocalDate =
+        Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        DateInputCard(
+            label = "Start Date",
+            dateText = startMillis?.let { millisToDate(it).format(formatter) },
+            onClick = { showStartPicker = true },
+        )
+        DateInputCard(
+            label = "End Date",
+            dateText = endMillis?.let { millisToDate(it).format(formatter) },
+            onClick = { showEndPicker = true },
+        )
+
+        if (startMillis != null && endMillis != null) {
+            val start = millisToDate(startMillis!!)
+            val end = millisToDate(endMillis!!)
+            val (earlier, later) = if (start.isBefore(end)) start to end else end to start
+
+            val totalDays = ChronoUnit.DAYS.between(earlier, later)
+            var businessDays = 0L
+            var weekendDays = 0L
+            var cur = earlier
+            while (!cur.isAfter(later)) {
+                val dow = cur.dayOfWeek
+                if (dow == java.time.DayOfWeek.SATURDAY || dow == java.time.DayOfWeek.SUNDAY) {
+                    weekendDays++
+                } else {
+                    businessDays++
+                }
+                cur = cur.plusDays(1)
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("Working Days Summary", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "$businessDays Workdays",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Weekend Days", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$weekendDays days", fontWeight = FontWeight.SemiBold)
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Total Calendar Days", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$totalDays days", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showStartPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = startMillis)
+        DatePickerDialog(
+            onDismissRequest = { showStartPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    startMillis = state.selectedDateMillis
+                    showStartPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartPicker = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state = state)
+        }
+    }
+
+    if (showEndPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = endMillis)
+        DatePickerDialog(
+            onDismissRequest = { showEndPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    endMillis = state.selectedDateMillis
+                    showEndPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndPicker = false }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(state = state)
         }
     }
 }

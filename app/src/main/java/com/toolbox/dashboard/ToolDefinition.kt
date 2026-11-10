@@ -817,7 +817,15 @@ val allTools = listOf(
         description = "Batch Converter from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("batch", "batch converter"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "tsv_converter",
+        name = "TSV Converter",
+        icon = Icons.Default.SyncAlt,
+        category = ToolCategory.Converters,
+        description = "Transcode between Tab-Separated Values (TSV) and Comma-Separated Values (CSV) formats.",
+        searchKeywords = listOf("tsv", "csv", "transcode", "table", "data"),
+    ),
+// =========================================
     // Calculators (28 tools)
     // =========================================
     ToolDefinition(
@@ -1044,7 +1052,15 @@ val allTools = listOf(
         description = "Finance Hub from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("finance", "finance hub"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "aspect_ratio_calc",
+        name = "Aspect Ratio Pro",
+        icon = Icons.Default.LightMode,
+        category = ToolCategory.Calculators,
+        description = "Calculate proportional aspect ratios, simplified fractions, and scalable screen dimensions.",
+        searchKeywords = listOf("aspect ratio", "dimensions", "resolution", "scaler", "proportions"),
+    ),
+// =========================================
     // ImageTools (9 tools)
     // =========================================
     ToolDefinition(
@@ -1195,7 +1211,15 @@ val allTools = listOf(
         description = "OSHA and NIOSH ambient sound exposure guidelines, maximum allowable safe durations, and noise risk levels.",
         searchKeywords = listOf("sound", "exposure", "decibel", "noise", "osha", "niosh", "hearing", "ear", "safety"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "morse_audio_synth",
+        name = "Morse Tone Synth",
+        icon = Icons.Default.Audiotrack,
+        category = ToolCategory.AudioTools,
+        description = "Synthesize and play audible sinusoidal Morse code beeps with frequency and speed control.",
+        searchKeywords = listOf("morse", "audio", "synth", "beeps", "tone", "cw"),
+    ),
+// =========================================
     // DocTools (14 tools)
     // =========================================
     ToolDefinition(
@@ -1429,7 +1453,23 @@ val allTools = listOf(
         description = "View, search, copy, and export historical QR and barcode scans saved directly on your device.",
         searchKeywords = listOf("scan", "history", "qr", "barcode", "logs", "recents"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "lorem_generator",
+        name = "Lorem Generator",
+        icon = Icons.Default.Flare,
+        category = ToolCategory.Utilities,
+        description = "Generate customizable placeholder text and paragraphs for design and typography testing.",
+        searchKeywords = listOf("lorem", "ipsum", "dummy", "placeholder", "text"),
+    ),
+    ToolDefinition(
+        id = "text_diff_viewer",
+        name = "Diff Viewer",
+        icon = Icons.Default.ScreenSearchDesktop,
+        category = ToolCategory.Utilities,
+        description = "Line-by-line visual difference highlighting for text, source code, and configuration files.",
+        searchKeywords = listOf("diff", "compare", "patch", "text", "difference"),
+    ),
+// =========================================
     // EverydayTools (11 tools)
     // =========================================
     ToolDefinition(
@@ -1947,7 +1987,15 @@ val allTools = listOf(
         description = "Monitor battery temperature, voltage, charging health status, technology, and health recommendations.",
         searchKeywords = listOf("battery", "power", "charge", "health", "voltage", "temperature", "mah"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "system_uptime",
+        name = "System Uptime",
+        icon = Icons.Default.PhoneAndroid,
+        category = ToolCategory.Device,
+        description = "Inspect system kernel boot time, deep sleep cycles, and active CPU awake metrics.",
+        searchKeywords = listOf("uptime", "boot", "sleep", "awake", "system", "kernel"),
+    ),
+// =========================================
     // Education (7 tools)
     // =========================================
     ToolDefinition(
@@ -2402,7 +2450,39 @@ val allTools = listOf(
         description = "SQL Builder from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("sql builder", "sql builder"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "color_contrast_matrix",
+        name = "WCAG Contrast",
+        icon = Icons.Default.FlashOn,
+        category = ToolCategory.DevTools,
+        description = "Evaluate text and background color combinations against WCAG 2.1 AA/AAA accessibility criteria.",
+        searchKeywords = listOf("contrast", "wcag", "accessibility", "color", "matrix"),
+    ),
+    ToolDefinition(
+        id = "url_builder",
+        name = "URL Builder",
+        icon = Icons.Default.OpenWith,
+        category = ToolCategory.DevTools,
+        description = "Construct REST endpoints, parse query string parameters, and encode characters.",
+        searchKeywords = listOf("url", "query", "parameters", "builder", "rest", "endpoint"),
+    ),
+    ToolDefinition(
+        id = "cron_explainer",
+        name = "Cron Explainer",
+        icon = Icons.Default.Air,
+        category = ToolCategory.DevTools,
+        description = "Translate standard Unix cron syntax into clear natural language schedules.",
+        searchKeywords = listOf("cron", "schedule", "crontab", "time", "interval"),
+    ),
+    ToolDefinition(
+        id = "json_schema_validator",
+        name = "Schema Validator",
+        icon = Icons.Default.Sms,
+        category = ToolCategory.DevTools,
+        description = "Validate JSON payloads and object structures against required properties offline.",
+        searchKeywords = listOf("json", "schema", "validator", "properties", "conformance"),
+    ),
+// =========================================
     // ProgrammingTools (3 tools)
     // =========================================
     ToolDefinition(
@@ -2429,7 +2509,15 @@ val allTools = listOf(
         description = "Perform 32-bit binary bitwise operations (AND, OR, XOR, NOT, bit shifts) with binary, decimal, and hex representations.",
         searchKeywords = listOf("bitwise", "binary", "and", "or", "xor", "shift", "hex", "programming"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "base_converter_pro",
+        name = "Base Converter Pro",
+        icon = Icons.Default.Numbers,
+        category = ToolCategory.ProgrammingTools,
+        description = "Inspect 64-bit binary layout and 32-bit single-precision IEEE-754 floating point bits.",
+        searchKeywords = listOf("base", "binary", "hex", "octal", "ieee-754", "float"),
+    ),
+// =========================================
     // FilesTools (2 tools)
     // =========================================
     ToolDefinition(
@@ -2539,7 +2627,15 @@ val allTools = listOf(
         description = "SSL Checker from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("ssl", "ssl checker"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "wifi_channel_scanner",
+        name = "Wi-Fi Channels",
+        icon = Icons.Default.Language,
+        category = ToolCategory.NetworkTools,
+        description = "Inspect 2.4 GHz and 5 GHz frequency band allocations and interference zones.",
+        searchKeywords = listOf("wifi", "channels", "spectrum", "2.4ghz", "5ghz", "interference"),
+    ),
+// =========================================
     // HealthFitness (5 tools)
     // =========================================
     ToolDefinition(
@@ -2582,7 +2678,15 @@ val allTools = listOf(
         description = "Calculate running and walking pace (min/km & min/mile) with race finish time predictions for 5K, 10K, Half, and Marathon.",
         searchKeywords = listOf("pace", "running", "marathon", "5k", "10k", "speed", "splits", "race", "runner"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "calorie_burn_calc",
+        name = "Calorie Burn",
+        icon = Icons.Default.Plumbing,
+        category = ToolCategory.HealthFitness,
+        description = "Compute energy expenditure based on body weight and standard exercise MET ratings.",
+        searchKeywords = listOf("calorie", "burn", "met", "exercise", "energy", "fitness"),
+    ),
+// =========================================
     // SecurityPrivacy (9 tools)
     // =========================================
     ToolDefinition(
@@ -2657,7 +2761,15 @@ val allTools = listOf(
         description = "OTP Generator from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("otp", "otp generator"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "file_checksum_calc",
+        name = "Multi Checksum",
+        icon = Icons.Default.Payments,
+        category = ToolCategory.SecurityPrivacy,
+        description = "Instant multi-hash verification supporting MD5, SHA-1, SHA-256, and SHA-512 algorithms.",
+        searchKeywords = listOf("checksum", "md5", "sha1", "sha256", "sha512", "hash"),
+    ),
+// =========================================
     // Automation (9 tools)
     // =========================================
     ToolDefinition(
@@ -2783,7 +2895,15 @@ val allTools = listOf(
         description = "Synthetic Data Tool from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("synthetic", "synthetic data tool"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "csv_cleaner",
+        name = "CSV Cleaner",
+        icon = Icons.Default.ShoppingCart,
+        category = ToolCategory.DataLab,
+        description = "Sanitize tabular data, trim whitespace, deduplicate rows, and drop invalid null entries.",
+        searchKeywords = listOf("csv", "cleaner", "sanitize", "deduplicate", "table"),
+    ),
+// =========================================
     // Lifestyle (7 tools)
     // =========================================
     ToolDefinition(
@@ -2842,7 +2962,15 @@ val allTools = listOf(
         description = "Accessories Guide from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("accessories", "accessories guide"),
     ),
-    // =========================================
+    ToolDefinition(
+        id = "quote_generator",
+        name = "Daily Quotes",
+        icon = Icons.Default.Brightness2,
+        category = ToolCategory.Lifestyle,
+        description = "Curated offline wisdom and inspirational thoughts on perseverance and engineering.",
+        searchKeywords = listOf("quotes", "inspiration", "wisdom", "daily", "thoughts"),
+    ),
+// =========================================
     // WebTools (6 tools)
     // =========================================
     ToolDefinition(

@@ -101,6 +101,10 @@ android {
     kotlin {
         jvmToolchain(21)
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {

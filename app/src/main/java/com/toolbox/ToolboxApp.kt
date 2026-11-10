@@ -1060,6 +1060,22 @@ fun ToolboxApp(
                     composable<DigitalClockWidgetConfig> {
                         com.toolbox.widgets.WidgetsManagementScreen(onBack = { navController.popBackStack() }, initialTab = 1)
                     }
+                    composable<TsvConverterDest> { ToolScreen("TSV Converter", "tsv_converter", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.conversion.TsvConverterScreen() } }
+                    composable<LoremGeneratorDest> { ToolScreen("Lorem Generator", "lorem_generator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.everyday.LoremGeneratorScreen() } }
+                    composable<CsvCleanerDest> { ToolScreen("CSV Cleaner", "csv_cleaner", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.datalab.CsvCleanerScreen() } }
+                    composable<AspectRatioCalcDest> { ToolScreen("Aspect Ratio Pro", "aspect_ratio_calc", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.calculators.AspectRatioScreen() } }
+                    composable<MorseAudioSynthDest> { ToolScreen("Morse Tone Synth", "morse_audio_synth", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.audiotools.MorseAudioSynthScreen() } }
+                    composable<FileChecksumDest> { ToolScreen("Multi Checksum", "file_checksum_calc", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.securityprivacy.FileChecksumScreen() } }
+                    composable<SystemUptimeDest> { ToolScreen("System Uptime", "system_uptime", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.device.SystemUptimeScreen() } }
+                    composable<ColorContrastMatrixDest> { ToolScreen("WCAG Contrast", "color_contrast_matrix", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.ColorContrastMatrixScreen() } }
+                    composable<BaseConverterProDest> { ToolScreen("Base Converter Pro", "base_converter_pro", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.programmingtools.BaseConverterProScreen() } }
+                    composable<WifiChannelScannerDest> { ToolScreen("Wi-Fi Channels", "wifi_channel_scanner", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.WifiChannelScannerScreen() } }
+                    composable<CalorieBurnCalcDest> { ToolScreen("Calorie Burn", "calorie_burn_calc", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.healthfitness.CalorieBurnCalcScreen() } }
+                    composable<QuoteGeneratorDest> { ToolScreen("Daily Quotes", "quote_generator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.lifestyle.QuoteGeneratorScreen() } }
+                    composable<UrlBuilderDest> { ToolScreen("URL Builder", "url_builder", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.UrlBuilderScreen() } }
+                    composable<CronExplainerDest> { ToolScreen("Cron Explainer", "cron_explainer", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.CronExplainerScreen() } }
+                    composable<JsonSchemaValidatorDest> { ToolScreen("Schema Validator", "json_schema_validator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.JsonSchemaValidatorScreen() } }
+                    composable<TextDiffViewerDest> { ToolScreen("Diff Viewer", "text_diff_viewer", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.everyday.TextDiffViewerScreen() } }
                 }
             }
         }
@@ -1483,5 +1499,22 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "timestamp" -> TimestampConverter
     "worldclock" -> WorldClock
     "color" -> ColorPicker
+
+    "tsv_converter" -> TsvConverterDest
+    "lorem_generator" -> LoremGeneratorDest
+    "csv_cleaner" -> CsvCleanerDest
+    "aspect_ratio_calc" -> AspectRatioCalcDest
+    "morse_audio_synth" -> MorseAudioSynthDest
+    "file_checksum_calc" -> FileChecksumDest
+    "system_uptime" -> SystemUptimeDest
+    "color_contrast_matrix" -> ColorContrastMatrixDest
+    "base_converter_pro" -> BaseConverterProDest
+    "wifi_channel_scanner" -> WifiChannelScannerDest
+    "calorie_burn_calc" -> CalorieBurnCalcDest
+    "quote_generator" -> QuoteGeneratorDest
+    "url_builder" -> UrlBuilderDest
+    "cron_explainer" -> CronExplainerDest
+    "json_schema_validator" -> JsonSchemaValidatorDest
+    "text_diff_viewer" -> TextDiffViewerDest
     else -> null
 }

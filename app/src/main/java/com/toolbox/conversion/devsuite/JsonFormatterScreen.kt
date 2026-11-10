@@ -112,10 +112,67 @@ fun JsonFormatterScreen() {
                 label = { Text("4 Spaces") },
             )
             Button(onClick = { format(indentSpaces) }) {
-                Text("Format / Beautify")
+                Text("Format")
             }
             OutlinedButton(onClick = { minify() }) {
                 Text("Minify")
+            }
+            OutlinedButton(onClick = {
+                try {
+                    val raw = inputJson.trim()
+                    if (raw.startsWith("[")) {
+                        val arr = JSONArray(raw)
+                        if (arr.length() == 0) {
+                            outputJson = ""
+                        } else {
+                            val firstObj = arr.getJSONObject(0)
+                            val keys = firstObj.keys().asSequence().toList()
+                            val header = keys.joinToString(",")
+                            val rows = (0 until arr.length()).map { idx ->
+                                val item = arr.getJSONObject(idx)
+                                keys.joinToString(",") { k -> item.optString(k, "") }
+                            }
+                            outputJson = (listOf(header) + rows).joinToString("\n")
+                            validationStatus = "Converted JSON to CSV"
+                        }
+                    } else if (raw.contains(",")) {
+                        val lines = raw.lines().filter { it.isNotBlank() }
+                        val headers = lines.first().split(",").map { it.trim() }
+                        val jsonArr = JSONArray()
+                        for (i in 1 until lines.size) {
+                            val cols = lines[i].split(",").map { it.trim() }
+                            val obj = JSONObject()
+                            headers.forEachIndexed { hIdx, h ->
+                                obj.put(h, cols.getOrNull(hIdx) ?: "")
+                            }
+                            jsonArr.put(obj)
+                        }
+                        outputJson = jsonArr.toString(2)
+                        validationStatus = "Converted CSV to JSON"
+                    }
+                } catch (e: Exception) {
+                    validationStatus = "Conversion Error: ${e.message}"
+                }
+            }) {
+                Text("JSON ↔ CSV")
+            }
+            OutlinedButton(onClick = {
+                try {
+                    val lines = inputJson.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                    val obj = JSONObject()
+                    lines.forEach { line ->
+                        if (line.contains(":")) {
+                            val parts = line.split(":", limit = 2)
+                            obj.put(parts[0].trim(), parts[1].trim())
+                        }
+                    }
+                    outputJson = obj.toString(2)
+                    validationStatus = "Converted YAML/KV to JSON"
+                } catch (e: Exception) {
+                    validationStatus = "YAML Parse Error: ${e.message}"
+                }
+            }) {
+                Text("YAML → JSON")
             }
         }
 
