@@ -105,6 +105,11 @@ fun QuickTilesManagementScreen(
             QuickTileItem("white_noise", "White Noise", "white_noise", "Launch ambient sleep sounds", WhiteNoiseTileService::class.java, "Everyday"),
             QuickTileItem("protractor", "Protractor", "protractor", "Launch angle protractor tool", ProtractorTileService::class.java, "Sensors"),
             QuickTileItem("world_clock", "World Clock", "world_clock", "Launch international world clock", WorldClockTileService::class.java, "DateTime"),
+            QuickTileItem("tip_calculator", "Tip & Split", "tip_calculator", "Launch bill split and tip calculator", TipTileService::class.java, "Calculators"),
+            QuickTileItem("random_generator", "Dice & Randomizer", "random_generator", "Launch dice roll, coin toss and random picker", DiceTileService::class.java, "Games"),
+            QuickTileItem("ocr", "Text Scanner (OCR)", "ocr", "Launch camera and image optical character recognition", TextScannerTileService::class.java, "DocTools"),
+            QuickTileItem("network_info", "Network Inspector", "network_info", "Launch WiFi, IP, and carrier diagnostics", NetworkInfoTileService::class.java, "NetworkTools"),
+            QuickTileItem("habit_tracker", "Habit Tracker", "habit_tracker", "Launch daily routines and habit streaks", HabitTileService::class.java, "Everyday"),
         )
     }
 

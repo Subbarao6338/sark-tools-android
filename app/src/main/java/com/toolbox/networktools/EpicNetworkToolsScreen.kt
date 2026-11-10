@@ -35,6 +35,19 @@ import javax.crypto.spec.SecretKeySpec
 import kotlin.random.Random
 
 object EpicNetworkLogic {
+    fun pingHost(host: String): String {
+        return try {
+            val address = java.net.InetAddress.getByName(host.trim())
+            val startTime = System.currentTimeMillis()
+            val reachable = address.isReachable(3000)
+            val duration = System.currentTimeMillis() - startTime
+            if (reachable) "Host ${address.hostAddress} is reachable! Round-trip time: ${duration}ms"
+            else "Host ${address.hostAddress} resolved, but ICMP ping timed out (firewall/echo blocked)."
+        } catch (e: Exception) {
+            "Ping failed: ${e.message}"
+        }
+    }
+
     fun lookupDns(host: String): List<String> {
         return try {
             val addresses = InetAddress.getAllByName(host.trim())
@@ -154,15 +167,27 @@ fun DnsPingUi() {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("DNS / Host Lookup & Network Inspector", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             OutlinedTextField(value = host, onValueChange = { host = it }, label = { Text("Hostname / Domain") }, modifier = Modifier.fillMaxWidth())
-            Button(onClick = {
-                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    val resolved = EpicNetworkLogic.lookupDns(host)
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        results = resolved
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        val resolved = EpicNetworkLogic.lookupDns(host)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            results = resolved
+                        }
                     }
+                }) {
+                    Text("Resolve DNS")
                 }
-            }) {
-                Text("Resolve Host")
+                Button(onClick = {
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        val pingRes = EpicNetworkLogic.pingHost(host)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            results = listOf(pingRes)
+                        }
+                    }
+                }) {
+                    Text("Ping Host")
+                }
             }
             results.forEach { r ->
                 Text(r, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)

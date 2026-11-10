@@ -629,7 +629,99 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/digital_clock_widget_info" />
         </receiver>
-</application>
+
+        <receiver
+            android:name=".widgets.TipCalculatorWidgetReceiver"
+            android:exported="true"
+            android:label="Tip Calculator">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tip_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.DiceCoinWidgetReceiver"
+            android:exported="true"
+            android:label="Dice &amp; Coin">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dice_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.HabitTrackerWidgetReceiver"
+            android:exported="true"
+            android:label="Habit Tracker">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/habit_widget_info" />
+        </receiver>
+
+        <service
+            android:name=".tiles.TipTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_calc"
+            android:label="Tip &amp; Split"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.DiceTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_flashlight_tile"
+            android:label="Dice &amp; Randomizer"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.TextScannerTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_notes"
+            android:label="Text Scanner (OCR)"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.NetworkInfoTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_battery"
+            android:label="Network Inspector"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".tiles.HabitTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_notes"
+            android:label="Habit Tracker"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+    </application>
 
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.READ_SMS" />

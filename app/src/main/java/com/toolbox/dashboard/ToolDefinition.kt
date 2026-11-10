@@ -118,6 +118,202 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.AccessTimeFilled
+import androidx.compose.material.icons.filled.Accessibility
+import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AlarmOn
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.AutoAwesomeMotion
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.AutoGraph
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.AvTimer
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothSearching
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Brightness5
+import androidx.compose.material.icons.filled.BrightnessMedium
+import androidx.compose.material.icons.filled.BubbleChart
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.BurstMode
+import androidx.compose.material.icons.filled.Cable
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.ChangeHistory
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.CheckCircleOutline
+import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.ChildCare
+import androidx.compose.material.icons.filled.ChromeReaderMode
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.CodeOff
+import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.Colorize
+import androidx.compose.material.icons.filled.Compare
+import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.filled.ContactPage
+import androidx.compose.material.icons.filled.CropFree
+import androidx.compose.material.icons.filled.DashboardCustomize
+import androidx.compose.material.icons.filled.DataArray
+import androidx.compose.material.icons.filled.DataObject
+import androidx.compose.material.icons.filled.DesignServices
+import androidx.compose.material.icons.filled.Dialpad
+import androidx.compose.material.icons.filled.Diamond
+import androidx.compose.material.icons.filled.Difference
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.DonutLarge
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.filled.DryCleaning
+import androidx.compose.material.icons.filled.DynamicFeed
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EmojiObjects
+import androidx.compose.material.icons.filled.EnhancedEncryption
+import androidx.compose.material.icons.filled.EvStation
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Filter1
+import androidx.compose.material.icons.filled.FilterBAndW
+import androidx.compose.material.icons.filled.FindReplace
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.FontDownload
+import androidx.compose.material.icons.filled.FormatLineSpacing
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.FormatPaint
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Grid3x3
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.Hearing
+import androidx.compose.material.icons.filled.Highlight
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Http
+import androidx.compose.material.icons.filled.ImportContacts
+import androidx.compose.material.icons.filled.Input
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.IntegrationInstructions
+import androidx.compose.material.icons.filled.Javascript
+import androidx.compose.material.icons.filled.KeyOff
+import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.LibraryBooks
+import androidx.compose.material.icons.filled.LinearScale
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LocalAtm
+import androidx.compose.material.icons.filled.LocalCafe
+import androidx.compose.material.icons.filled.LocationCity
+import androidx.compose.material.icons.filled.LockPerson
+import androidx.compose.material.icons.filled.ManageHistory
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.MonitorWeight
+import androidx.compose.material.icons.filled.Mood
+import androidx.compose.material.icons.filled.MoreTime
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.NetworkCell
+import androidx.compose.material.icons.filled.NoAccounts
+import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.Opacity
+import androidx.compose.material.icons.filled.Paid
+import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.Pattern
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.PermDeviceInformation
+import androidx.compose.material.icons.filled.PhotoSizeSelectLarge
+import androidx.compose.material.icons.filled.PinDrop
+import androidx.compose.material.icons.filled.PlayForWork
+import androidx.compose.material.icons.filled.PrecisionManufacturing
+import androidx.compose.material.icons.filled.Preview
+import androidx.compose.material.icons.filled.PriceCheck
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.QueryStats
+import androidx.compose.material.icons.filled.QuestionAnswer
+import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.RemoveRedEye
+import androidx.compose.material.icons.filled.RingVolume
+import androidx.compose.material.icons.filled.RollerSkating
+import androidx.compose.material.icons.filled.Rotate90DegreesCw
+import androidx.compose.material.icons.filled.Scale
+import androidx.compose.material.icons.filled.Scanner
+import androidx.compose.material.icons.filled.ScheduleSend
+import androidx.compose.material.icons.filled.SdStorage
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SettingsEthernet
+import androidx.compose.material.icons.filled.SettingsSuggest
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.ShieldMoon
+import androidx.compose.material.icons.filled.ShortText
+import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.SortByAlpha
+import androidx.compose.material.icons.filled.SpeakerNotes
+import androidx.compose.material.icons.filled.Spellcheck
+import androidx.compose.material.icons.filled.SportsKabaddi
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.Superscript
+import androidx.compose.material.icons.filled.SurroundSound
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.TableRows
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.Timer10
+import androidx.compose.material.icons.filled.TipsAndUpdates
+import androidx.compose.material.icons.filled.TireRepair
+import androidx.compose.material.icons.filled.Token
+import androidx.compose.material.icons.filled.Toll
+import androidx.compose.material.icons.filled.Transform
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.TravelExplore
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.Update
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.ViewCarousel
+import androidx.compose.material.icons.filled.ViewWeek
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.Web
+import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material.icons.filled.WifiFind
+import androidx.compose.material.icons.filled.WorkHistory
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
@@ -359,11 +555,13 @@ data class ToolDefinition(
 )
 
 val allTools = listOf(
-    // UnitConverters
+    // =========================================
+    // UnitConverters (18 tools)
+    // =========================================
     ToolDefinition(
         id = "unit_converter",
         name = "Unit Converter",
-        icon = Icons.Default.SyncAlt,
+        icon = Icons.Default.CompareArrows,
         category = ToolCategory.UnitConverters,
         description = "Convert between units across 17+ categories including length, weight, temperature, volume, speed, area, and more. Supports all common units with instant real-time conversion.",
         searchKeywords = listOf("convert", "length", "weight", "temperature", "volume"),
@@ -387,7 +585,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "temperature_converter",
         name = "Temperature",
-        icon = Icons.Default.Flare,
+        icon = Icons.Default.Thermostat,
         category = ToolCategory.UnitConverters,
         description = "Instant bidirectional conversion between Celsius, Fahrenheit, Kelvin, and Rankine with physical reference marks.",
         searchKeywords = listOf("temperature", "celsius", "fahrenheit", "kelvin", "rankine", "degrees", "heat", "weather"),
@@ -395,7 +593,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "storage_converter",
         name = "Data Storage",
-        icon = Icons.Default.Tag,
+        icon = Icons.Default.SdStorage,
         category = ToolCategory.UnitConverters,
         description = "Data storage and memory units: Bytes, KB, MB, GB, TB, as well as binary standards KiB, MiB, GiB, TiB.",
         searchKeywords = listOf("storage", "data", "byte", "kb", "mb", "gb", "tb", "gigabyte", "megabyte", "binary"),
@@ -419,7 +617,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "area_converter",
         name = "Area",
-        icon = Icons.Default.SquareFoot,
+        icon = Icons.Default.CropFree,
         category = ToolCategory.UnitConverters,
         description = "Convert land and surface area between square meters, square feet, acres, hectares, square kilometers, and square miles.",
         searchKeywords = listOf("area", "square", "acre", "hectare", "sqft", "sqm", "land", "surface"),
@@ -459,7 +657,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "force_converter",
         name = "Force",
-        icon = Icons.Default.OpenWith,
+        icon = Icons.Default.SportsKabaddi,
         category = ToolCategory.UnitConverters,
         description = "Convert physical force between Newtons, Kilonewtons, Pound-force (lbf), Dynes, and Kilogram-force (kgf).",
         searchKeywords = listOf("force", "newton", "pound-force", "lbf", "dyne", "kgf", "physics"),
@@ -467,7 +665,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "torque_converter",
         name = "Torque",
-        icon = Icons.AutoMirrored.Filled.RotateRight,
+        icon = Icons.Default.Rotate90DegreesCw,
         category = ToolCategory.UnitConverters,
         description = "Convert rotational force and torque between Newton-meters (N·m), Foot-pounds (ft·lb), Inch-pounds, and Kilogram-meters.",
         searchKeywords = listOf("torque", "rotational", "newton-meter", "foot-pound", "nm", "ft-lb", "moment"),
@@ -482,8 +680,8 @@ val allTools = listOf(
     ),
     ToolDefinition(
         id = "fuel_economy_converter",
-        name = "Fuel Economy",
-        icon = Icons.Default.LocalGasStation,
+        name = "Fuel Economy Converter",
+        icon = Icons.Default.EvStation,
         category = ToolCategory.UnitConverters,
         description = "Convert vehicle fuel consumption ratings between km/L, MPG (US), MPG (UK), and L/100km.",
         searchKeywords = listOf("fuel", "economy", "mileage", "mpg", "km/l", "consumption", "l/100km", "gas"),
@@ -491,7 +689,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "angle_converter",
         name = "Angle",
-        icon = Icons.Default.Architecture,
+        icon = Icons.Default.ChangeHistory,
         category = ToolCategory.UnitConverters,
         description = "Convert planar angles between Degrees (°), Radians (rad), Gradians (grad), Arcminutes, and Arcseconds.",
         searchKeywords = listOf("angle", "degree", "radian", "gradian", "arcminute", "arcsecond", "geometry"),
@@ -499,16 +697,18 @@ val allTools = listOf(
     ToolDefinition(
         id = "frequency_converter",
         name = "Frequency",
-        icon = Icons.Default.GraphicEq,
+        icon = Icons.Default.Waves,
         category = ToolCategory.UnitConverters,
         description = "Convert cyclic frequencies between Hertz (Hz), Kilohertz (kHz), Megahertz (MHz), Gigahertz (GHz), and RPM.",
         searchKeywords = listOf("frequency", "hertz", "hz", "khz", "mhz", "ghz", "rpm", "cycles"),
     ),
-    // Converters
+    // =========================================
+    // Converters (14 tools)
+    // =========================================
     ToolDefinition(
         id = "morse_code",
         name = "Morse Code",
-        icon = Icons.Default.GraphicEq,
+        icon = Icons.Default.Radio,
         category = ToolCategory.Converters,
         description = "Translate text to Morse code and back. Play Morse output as sound, haptic vibration, or flashlight blinks. Adjustable speed from 5 to 25 WPM.",
         searchKeywords = listOf("morse", "code", "dots", "dashes", "sos", "translate", "signal"),
@@ -516,7 +716,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "wire_gauge",
         name = "Wire Gauge",
-        icon = Icons.Default.ElectricalServices,
+        icon = Icons.Default.Cable,
         category = ToolCategory.Converters,
         description = "AWG wire gauge reference table with metric (mm², diameter) equivalents and approximate ampacity for chassis and power-transmission use.",
         searchKeywords = listOf("wire", "gauge", "awg", "ampacity", "amp", "current", "electrical", "cable", "mm2"),
@@ -540,7 +740,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "number_to_words",
         name = "Number to Words",
-        icon = Icons.Default.Numbers,
+        icon = Icons.Default.Spellcheck,
         category = ToolCategory.Converters,
         description = "Convert numbers into words in English and Hindi transliteration with Indian numbering (Lakhs/Crores) or Western format.",
         searchKeywords = listOf("words", "number to words", "cheque", "spelling", "currency", "lakh", "crore"),
@@ -548,7 +748,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "roman_numerals",
         name = "Roman Numerals",
-        icon = Icons.Default.Pin,
+        icon = Icons.Default.FormatListNumbered,
         category = ToolCategory.Converters,
         description = "Bidirectional converter between Arabic numbers (1-3999) and Roman numerals (I, V, X, L, C, D, M) with input validation.",
         searchKeywords = listOf("roman", "numeral", "arabic", "convert", "latin", "numbers"),
@@ -556,12 +756,70 @@ val allTools = listOf(
     ToolDefinition(
         id = "color_converter",
         name = "Color Converter",
-        icon = Icons.Default.Palette,
+        icon = Icons.Default.ColorLens,
         category = ToolCategory.Converters,
         description = "Convert color codes between HEX, RGB, HSL, HSV, and CMYK in real time with interactive RGBA color sliders.",
         searchKeywords = listOf("color", "hex", "rgb", "hsl", "hsv", "cmyk", "converter", "palette"),
     ),
-    // Calculators
+    ToolDefinition(
+        id = "resistor_color_calc",
+        name = "Resistor Color Code",
+        icon = Icons.Default.ElectricalServices,
+        category = ToolCategory.Converters,
+        description = "Calculate electronic resistor values and tolerance percentages by selecting 4-band color rings with live graphical preview.",
+        searchKeywords = listOf("resistor", "color code", "resistance", "ohm", "electronics", "circuit", "hardware"),
+    ),
+    ToolDefinition(
+        id = "json-csv",
+        name = "JSON ↔ CSV Converter",
+        icon = Icons.Default.TableChart,
+        category = ToolCategory.Converters,
+        description = "JSON ↔ CSV Converter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("json csv", "json ↔ csv converter"),
+    ),
+    ToolDefinition(
+        id = "xml-json",
+        name = "XML ↔ JSON Converter",
+        icon = Icons.Default.Code,
+        category = ToolCategory.Converters,
+        description = "XML ↔ JSON Converter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("xml json", "xml ↔ json converter"),
+    ),
+    ToolDefinition(
+        id = "yaml",
+        name = "YAML ↔ JSON Converter",
+        icon = Icons.Default.IntegrationInstructions,
+        category = ToolCategory.Converters,
+        description = "YAML ↔ JSON Converter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("yaml", "yaml ↔ json converter"),
+    ),
+    ToolDefinition(
+        id = "base64",
+        name = "Base64 Converter",
+        icon = Icons.Default.Transform,
+        category = ToolCategory.Converters,
+        description = "Base64 Converter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("base64", "base64 converter"),
+    ),
+    ToolDefinition(
+        id = "timezone",
+        name = "Timezone Converter",
+        icon = Icons.Default.Public,
+        category = ToolCategory.Converters,
+        description = "Timezone Converter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("timezone", "timezone converter"),
+    ),
+    ToolDefinition(
+        id = "batch",
+        name = "Batch Converter",
+        icon = Icons.Default.DynamicFeed,
+        category = ToolCategory.Converters,
+        description = "Batch Converter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("batch", "batch converter"),
+    ),
+    // =========================================
+    // Calculators (28 tools)
+    // =========================================
     ToolDefinition(
         id = "percentage",
         name = "Percentage",
@@ -573,7 +831,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "tip_calculator",
         name = "Tip Calculator",
-        icon = Icons.Default.Payments,
+        icon = Icons.Default.LocalAtm,
         category = ToolCategory.Calculators,
         description = "Calculate tips and split bills easily. Enter the bill amount, choose a tip percentage, and split among any number of people. Shows per-person totals with tip included.",
         searchKeywords = listOf("tip", "bill", "split", "restaurant"),
@@ -589,7 +847,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "bmi_calculator",
         name = "BMI",
-        icon = Icons.Default.FitnessCenter,
+        icon = Icons.Default.Scale,
         category = ToolCategory.Calculators,
         description = "Calculate Body Mass Index from height and weight. Supports metric and imperial units with health category display and healthy weight range.",
         searchKeywords = listOf("bmi", "body", "mass", "index", "weight", "health", "obesity"),
@@ -613,7 +871,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "paint_calculator",
         name = "Paint Calculator",
-        icon = Icons.Default.Brush,
+        icon = Icons.Default.FormatPaint,
         category = ToolCategory.Calculators,
         description = "Estimate paint needed for a room. Enter dimensions, doors, windows, and number of coats — get liters or gallons required.",
         searchKeywords = listOf("paint", "wall", "coverage", "room", "gallon", "liter", "renovation"),
@@ -621,7 +879,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "unit_price",
         name = "Unit Price",
-        icon = Icons.Default.ShoppingCart,
+        icon = Icons.Default.PriceCheck,
         category = ToolCategory.Calculators,
         description = "Compare two products by price per unit to find the better value while shopping.",
         searchKeywords = listOf("unit price", "compare", "cheaper", "per unit", "shopping", "grocery", "value"),
@@ -629,14 +887,14 @@ val allTools = listOf(
     ToolDefinition(
         id = "bill_split",
         name = "Bill Split",
-        icon = Icons.Default.Groups,
+        icon = Icons.Default.ReceiptLong,
         category = ToolCategory.Calculators,
         description = "Split a bill across people with an optional tip, and see the per-person amount.",
         searchKeywords = listOf("bill", "split", "tip", "restaurant", "share", "per person", "divide"),
     ),
     ToolDefinition(
         id = "fuel_calculator",
-        name = "Fuel Economy",
+        name = "Trip Fuel Calculator",
         icon = Icons.Default.LocalGasStation,
         category = ToolCategory.Calculators,
         description = "Calculate road trip fuel requirements, fuel economy, total journey cost, and cost per km/mile.",
@@ -653,7 +911,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "gst_calculator",
         name = "GST / Tax",
-        icon = Icons.AutoMirrored.Filled.ReceiptLong,
+        icon = Icons.Default.Receipt,
         category = ToolCategory.Calculators,
         description = "Compute GST inclusive and exclusive amounts with standard 0%, 5%, 12%, 18%, 28% and custom rates plus CGST/SGST/IGST breakdown.",
         searchKeywords = listOf("gst", "tax", "vat", "invoice", "cgst", "sgst", "igst", "sales tax"),
@@ -661,7 +919,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "financial_calculators",
         name = "Finance",
-        icon = Icons.AutoMirrored.Filled.TrendingUp,
+        icon = Icons.Default.Paid,
         category = ToolCategory.Calculators,
         description = "Suite of financial calculators: Simple Interest, Compound Interest, SIP investment, wealth accumulation, Profit & Loss, and net salary take-home.",
         searchKeywords = listOf("finance", "interest", "simple interest", "compound interest", "sip", "investment", "profit", "loss", "salary", "wealth"),
@@ -669,7 +927,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "math_utilities",
         name = "Math Utilities",
-        icon = Icons.Default.Numbers,
+        icon = Icons.Default.Functions,
         category = ToolCategory.Calculators,
         description = "Mathematical tools: Prime number checking and factors, factorial (n!), LCM, GCD, average and descriptive statistics, and random number generator.",
         searchKeywords = listOf("math", "prime", "factorial", "lcm", "gcd", "average", "median", "mode", "statistics", "random", "hcf"),
@@ -677,7 +935,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "bmr_calculator",
         name = "BMR & Calories",
-        icon = Icons.Default.FitnessCenter,
+        icon = Icons.Default.MonitorWeight,
         category = ToolCategory.Calculators,
         description = "Calculate Basal Metabolic Rate (BMR) and Total Daily Energy Expenditure (TDEE) with Mifflin-St Jeor formula and custom macro splits.",
         searchKeywords = listOf("bmr", "tdee", "calorie", "calories", "macro", "macros", "diet", "nutrition", "protein", "carbs", "fat"),
@@ -685,7 +943,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "recipe_scaler",
         name = "Recipe Scaler",
-        icon = Icons.Default.Restaurant,
+        icon = Icons.Default.MenuBook,
         category = ToolCategory.Calculators,
         description = "Scale recipe ingredients up or down based on original and desired serving portions with instant conversions.",
         searchKeywords = listOf("recipe", "cook", "bake", "scale", "serving", "servings", "ingredients", "portion", "kitchen"),
@@ -693,7 +951,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "equation_solver",
         name = "Equation Solver",
-        icon = Icons.Default.Functions,
+        icon = Icons.Default.Superscript,
         category = ToolCategory.Calculators,
         description = "Solve linear equations, 2x2 linear systems with Cramer's Rule, quadratic equations (real & complex conjugate roots), and cubic equations with Cardano's method.",
         searchKeywords = listOf("equation", "solver", "algebra", "quadratic", "linear", "system", "cramer", "cubic", "roots", "math"),
@@ -709,7 +967,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "investment_calculator",
         name = "Investment & TVM",
-        icon = Icons.Default.AccountBalanceWallet,
+        icon = Icons.Default.TrendingUp,
         category = ToolCategory.Calculators,
         description = "ROI & annualized CAGR, time value of money (TVM) compound growth, savings target goals, and fixed mortgage amortization.",
         searchKeywords = listOf("investment", "tvm", "compound", "interest", "roi", "cagr", "wealth", "mortgage", "savings", "goal", "finance"),
@@ -717,7 +975,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "basic_calculator",
         name = "Basic Calculator",
-        icon = Icons.Default.Calculate,
+        icon = Icons.Default.Dialpad,
         category = ToolCategory.Calculators,
         description = "Everyday standard calculator with calculation history tape, memory registers (M+, M-, MR, MC), percentage, and backspace.",
         searchKeywords = listOf("calculator", "basic", "math", "add", "subtract", "multiply", "divide", "memory"),
@@ -725,7 +983,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "fraction_calculator",
         name = "Fraction Calculator",
-        icon = Icons.Default.Functions,
+        icon = Icons.Default.PieChart,
         category = ToolCategory.Calculators,
         description = "Fraction arithmetic (+, -, ×, ÷), mixed numbers, fraction simplification, and two-way decimal to fraction conversion.",
         searchKeywords = listOf("fraction", "numerator", "denominator", "simplify", "mixed", "math", "decimal"),
@@ -733,7 +991,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "ratio_calculator",
         name = "Ratio & Proportion",
-        icon = Icons.Default.AspectRatio,
+        icon = Icons.Default.AutoGraph,
         category = ToolCategory.Calculators,
         description = "Solve proportions (A:B = C:D), simplify ratios to lowest terms, and scale quantities across ratio parts.",
         searchKeywords = listOf("ratio", "proportion", "scale", "divide", "simplify", "math", "factor"),
@@ -741,12 +999,54 @@ val allTools = listOf(
     ToolDefinition(
         id = "ideal_weight_calculator",
         name = "Ideal Weight",
-        icon = Icons.Default.FitnessCenter,
+        icon = Icons.Default.Accessibility,
         category = ToolCategory.Calculators,
         description = "Calculate ideal body weight using clinical Devine, Robinson, Miller, and Hamwi equations alongside healthy BMI targets.",
         searchKeywords = listOf("ideal weight", "ibw", "devine", "robinson", "healthy weight", "bmi", "fitness"),
     ),
-    // ImageTools
+    ToolDefinition(
+        id = "matrix_calc",
+        name = "Matrix Calculator",
+        icon = Icons.Default.Grid3x3,
+        category = ToolCategory.Calculators,
+        description = "Compute 2x2 matrix determinants, inverses, traces, and transpose operations with step-by-step display.",
+        searchKeywords = listOf("matrix", "determinant", "inverse", "transpose", "algebra", "math", "linear"),
+    ),
+    ToolDefinition(
+        id = "datediff",
+        name = "Date Difference",
+        icon = Icons.Default.DateRange,
+        category = ToolCategory.Calculators,
+        description = "Date Difference from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("datediff", "date difference"),
+    ),
+    ToolDefinition(
+        id = "subnet",
+        name = "Subnet Calculator",
+        icon = Icons.Default.Lan,
+        category = ToolCategory.Calculators,
+        description = "Subnet Calculator from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("subnet", "subnet calculator"),
+    ),
+    ToolDefinition(
+        id = "word-rank",
+        name = "Word Rank Calculator",
+        icon = Icons.Default.SortByAlpha,
+        category = ToolCategory.Calculators,
+        description = "Word Rank Calculator from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("word rank", "word rank calculator"),
+    ),
+    ToolDefinition(
+        id = "finance",
+        name = "Epic Financial Suite",
+        icon = Icons.Default.AccountBalanceWallet,
+        category = ToolCategory.Calculators,
+        description = "Finance Hub from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("finance", "finance hub"),
+    ),
+    // =========================================
+    // ImageTools (9 tools)
+    // =========================================
     ToolDefinition(
         id = "color_picker",
         name = "Color Picker",
@@ -759,7 +1059,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "photo_cleanup",
         name = "Photo Cleanup",
-        icon = Icons.Default.Photo,
+        icon = Icons.Default.AutoFixHigh,
         category = ToolCategory.ImageTools,
         description = "Compress photos to save space, or strip EXIF metadata (location, device, timestamps) before sharing. Originals are never touched — results save to Pictures/Toolbox.",
         searchKeywords = listOf("photo", "image", "compress", "resize", "exif", "metadata", "strip", "privacy", "shrink", "size"),
@@ -767,7 +1067,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "screenshot_stitcher",
         name = "Screenshot Stitcher",
-        icon = Icons.Default.Dashboard,
+        icon = Icons.Default.ViewCarousel,
         category = ToolCategory.ImageTools,
         description = "Combine several screenshots into one long image, then save or share it.",
         searchKeywords = listOf("screenshot", "stitch", "combine", "long", "image", "merge"),
@@ -775,16 +1075,58 @@ val allTools = listOf(
     ToolDefinition(
         id = "image_editor",
         name = "Image Editor",
-        icon = Icons.Default.Image,
+        icon = Icons.Default.Edit,
         category = ToolCategory.ImageTools,
         description = "Crop, rotate, adjust brightness and contrast, apply artistic filters, and draw sketches on your photos.",
         searchKeywords = listOf("image", "photo", "editor", "crop", "rotate", "filter", "draw", "brush"),
     ),
-    // AudioTools
+    ToolDefinition(
+        id = "image_resizer",
+        name = "Image Resizer",
+        icon = Icons.Default.PhotoSizeSelectLarge,
+        category = ToolCategory.ImageTools,
+        description = "Resize images by exact pixel dimensions or percentage scale with aspect ratio lock and quick 1080p/720p presets.",
+        searchKeywords = listOf("resize", "dimensions", "scale", "image", "photo", "pixel", "aspect ratio"),
+    ),
+    ToolDefinition(
+        id = "image_format_converter",
+        name = "Image Converter",
+        icon = Icons.Default.SwapHoriz,
+        category = ToolCategory.ImageTools,
+        description = "Convert images between JPEG, PNG, and WEBP formats with adjustable quality slider and file size estimation.",
+        searchKeywords = listOf("convert", "format", "jpeg", "png", "webp", "image", "compression"),
+    ),
+    ToolDefinition(
+        id = "color_palette_gen",
+        name = "Palette Generator",
+        icon = Icons.Default.Brush,
+        category = ToolCategory.ImageTools,
+        description = "Generate aesthetic color harmonies (Complementary, Analogous, Triadic, Monochromatic) with 1-tap hex copying.",
+        searchKeywords = listOf("palette", "color", "harmony", "complementary", "analogous", "triadic", "hex", "design"),
+    ),
+    ToolDefinition(
+        id = "image",
+        name = "Image Hub",
+        icon = Icons.Default.Image,
+        category = ToolCategory.ImageTools,
+        description = "Image Hub from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("image", "image hub"),
+    ),
+    ToolDefinition(
+        id = "image-lab",
+        name = "Image Lab",
+        icon = Icons.Default.FilterBAndW,
+        category = ToolCategory.ImageTools,
+        description = "Image Lab from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("image lab", "image lab"),
+    ),
+    // =========================================
+    // AudioTools (9 tools)
+    // =========================================
     ToolDefinition(
         id = "sound_meter",
         name = "Sound Meter",
-        icon = Icons.Default.GraphicEq,
+        icon = Icons.Default.VolumeUp,
         category = ToolCategory.AudioTools,
         description = "Measure ambient noise levels in decibels (dB) using your phone's microphone. Shows real-time sound level, min/max readings, and a noise level gauge with reference labels.",
         searchKeywords = listOf("decibel", "db", "noise", "volume", "microphone"),
@@ -792,7 +1134,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "white_noise",
         name = "Ambient Sounds",
-        icon = Icons.Default.Nightlight,
+        icon = Icons.Default.Headphones,
         category = ToolCategory.AudioTools,
         description = "Ambient sound generator with white, pink, and brown noise plus nature sounds. Features sleep timer for focus, sleep, and relaxation.",
         searchKeywords = listOf("noise", "white", "pink", "brown", "rain", "ocean", "sleep", "ambient", "focus", "fan"),
@@ -800,7 +1142,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "metronome",
         name = "Metronome",
-        icon = Icons.Default.MusicNote,
+        icon = Icons.Default.AvTimer,
         category = ToolCategory.AudioTools,
         description = "Adjustable-tempo metronome with audible click, visual beat indicator, and haptic pulse. Supports tap tempo and time signatures from 2/4 to 6/8.",
         searchKeywords = listOf("metronome", "bpm", "tempo", "beat", "rhythm", "music", "click"),
@@ -808,7 +1150,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "pitch_tuner",
         name = "Pitch Tuner",
-        icon = Icons.Default.Tune,
+        icon = Icons.Default.GraphicEq,
         category = ToolCategory.AudioTools,
         description = "Detect musical pitch from microphone input. Shows nearest note, frequency, and cents deviation with a visual tuning gauge. Includes reference tone generator.",
         searchKeywords = listOf("pitch", "tuner", "note", "music", "frequency", "tune", "guitar"),
@@ -824,7 +1166,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "tone_generator",
         name = "Tone Generator",
-        icon = Icons.Default.GraphicEq,
+        icon = Icons.Default.SurroundSound,
         category = ToolCategory.AudioTools,
         description = "Generate continuous tones from 20 Hz to 20 kHz with sine, square, triangle, and sawtooth waveforms. Includes presets for standard tuning (440 Hz), musical notes, and high frequency. Visual waveform preview.",
         searchKeywords = listOf("tone", "frequency", "generator", "sine", "wave", "hertz", "hz", "audio", "sound"),
@@ -840,16 +1182,26 @@ val allTools = listOf(
     ToolDefinition(
         id = "audio_editor",
         name = "Audio Editor",
-        icon = Icons.Default.Audiotrack,
+        icon = Icons.Default.MusicNote,
         category = ToolCategory.AudioTools,
         description = "Trim audio tracks, visualize waveforms, adjust volume gain, and export audio clips.",
         searchKeywords = listOf("audio", "sound", "editor", "trim", "cut", "waveform", "volume", "mp3"),
     ),
-    // DocTools
+    ToolDefinition(
+        id = "sound_exposure",
+        name = "Sound Exposure",
+        icon = Icons.Default.Hearing,
+        category = ToolCategory.AudioTools,
+        description = "OSHA and NIOSH ambient sound exposure guidelines, maximum allowable safe durations, and noise risk levels.",
+        searchKeywords = listOf("sound", "exposure", "decibel", "noise", "osha", "niosh", "hearing", "ear", "safety"),
+    ),
+    // =========================================
+    // DocTools (14 tools)
+    // =========================================
     ToolDefinition(
         id = "ocr",
         name = "Text Scanner",
-        icon = Icons.Default.TextFields,
+        icon = Icons.Default.DocumentScanner,
         category = ToolCategory.DocTools,
         description = "Extract text from any photo using on-device ML Kit recognition. Pick a photo of a sign, receipt, business card, or document — copy or share the recognized text. No image leaves your device.",
         searchKeywords = listOf("ocr", "text", "scanner", "recognize", "extract", "card", "receipt", "ml", "kit", "mlkit"),
@@ -873,7 +1225,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "document_scanner",
         name = "Document Scanner",
-        icon = Icons.Default.DocumentScanner,
+        icon = Icons.Default.Scanner,
         category = ToolCategory.DocTools,
         description = "Capture or pick photos of documents and combine them into a single PDF. Fully offline.",
         searchKeywords = listOf("scan", "scanner", "document", "pdf", "camera", "photo to pdf"),
@@ -881,7 +1233,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "pdf_editor",
         name = "PDF Editor",
-        icon = Icons.Default.PictureAsPdf,
+        icon = Icons.Default.Draw,
         category = ToolCategory.DocTools,
         description = "Reorder pages, delete pages, add custom watermarks and stamps, and save modified PDF documents.",
         searchKeywords = listOf("pdf", "editor", "watermark", "stamp", "reorder", "delete page", "document"),
@@ -889,7 +1241,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "word_editor",
         name = "Word Editor",
-        icon = Icons.Default.Description,
+        icon = Icons.Default.Article,
         category = ToolCategory.DocTools,
         description = "Format text documents with headings, bold, italic, and bullet lists. Export to formatted PDF or plain text.",
         searchKeywords = listOf("word", "doc", "editor", "text", "write", "heading", "bold", "export", "pdf"),
@@ -905,7 +1257,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "pdf_to_images",
         name = "PDF to Images",
-        icon = Icons.Default.PictureAsPdf,
+        icon = Icons.Default.Collections,
         category = ToolCategory.DocTools,
         description = "Render and extract individual pages of any PDF document into high-resolution PNG images completely offline.",
         searchKeywords = listOf("pdf", "images", "extract", "pages", "pdf to image", "document", "render"),
@@ -913,12 +1265,54 @@ val allTools = listOf(
     ToolDefinition(
         id = "compress_pdf",
         name = "Compress PDF",
-        icon = Icons.Default.Compress,
+        icon = Icons.Default.FolderZip,
         category = ToolCategory.DocTools,
         description = "Reduce PDF file sizes by rendering and compressing document pages on-device with custom quality control.",
         searchKeywords = listOf("compress", "pdf", "shrink", "reduce size", "document", "smaller"),
     ),
-    // VideoTools
+    ToolDefinition(
+        id = "pdf",
+        name = "Epic PDF Studio",
+        icon = Icons.Default.Description,
+        category = ToolCategory.DocTools,
+        description = "PDF Hub from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("pdf", "pdf hub"),
+    ),
+    ToolDefinition(
+        id = "docx-md",
+        name = "Word to MD Converter",
+        icon = Icons.Default.TextSnippet,
+        category = ToolCategory.DocTools,
+        description = "Word to MD Converter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("docx md", "word to md converter"),
+    ),
+    ToolDefinition(
+        id = "doc-translator",
+        name = "Doc Translator",
+        icon = Icons.Default.Translate,
+        category = ToolCategory.DocTools,
+        description = "Doc Translator from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("doc translator", "doc translator"),
+    ),
+    ToolDefinition(
+        id = "text",
+        name = "Epic Text Studio",
+        icon = Icons.Default.TextFields,
+        category = ToolCategory.DocTools,
+        description = "Text Hub from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("text", "text hub"),
+    ),
+    ToolDefinition(
+        id = "md-editor",
+        name = "Markdown Editor",
+        icon = Icons.Default.AutoStories,
+        category = ToolCategory.DocTools,
+        description = "Markdown Editor from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("md editor", "markdown editor"),
+    ),
+    // =========================================
+    // VideoTools (2 tools)
+    // =========================================
     ToolDefinition(
         id = "screen_recorder",
         name = "Screen Recorder",
@@ -935,7 +1329,9 @@ val allTools = listOf(
         description = "Trim video duration, preview video clips, toggle audio mute, and export trimmed video files.",
         searchKeywords = listOf("video", "editor", "trim", "cut", "movie", "mute", "clip", "mp4"),
     ),
-    // Utilities
+    // =========================================
+    // Utilities (12 tools)
+    // =========================================
     ToolDefinition(
         id = "qr_scanner",
         name = "QR & Barcode",
@@ -956,7 +1352,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "text_utilities",
         name = "Text Utilities",
-        icon = Icons.Default.TextFields,
+        icon = Icons.Default.ShortText,
         category = ToolCategory.Utilities,
         description = "Transform and inspect text: change case, count words and characters, trim spaces, remove line breaks, slugify, and reverse.",
         searchKeywords = listOf("text", "case", "uppercase", "lowercase", "word count", "character count", "slug", "trim"),
@@ -972,7 +1368,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "sort_dedupe_lines",
         name = "Sort & Dedupe Lines",
-        icon = Icons.Default.TextFields,
+        icon = Icons.Default.FormatLineSpacing,
         category = ToolCategory.Utilities,
         description = "Remove duplicate lines and sort lists alphabetically (A-Z, Z-A), numerically, by line length, or in reverse order.",
         searchKeywords = listOf("sort", "dedupe", "duplicate", "lines", "alphabetical", "list", "text"),
@@ -980,7 +1376,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "find_replace",
         name = "Find & Replace",
-        icon = Icons.Default.Search,
+        icon = Icons.Default.FindReplace,
         category = ToolCategory.Utilities,
         description = "Fast find and replace with regex support, case-sensitivity toggle, live match count preview, and instant replace all.",
         searchKeywords = listOf("find", "replace", "search", "regex", "text", "substitute"),
@@ -988,7 +1384,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "text_diff",
         name = "Text Diff",
-        icon = Icons.Default.SyncAlt,
+        icon = Icons.Default.Difference,
         category = ToolCategory.Utilities,
         description = "Side-by-side and line-by-line comparison of two text inputs highlighting additions, deletions, and modifications.",
         searchKeywords = listOf("diff", "compare", "text diff", "changes", "difference", "patch"),
@@ -996,7 +1392,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "lorem_ipsum",
         name = "Lorem Ipsum",
-        icon = Icons.Default.Description,
+        icon = Icons.Default.Notes,
         category = ToolCategory.Utilities,
         description = "Generate standard placeholder dummy text by words, sentences, or paragraphs for design, mockups, and layout testing.",
         searchKeywords = listOf("lorem", "ipsum", "dummy", "placeholder", "text", "generator"),
@@ -1004,7 +1400,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "fancy_text",
         name = "Fancy Text",
-        icon = Icons.Default.Draw,
+        icon = Icons.Default.FontDownload,
         category = ToolCategory.Utilities,
         description = "Transform normal text into creative Unicode typography: bold, cursive script, fraktur gothic, monospace, circled, and upside-down.",
         searchKeywords = listOf("fancy", "unicode", "font", "style", "bold", "cursive", "script", "gothic"),
@@ -1012,7 +1408,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "emoji_picker",
         name = "Emoji & Symbols",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.Mood,
         category = ToolCategory.Utilities,
         description = "Searchable emoji and Unicode symbol keyboard with categorized tabs (Smileys, Food, Animals, Math, Symbols) and 1-tap copy.",
         searchKeywords = listOf("emoji", "symbol", "picker", "emoticon", "math symbols", "copy"),
@@ -1020,7 +1416,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "barcode_generator",
         name = "Barcode Generator",
-        icon = Icons.Default.QrCode2,
+        icon = Icons.Default.ViewWeek,
         category = ToolCategory.Utilities,
         description = "Generate standard 1D and 2D barcodes: Code 128, EAN-13, UPC-A, Code 39, and QR Codes with instant gallery save.",
         searchKeywords = listOf("barcode", "code128", "ean13", "upca", "code39", "qr", "generator"),
@@ -1028,12 +1424,14 @@ val allTools = listOf(
     ToolDefinition(
         id = "scan_history",
         name = "Scan History",
-        icon = Icons.Default.QrCodeScanner,
+        icon = Icons.Default.History,
         category = ToolCategory.Utilities,
         description = "View, search, copy, and export historical QR and barcode scans saved directly on your device.",
         searchKeywords = listOf("scan", "history", "qr", "barcode", "logs", "recents"),
     ),
-    // EverydayTools
+    // =========================================
+    // EverydayTools (11 tools)
+    // =========================================
     ToolDefinition(
         id = "flashlight",
         name = "Flashlight",
@@ -1045,7 +1443,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "counter",
         name = "Counter",
-        icon = Icons.Default.ExposurePlus1,
+        icon = Icons.Default.AddCircle,
         category = ToolCategory.EverydayTools,
         description = "A simple tally counter for counting anything. Tap to increment, with undo support. Great for counting people, inventory items, repetitions, or anything else.",
         searchKeywords = listOf("count", "tally", "increment", "clicker"),
@@ -1062,7 +1460,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "mirror",
         name = "Mirror",
-        icon = Icons.Default.Person,
+        icon = Icons.Default.Face,
         category = ToolCategory.EverydayTools,
         description = "Use the front camera as a mirror. Includes a true mirror mode that shows your un-flipped reflection, so you see yourself as others see you.",
         requiresCamera = true,
@@ -1071,7 +1469,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "breathing_exercise",
         name = "Breathing",
-        icon = Icons.Default.Air,
+        icon = Icons.Default.SelfImprovement,
         category = ToolCategory.EverydayTools,
         description = "Follow guided breathing patterns to relax and reduce stress. Choose from Box Breathing, 4-7-8, or Relaxing techniques with visual animation, sound cues, and haptic feedback.",
         searchKeywords = listOf("breathe", "breathing", "relax", "meditation", "calm", "stress", "wellness"),
@@ -1079,7 +1477,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "password_generator",
         name = "Password",
-        icon = Icons.Default.Lock,
+        icon = Icons.Default.Password,
         category = ToolCategory.EverydayTools,
         description = "Generate secure random passwords with configurable length and character sets. Features strength indicator, copy to clipboard, and recent history.",
         searchKeywords = listOf("password", "generate", "secure", "random", "key", "strong"),
@@ -1087,7 +1485,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "screen_flash",
         name = "Screen Flash",
-        icon = Icons.Default.FlashOn,
+        icon = Icons.Default.Highlight,
         category = ToolCategory.EverydayTools,
         description = "Full-screen color flash for concerts, emergencies, or visual signaling. Supports solid color, strobe mode, and SOS pattern with adjustable frequency.",
         searchKeywords = listOf("flash", "strobe", "screen", "color", "sos", "signal", "emergency"),
@@ -1119,16 +1517,18 @@ val allTools = listOf(
     ToolDefinition(
         id = "passphrase_generator",
         name = "Passphrase Generator",
-        icon = Icons.Default.Lock,
+        icon = Icons.Default.VpnKey,
         category = ToolCategory.EverydayTools,
         description = "Generate memorable, cryptographically strong multi-word Diceware passphrases with custom separators and capitalization.",
         searchKeywords = listOf("passphrase", "password", "diceware", "words", "security", "entropy"),
     ),
-    // DateTime
+    // =========================================
+    // DateTime (15 tools)
+    // =========================================
     ToolDefinition(
         id = "date_calculator",
         name = "Date/Age",
-        icon = Icons.Default.DateRange,
+        icon = Icons.Default.CalendarToday,
         category = ToolCategory.DateTime,
         description = "Calculate days between dates, exact age in years/months/days, and add or subtract days from any date. Includes countdown to next birthday.",
         searchKeywords = listOf("date", "age", "birthday", "difference", "days", "calendar"),
@@ -1144,7 +1544,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "focus_timer",
         name = "Focus Timer",
-        icon = Icons.Default.Timelapse,
+        icon = Icons.Default.CenterFocusStrong,
         category = ToolCategory.DateTime,
         description = "A Pomodoro focus timer with work and break cycles. Runs in the background so your session keeps counting with the screen off.",
         searchKeywords = listOf("focus", "pomodoro", "timer", "productivity", "study", "work", "break"),
@@ -1152,7 +1552,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "world_clock",
         name = "World Clock",
-        icon = Icons.Default.Public,
+        icon = Icons.Default.AccessTimeFilled,
         category = ToolCategory.DateTime,
         description = "See the current time in cities around the world at a glance. Add and remove cities; everything stays on your device.",
         searchKeywords = listOf("world", "clock", "time", "timezone", "zone", "city", "utc", "gmt"),
@@ -1168,7 +1568,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "interval_timer",
         name = "Interval Timer",
-        icon = Icons.Default.HourglassBottom,
+        icon = Icons.Default.Timelapse,
         category = ToolCategory.DateTime,
         description = "High-Intensity Interval Training (HIIT) & Tabata workout timer with customizable Warmup, Work, Rest intervals, and Set counters.",
         searchKeywords = listOf("hiit", "interval", "timer", "tabata", "workout", "sets", "rounds", "fitness", "training"),
@@ -1176,7 +1576,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "time_diff",
         name = "Time Planner",
-        icon = Icons.Default.Schedule,
+        icon = Icons.Default.Update,
         category = ToolCategory.DateTime,
         description = "Compare time zones across world cities, calculate precise time differences, and plan meetings with golden working-hour overlap indicators.",
         searchKeywords = listOf("time", "difference", "timezone", "meeting", "planner", "world", "overlap", "hours", "gmt", "utc"),
@@ -1192,7 +1592,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "timestamp_converter",
         name = "Timestamp Converter",
-        icon = Icons.Default.Schedule,
+        icon = Icons.Default.HourglassEmpty,
         category = ToolCategory.DateTime,
         description = "Convert Unix epoch timestamps (seconds and milliseconds) to formatted local and UTC date-times and parse date strings.",
         searchKeywords = listOf("timestamp", "epoch", "unix", "date", "time", "utc", "iso8601"),
@@ -1200,7 +1600,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "working_days_calculator",
         name = "Working Days",
-        icon = Icons.Default.DateRange,
+        icon = Icons.Default.WorkHistory,
         category = ToolCategory.DateTime,
         description = "Calculate business and working days between dates, excluding custom weekends (Sat/Sun) and public holidays.",
         searchKeywords = listOf("working days", "business days", "weekdays", "holidays", "date diff", "calendar"),
@@ -1208,7 +1608,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "pregnancy_calculator",
         name = "Pregnancy Calculator",
-        icon = Icons.Default.Favorite,
+        icon = Icons.Default.ChildCare,
         category = ToolCategory.DateTime,
         description = "Estimate baby due date (EDD), current gestational age in weeks and days, and trimester breakdown based on LMP or conception.",
         searchKeywords = listOf("pregnancy", "due date", "gestational", "trimester", "baby", "edd", "lmp"),
@@ -1216,12 +1616,38 @@ val allTools = listOf(
     ToolDefinition(
         id = "sleep_cycle_calculator",
         name = "Sleep Cycle",
-        icon = Icons.Default.Bedtime,
+        icon = Icons.Default.Hotel,
         category = ToolCategory.DateTime,
         description = "Calculate optimal wake-up times and bedtimes based on natural 90-minute sleep cycles to wake up energized.",
         searchKeywords = listOf("sleep", "cycle", "wake up", "bedtime", "nap", "rem", "health"),
     ),
-    // Social
+    ToolDefinition(
+        id = "pomodoro",
+        name = "Pomodoro Timer",
+        icon = Icons.Default.HourglassBottom,
+        category = ToolCategory.DateTime,
+        description = "Pomodoro Timer from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("pomodoro", "pomodoro timer"),
+    ),
+    ToolDefinition(
+        id = "countdown",
+        name = "Countdown Timer",
+        icon = Icons.Default.MoreTime,
+        category = ToolCategory.DateTime,
+        description = "Countdown Timer from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("countdown", "countdown timer"),
+    ),
+    ToolDefinition(
+        id = "panchangam",
+        name = "Telugu Panchangam",
+        icon = Icons.Default.Brightness5,
+        category = ToolCategory.DateTime,
+        description = "Telugu Panchangam from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("panchangam", "telugu panchangam"),
+    ),
+    // =========================================
+    // Social (8 tools)
+    // =========================================
     ToolDefinition(
         id = "status_saver",
         name = "Status Saver",
@@ -1233,7 +1659,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "messages_analytics",
         name = "SMS Analytics",
-        icon = Icons.Default.Sms,
+        icon = Icons.Default.ChatBubble,
         category = ToolCategory.Social,
         description = "Visualize messaging volume, sent versus received ratio, and top SMS senders and conversation threads.",
         searchKeywords = listOf("sms", "messages", "analytics", "stats", "texts", "senders", "threads", "inbox"),
@@ -1249,7 +1675,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "social_bio",
         name = "Bio Link Card",
-        icon = Icons.Default.Person,
+        icon = Icons.Default.AccountBox,
         category = ToolCategory.Social,
         description = "Design and build your customizable personal Bio Link landing card with social icons, portfolio links, and quick vCard or QR export.",
         searchKeywords = listOf("bio", "link", "social", "profile", "card", "landing", "creator", "portfolio", "links"),
@@ -1265,16 +1691,34 @@ val allTools = listOf(
     ToolDefinition(
         id = "quote_maker",
         name = "Quote Creator",
-        icon = Icons.Default.Palette,
+        icon = Icons.Default.FormatQuote,
         category = ToolCategory.Social,
         description = "Create aesthetic quote banners and social story graphics with customizable nature gradients, author attribution, typography, and image export.",
         searchKeywords = listOf("quote", "maker", "creator", "banner", "story", "status", "typography", "gradient", "instagram", "graphic"),
     ),
-    // Sensors
+    ToolDefinition(
+        id = "social",
+        name = "Social Audit",
+        icon = Icons.Default.People,
+        category = ToolCategory.Social,
+        description = "Social Audit from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("social", "social audit"),
+    ),
+    ToolDefinition(
+        id = "social-downloader",
+        name = "Social Downloader",
+        icon = Icons.Default.CloudDownload,
+        category = ToolCategory.Social,
+        description = "Social Downloader from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("social downloader", "social downloader"),
+    ),
+    // =========================================
+    // Sensors (17 tools)
+    // =========================================
     ToolDefinition(
         id = "level",
         name = "Bubble Level",
-        icon = Icons.Default.Flare,
+        icon = Icons.Default.PlayForWork,
         category = ToolCategory.Sensors,
         description = "Check if surfaces are perfectly horizontal or vertical. Place your phone on any surface to see real-time tilt angles. Great for hanging pictures, leveling shelves, or aligning furniture.",
         requiredSensorType = Sensor.TYPE_ACCELEROMETER,
@@ -1292,7 +1736,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "protractor",
         name = "Protractor",
-        icon = Icons.Default.Architecture,
+        icon = Icons.Default.SquareFoot,
         category = ToolCategory.Sensors,
         description = "Measure angles by tilting your phone or using the on-screen protractor. Perfect for measuring slopes, roof pitches, or any angle you need to check.",
         searchKeywords = listOf("angle", "degree", "measure"),
@@ -1300,7 +1744,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "ruler",
         name = "Ruler",
-        icon = Icons.Default.Straighten,
+        icon = Icons.Default.LinearScale,
         category = ToolCategory.Sensors,
         description = "Measure lengths directly on your phone screen in centimeters or inches. Drag markers to measure objects placed against your screen. Calibrated to your device's display.",
         searchKeywords = listOf("measure", "inch", "centimeter", "cm", "length"),
@@ -1317,7 +1761,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "light_meter",
         name = "Light Meter",
-        icon = Icons.Default.LightMode,
+        icon = Icons.Default.WbSunny,
         category = ToolCategory.Sensors,
         description = "Measure ambient light intensity in lux using your phone's light sensor. Helpful for photography, checking workplace lighting conditions, or comparing light levels in different rooms.",
         requiredSensorType = Sensor.TYPE_LIGHT,
@@ -1326,7 +1770,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "barometer",
         name = "Barometer",
-        icon = Icons.Default.Speed,
+        icon = Icons.Default.TireRepair,
         category = ToolCategory.Sensors,
         description = "Measure atmospheric pressure in hPa using the built-in pressure sensor. Track pressure trends to predict weather changes. Also estimates altitude based on barometric readings.",
         requiredSensorType = Sensor.TYPE_PRESSURE,
@@ -1335,7 +1779,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "humidity",
         name = "Humidity",
-        icon = Icons.Default.WaterDrop,
+        icon = Icons.Default.Opacity,
         category = ToolCategory.Sensors,
         description = "Monitor relative humidity percentage using the device's humidity sensor. Tracks comfort level with dew point and heat index calculations. Useful for monitoring indoor climate.",
         requiredSensorType = Sensor.TYPE_RELATIVE_HUMIDITY,
@@ -1344,7 +1788,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "pedometer",
         name = "Pedometer",
-        icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+        icon = Icons.Default.DirectionsWalk,
         category = ToolCategory.Sensors,
         description = "Count your steps and estimate distance walked using the step counter sensor. Track daily walking activity with a simple start/stop interface. Shows steps, distance, and calories.",
         requiredSensorType = Sensor.TYPE_STEP_COUNTER,
@@ -1362,7 +1806,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "metal_detector",
         name = "Metal Detector",
-        icon = Icons.Default.Search,
+        icon = Icons.Default.Sensors,
         category = ToolCategory.Sensors,
         description = "Detect nearby metal objects using the magnetic field sensor. Shows magnetic field strength and alerts when metal is detected. Can help find studs in walls, lost metal objects, or magnetic sources.",
         requiredSensorType = Sensor.TYPE_MAGNETIC_FIELD,
@@ -1380,7 +1824,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "plumb_bob",
         name = "Plumb Bob",
-        icon = Icons.Default.Plumbing,
+        icon = Icons.Default.VerticalAlignBottom,
         category = ToolCategory.Sensors,
         description = "Camera overlay with a vertical plumb line for checking vertical alignment. Color-coded deviation indicator shows how far from true vertical.",
         requiresCamera = true,
@@ -1390,7 +1834,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "speedometer",
         name = "Speedometer",
-        icon = Icons.Default.Speed,
+        icon = Icons.Default.Navigation,
         category = ToolCategory.Sensors,
         description = "Measure your speed using GPS with a real-time gauge display. Supports km/h, mph, m/s, and knots. Track trips with distance, max speed, and average speed statistics.",
         searchKeywords = listOf("speed", "velocity", "gps", "kmh", "mph", "trip", "distance"),
@@ -1398,7 +1842,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "altitude",
         name = "Altitude",
-        icon = Icons.Default.Height,
+        icon = Icons.Default.Terrain,
         category = ToolCategory.Sensors,
         description = "Measure your altitude above sea level using GPS. Track elevation changes with total ascent and descent. Shows altitude chart, min/max readings, and GPS accuracy.",
         searchKeywords = listOf("altitude", "elevation", "gps", "height", "ascent", "descent"),
@@ -1412,11 +1856,21 @@ val allTools = listOf(
         requiredSensorType = Sensor.TYPE_LIGHT,
         searchKeywords = listOf("lux", "light", "exposure", "ev", "photography", "standards", "study", "office"),
     ),
-    // Device
+    ToolDefinition(
+        id = "bluetooth",
+        name = "Bluetooth Scanner",
+        icon = Icons.Default.BluetoothSearching,
+        category = ToolCategory.Sensors,
+        description = "Bluetooth Scanner from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("bluetooth", "bluetooth scanner"),
+    ),
+    // =========================================
+    // Device (10 tools)
+    // =========================================
     ToolDefinition(
         id = "bluetooth_finder",
         name = "Bluetooth Finder",
-        icon = Icons.AutoMirrored.Filled.BluetoothSearching,
+        icon = Icons.Default.Bluetooth,
         category = ToolCategory.Device,
         description = "Find lost Bluetooth devices like earbuds, trackers, and speakers by signal strength. Pick a nearby device and walk around — a playful radar gets warmer, faster, and buzzes as you close in.",
         searchKeywords = listOf("bluetooth", "ble", "finder", "find", "lost", "earbuds", "headphones", "tracker", "signal", "rssi", "proximity"),
@@ -1424,7 +1878,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "device_info",
         name = "Device Info",
-        icon = Icons.Default.PhoneAndroid,
+        icon = Icons.Default.PermDeviceInformation,
         category = ToolCategory.Device,
         description = "View detailed device information: model, Android version, display specs, storage, RAM, CPU, battery health, and sensor list. All hardware details in one place.",
         searchKeywords = listOf("device", "info", "phone", "specs", "hardware", "android", "battery", "cpu", "ram", "storage"),
@@ -1448,7 +1902,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "vibration_patterns",
         name = "Vibration Patterns",
-        icon = Icons.Default.Waves,
+        icon = Icons.Default.RingVolume,
         category = ToolCategory.Device,
         description = "Play predefined vibration patterns: tap, double-tap, heartbeat, pulse, wave, and SOS. Useful for testing the haptic motor or designing custom alerts.",
         searchKeywords = listOf("vibration", "vibrate", "haptic", "pattern", "buzz", "pulse", "sos", "heartbeat"),
@@ -1456,7 +1910,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "dead_pixel_tester",
         name = "Dead Pixel",
-        icon = Icons.Default.ScreenSearchDesktop,
+        icon = Icons.Default.Tv,
         category = ToolCategory.Device,
         description = "Cycle through fullscreen primary and secondary colors to inspect screen for dead, stuck, or broken pixels.",
         searchKeywords = listOf("pixel", "dead pixel", "screen", "display", "stuck pixel", "monitor", "lcd", "oled"),
@@ -1464,7 +1918,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "touch_tester",
         name = "Touch Tester",
-        icon = Icons.Default.TouchApp,
+        icon = Icons.Default.Fingerprint,
         category = ToolCategory.Device,
         description = "Test multi-touch screen capabilities, touch coordinates, pressure, and gesture tracking with live pointer feedback.",
         searchKeywords = listOf("touch", "multitouch", "pointer", "screen", "finger", "gesture", "hardware"),
@@ -1472,7 +1926,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "screen_dimmer",
         name = "Screen Dimmer",
-        icon = Icons.Default.Brightness2,
+        icon = Icons.Default.BrightnessMedium,
         category = ToolCategory.Device,
         description = "Lower screen brightness below system minimum and apply amber blue-light warmth filters for comfortable night reading.",
         searchKeywords = listOf("dimmer", "screen", "night", "dark", "blue light", "warmth", "reading", "filter"),
@@ -1488,16 +1942,18 @@ val allTools = listOf(
     ToolDefinition(
         id = "battery_info",
         name = "Battery Health",
-        icon = Icons.Default.BatteryStd,
+        icon = Icons.Default.BatteryChargingFull,
         category = ToolCategory.Device,
         description = "Monitor battery temperature, voltage, charging health status, technology, and health recommendations.",
         searchKeywords = listOf("battery", "power", "charge", "health", "voltage", "temperature", "mah"),
     ),
-    // Education
+    // =========================================
+    // Education (7 tools)
+    // =========================================
     ToolDefinition(
         id = "formula_reference",
         name = "Formulas",
-        icon = Icons.Default.Functions,
+        icon = Icons.Default.ImportContacts,
         category = ToolCategory.Education,
         description = "Browse and solve formulas from Math, Physics, Chemistry, and Finance. Enter known values to solve for any unknown with step-by-step substitution. Search, browse by subject, and favorite formulas.",
         searchKeywords = listOf("formula", "solver", "math", "physics", "chemistry", "finance", "equation", "reference"),
@@ -1505,7 +1961,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "unit_circle",
         name = "Unit Circle",
-        icon = Icons.Default.PieChart,
+        icon = Icons.Default.DonutLarge,
         category = ToolCategory.Education,
         description = "Interactive unit circle for visualizing trigonometric functions. Drag to set the angle and see sin, cos, and tan values along with degree and radian readouts.",
         searchKeywords = listOf("unit", "circle", "trigonometry", "trig", "sin", "cos", "tan", "angle", "degree", "radian", "math"),
@@ -1513,7 +1969,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "eye_test",
         name = "Eye Test",
-        icon = Icons.Default.Visibility,
+        icon = Icons.Default.RemoveRedEye,
         category = ToolCategory.Education,
         description = "Quick self-checks: a visual-acuity chart, an astigmatism fan, and a color-discrimination game. Not a medical diagnosis.",
         searchKeywords = listOf("eye", "test", "vision", "acuity", "snellen", "astigmatism", "color blind", "sight"),
@@ -1529,7 +1985,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "periodic_table",
         name = "Periodic Table",
-        icon = Icons.Default.Science,
+        icon = Icons.Default.Category,
         category = ToolCategory.Education,
         description = "Complete 118-element interactive periodic table with 18-column grid view, Bohr atomic shells, detailed chemical properties, and state filters.",
         searchKeywords = listOf("periodic table", "chemistry", "elements", "atoms", "mendeleev", "science", "chemical"),
@@ -1550,7 +2006,9 @@ val allTools = listOf(
         description = "Calculate semester GPA, cumulative CGPA across terms, and project required grades with the target GPA planner.",
         searchKeywords = listOf("gpa", "cgpa", "grade", "college", "university", "credits", "semester", "education", "target gpa"),
     ),
-    // Games
+    // =========================================
+    // Games (7 tools)
+    // =========================================
     ToolDefinition(
         id = "random_generator",
         name = "Random/Dice",
@@ -1562,7 +2020,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "chemistry_games",
         name = "Chemistry Games",
-        icon = Icons.Default.Science,
+        icon = Icons.Default.BubbleChart,
         category = ToolCategory.Games,
         description = "Element Symbol Quiz, Atomic Number Speed Run, and Compound Synthesis Reaction Lab.",
         searchKeywords = listOf("chemistry", "game", "quiz", "element quiz", "compounds", "reactions", "lab"),
@@ -1586,7 +2044,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "spin_wheel",
         name = "Spin the Wheel",
-        icon = Icons.Default.Casino,
+        icon = Icons.Default.Toll,
         category = ToolCategory.Games,
         description = "Interactive randomized decision-making wheel with custom choices, smooth animated spinning, and winning slice selector.",
         searchKeywords = listOf("spin", "wheel", "decision", "picker", "random", "game", "roulette"),
@@ -1599,11 +2057,21 @@ val allTools = listOf(
         description = "Pick random winners from any list of names or items with multi-pick support and optional drawn item removal.",
         searchKeywords = listOf("picker", "name", "random", "raffle", "giveaway", "list", "draw"),
     ),
-    // AiTools
+    ToolDefinition(
+        id = "morse_trainer",
+        name = "Morse Trainer",
+        icon = Icons.Default.Headset,
+        category = ToolCategory.Games,
+        description = "Interactive flashcard quiz and learning trainer for International Morse Code letters, numbers, and symbols.",
+        searchKeywords = listOf("morse", "quiz", "trainer", "game", "code", "learn", "flashcard"),
+    ),
+    // =========================================
+    // AiTools (19 tools)
+    // =========================================
     ToolDefinition(
         id = "perchance_ai",
         name = "Perchance AI",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.SmartToy,
         category = ToolCategory.AiTools,
         description = "Offline procedural generator inspired by Perchance engine (characters, AI art prompts, story hooks, code challenges) and integrated in-app Web Hub launcher.",
         searchKeywords = listOf("perchance", "ai", "generator", "prompt", "creative", "story", "art", "character", "chat"),
@@ -1611,7 +2079,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_text_gen",
         name = "Perchance Text",
-        icon = Icons.Default.Draw,
+        icon = Icons.Default.AutoAwesomeMotion,
         category = ToolCategory.AiTools,
         description = "AI text generator and interactive story writing sandbox running directly in-app with multi-profile support.",
         searchKeywords = listOf("perchance", "ai", "text", "story", "generator", "writing", "fiction", "novel"),
@@ -1619,7 +2087,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_photo_gen",
         name = "Perchance Photo",
-        icon = Icons.Default.Image,
+        icon = Icons.Default.AddPhotoAlternate,
         category = ToolCategory.AiTools,
         description = "AI image and art generator powered by text-to-image models directly in-app with multi-profile support.",
         searchKeywords = listOf("perchance", "ai", "photo", "image", "art", "picture", "diffusion", "generator"),
@@ -1627,7 +2095,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_chat",
         name = "Perchance Chat",
-        icon = Icons.AutoMirrored.Filled.Chat,
+        icon = Icons.Default.Chat,
         category = ToolCategory.AiTools,
         description = "AI character conversational playground and roleplay chat directly in-app with multi-profile support.",
         searchKeywords = listOf("perchance", "ai", "chat", "character", "bot", "assistant", "roleplay"),
@@ -1635,7 +2103,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_video_gen",
         name = "Perchance Video",
-        icon = Icons.Default.Videocam,
+        icon = Icons.Default.VideoLibrary,
         category = ToolCategory.AiTools,
         description = "AI video generator creating clips and animations from text prompts directly in-app with multi-profile support.",
         searchKeywords = listOf("perchance", "ai", "video", "generator", "animation", "motion", "clip", "prompt"),
@@ -1643,7 +2111,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_story_gen",
         name = "Perchance Story",
-        icon = Icons.Default.EditNote,
+        icon = Icons.Default.LibraryBooks,
         category = ToolCategory.AiTools,
         description = "AI story generator crafting rich fiction, narrative arcs, and dynamic plotlines directly in-app with multi-profile support.",
         searchKeywords = listOf("perchance", "ai", "story", "generator", "fiction", "novel", "narrative", "author"),
@@ -1659,7 +2127,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_anime_gen",
         name = "Perchance Anime",
-        icon = Icons.Default.Palette,
+        icon = Icons.Default.AutoAwesome,
         category = ToolCategory.AiTools,
         description = "AI anime and manga art generator creating vivid stylized illustrations directly in-app with multi-profile support.",
         searchKeywords = listOf("perchance", "ai", "anime", "manga", "art", "illustration", "waifu", "drawing"),
@@ -1667,7 +2135,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_rpg_gen",
         name = "Perchance RPG",
-        icon = Icons.Default.Casino,
+        icon = Icons.Default.Shield,
         category = ToolCategory.AiTools,
         description = "Interactive AI roleplay game and text adventure sandbox directly in-app with multi-profile support.",
         searchKeywords = listOf("perchance", "ai", "rpg", "game", "adventure", "quest", "roleplay", "dungeon"),
@@ -1675,7 +2143,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_writing_prompt",
         name = "Writing Prompts",
-        icon = Icons.Default.Lightbulb,
+        icon = Icons.Default.TipsAndUpdates,
         category = ToolCategory.AiTools,
         description = "Creative AI writing prompt generator for novelists, screenwriters, and creative exercises directly in-app.",
         searchKeywords = listOf("perchance", "ai", "prompt", "writing", "creative", "idea", "inspiration", "story"),
@@ -1683,7 +2151,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_lore_gen",
         name = "World & Lore",
-        icon = Icons.Default.Public,
+        icon = Icons.Default.Map,
         category = ToolCategory.AiTools,
         description = "Fantasy and sci-fi worldbuilder generating factions, planets, magic systems, and ancient lore directly in-app.",
         searchKeywords = listOf("perchance", "ai", "world", "lore", "fantasy", "scifi", "worldbuilding", "planet", "magic"),
@@ -1691,7 +2159,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_dialogue_gen",
         name = "AI Dialogue",
-        icon = Icons.AutoMirrored.Filled.Chat,
+        icon = Icons.Default.Forum,
         category = ToolCategory.AiTools,
         description = "Generates realistic and stylized character dialogue, banter, and dramatic monologues directly in-app.",
         searchKeywords = listOf("perchance", "ai", "dialogue", "script", "monologue", "conversation", "banter", "speech"),
@@ -1699,7 +2167,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_voice_actor",
         name = "AI Voice & Audio",
-        icon = Icons.Default.RecordVoiceOver,
+        icon = Icons.Default.SpeakerNotes,
         category = ToolCategory.AiTools,
         description = "AI voice actor and audio speech synthesis generator directly in-app with multi-profile support.",
         searchKeywords = listOf("perchance", "ai", "voice", "audio", "speech", "tts", "actor", "sound"),
@@ -1707,7 +2175,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_art_plugin",
         name = "Perchance Art Plugin",
-        icon = Icons.Default.Brush,
+        icon = Icons.Default.Colorize,
         category = ToolCategory.AiTools,
         description = "Customizable text-to-image neural plugin and advanced art settings generator directly in-app.",
         searchKeywords = listOf("perchance", "ai", "art", "plugin", "image", "diffusion", "custom", "plugin"),
@@ -1715,7 +2183,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "perchance_name_gen",
         name = "Fantasy Names",
-        icon = Icons.Default.Tag,
+        icon = Icons.Default.Badge,
         category = ToolCategory.AiTools,
         description = "Fantasy and sci-fi name generator for characters, kingdoms, spells, starships, and artifacts directly in-app.",
         searchKeywords = listOf("perchance", "ai", "name", "fantasy", "generator", "titles", "characters", "naming"),
@@ -1723,16 +2191,42 @@ val allTools = listOf(
     ToolDefinition(
         id = "huggingface_ai",
         name = "Hugging Face AI",
-        icon = Icons.Default.SmartToy,
+        icon = Icons.Default.Hub,
         category = ToolCategory.AiTools,
         description = "Direct access to Hugging Face AI models, HuggingChat, AI Spaces, and assistants inside the app with multi-profile support.",
         searchKeywords = listOf("huggingface", "ai", "huggingchat", "spaces", "models", "llm", "chat", "assistant", "ml"),
     ),
-    // AppTools
+    ToolDefinition(
+        id = "image-gen",
+        name = "AI Image Gen",
+        icon = Icons.Default.Camera,
+        category = ToolCategory.AiTools,
+        description = "AI Image Gen from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("image gen", "ai image gen"),
+    ),
+    ToolDefinition(
+        id = "chat",
+        name = "AI Chat Assistant",
+        icon = Icons.Default.QuestionAnswer,
+        category = ToolCategory.AiTools,
+        description = "AI Chat Assistant from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("chat", "ai chat assistant"),
+    ),
+    ToolDefinition(
+        id = "local",
+        name = "Local AI Utilities",
+        icon = Icons.Default.Memory,
+        category = ToolCategory.AiTools,
+        description = "Local AI Utilities from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("local", "local ai utilities"),
+    ),
+    // =========================================
+    // AppTools (4 tools)
+    // =========================================
     ToolDefinition(
         id = "widgets_manager",
         name = "Widgets",
-        icon = Icons.Default.GridOn,
+        icon = Icons.Default.Widgets,
         category = ToolCategory.AppTools,
         description = "Browse, customize, configure, and pin 10+ precision interactive widgets directly to your Android Home Screen.",
         searchKeywords = listOf("widget", "widgets", "creator", "manager", "pin", "glance", "home screen"),
@@ -1740,7 +2234,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "quick_tiles_manager",
         name = "Quick Tiles",
-        icon = Icons.Default.GridOn,
+        icon = Icons.Default.DashboardCustomize,
         category = ToolCategory.AppTools,
         description = "Configure, test, and request system addition for 25+ Quick Settings tiles in your Android notification shade.",
         searchKeywords = listOf("quick tile", "tiles", "quick settings", "shade", "status bar", "creator", "manager"),
@@ -1748,16 +2242,26 @@ val allTools = listOf(
     ToolDefinition(
         id = "shortcuts_manager",
         name = "Shortcuts",
-        icon = Icons.Default.Pin,
+        icon = Icons.Default.TouchApp,
         category = ToolCategory.AppTools,
         description = "Create custom home screen shortcuts with custom colors & labels, and manage 20+ predefined 1-tap app shortcuts.",
         searchKeywords = listOf("shortcut", "shortcuts", "pin", "launcher", "creator", "manager", "icon"),
     ),
-    // DevTools
+    ToolDefinition(
+        id = "digital_clock_widget",
+        name = "Digital Clock Widget",
+        icon = Icons.Default.AlarmOn,
+        category = ToolCategory.AppTools,
+        description = "Material Expressive digital clock home screen widget with date, seconds, customizable colors, and transparency.",
+        searchKeywords = listOf("clock", "widget", "digital clock", "time", "date"),
+    ),
+    // =========================================
+    // DevTools (18 tools)
+    // =========================================
     ToolDefinition(
         id = "json_formatter",
         name = "JSON Formatter",
-        icon = Icons.Default.Tag,
+        icon = Icons.Default.DataArray,
         category = ToolCategory.DevTools,
         description = "Format, beautify, and minify JSON with custom indentation, syntax error detection, and validity checks.",
         searchKeywords = listOf("json", "format", "beautify", "minify", "validate", "developer", "parse"),
@@ -1773,7 +2277,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "html_entity_tool",
         name = "HTML Entities",
-        icon = Icons.Default.Language,
+        icon = Icons.Default.CodeOff,
         category = ToolCategory.DevTools,
         description = "Encode special characters into HTML entities (&amp;, &lt;, numeric codes) and decode entity strings back to text.",
         searchKeywords = listOf("html", "entities", "encode", "decode", "escape", "developer", "web"),
@@ -1781,16 +2285,130 @@ val allTools = listOf(
     ToolDefinition(
         id = "regex_tester",
         name = "Regex Tester",
-        icon = Icons.Default.Search,
+        icon = Icons.Default.Pattern,
         category = ToolCategory.DevTools,
         description = "Test regular expressions with real-time match highlighting, group extraction, error diagnostics, and regex flag toggles.",
         searchKeywords = listOf("regex", "regular expression", "test", "match", "groups", "pattern"),
     ),
-    // ProgrammingTools
+    ToolDefinition(
+        id = "api-tester",
+        name = "REST API Tester",
+        icon = Icons.Default.Http,
+        category = ToolCategory.DevTools,
+        description = "REST API Tester from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("api tester", "rest api tester"),
+    ),
+    ToolDefinition(
+        id = "sql",
+        name = "SQL Formatter",
+        icon = Icons.Default.Storage,
+        category = ToolCategory.DevTools,
+        description = "SQL Formatter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("sql", "sql formatter"),
+    ),
+    ToolDefinition(
+        id = "xml-fmt",
+        name = "XML Formatter",
+        icon = Icons.Default.DataObject,
+        category = ToolCategory.DevTools,
+        description = "XML Formatter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("xml fmt", "xml formatter"),
+    ),
+    ToolDefinition(
+        id = "json-ts",
+        name = "JSON to TS Interface",
+        icon = Icons.Default.Javascript,
+        category = ToolCategory.DevTools,
+        description = "JSON to TS Interface from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("json ts", "json to ts interface"),
+    ),
+    ToolDefinition(
+        id = "kusto",
+        name = "KQL Formatter",
+        icon = Icons.Default.QueryStats,
+        category = ToolCategory.DevTools,
+        description = "KQL Formatter from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("kusto", "kql formatter"),
+    ),
+    ToolDefinition(
+        id = "diff",
+        name = "Diff Viewer",
+        icon = Icons.Default.Compare,
+        category = ToolCategory.DevTools,
+        description = "Diff Viewer from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("diff", "diff viewer"),
+    ),
+    ToolDefinition(
+        id = "jwt",
+        name = "JWT Debugger",
+        icon = Icons.Default.Token,
+        category = ToolCategory.DevTools,
+        description = "JWT Debugger from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("jwt", "jwt debugger"),
+    ),
+    ToolDefinition(
+        id = "url",
+        name = "URL Tool",
+        icon = Icons.Default.Link,
+        category = ToolCategory.DevTools,
+        description = "URL Tool from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("url", "url tool"),
+    ),
+    ToolDefinition(
+        id = "cron",
+        name = "Cron Parser",
+        icon = Icons.Default.ScheduleSend,
+        category = ToolCategory.DevTools,
+        description = "Cron Parser from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("cron", "cron parser"),
+    ),
+    ToolDefinition(
+        id = "minifier",
+        name = "Code Minifier",
+        icon = Icons.Default.UnfoldLess,
+        category = ToolCategory.DevTools,
+        description = "Code Minifier from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("minifier", "code minifier"),
+    ),
+    ToolDefinition(
+        id = "qr-barcode",
+        name = "Epic Barcode Studio",
+        icon = Icons.Default.QrCode,
+        category = ToolCategory.DevTools,
+        description = "QR & Barcode Generator from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("qr barcode", "qr & barcode generator"),
+    ),
+    ToolDefinition(
+        id = "inspiration",
+        name = "Code Inspiration",
+        icon = Icons.Default.EmojiObjects,
+        category = ToolCategory.DevTools,
+        description = "Code Inspiration from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("inspiration", "code inspiration"),
+    ),
+    ToolDefinition(
+        id = "md-table",
+        name = "Markdown Table",
+        icon = Icons.Default.TableRows,
+        category = ToolCategory.DevTools,
+        description = "Markdown Table from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("md table", "markdown table"),
+    ),
+    ToolDefinition(
+        id = "sql-builder",
+        name = "SQL Builder",
+        icon = Icons.Default.Build,
+        category = ToolCategory.DevTools,
+        description = "SQL Builder from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("sql builder", "sql builder"),
+    ),
+    // =========================================
+    // ProgrammingTools (3 tools)
+    // =========================================
     ToolDefinition(
         id = "number_base",
         name = "Number Base",
-        icon = Icons.Default.Pin,
+        icon = Icons.Default.Filter1,
         category = ToolCategory.ProgrammingTools,
         description = "Convert numbers between decimal, binary, hexadecimal, and octal systems. Useful for programmers, students, and anyone working with different number formats.",
         searchKeywords = listOf("binary", "hex", "octal", "decimal", "base"),
@@ -1798,16 +2416,26 @@ val allTools = listOf(
     ToolDefinition(
         id = "hash_encode",
         name = "Hash & Encode",
-        icon = Icons.Default.Tag,
+        icon = Icons.Default.Lock,
         category = ToolCategory.ProgrammingTools,
         description = "Generate MD5, SHA-1 and SHA-256 hashes, plus Base64 and URL encoding for any text. Tap a result to copy.",
         searchKeywords = listOf("hash", "md5", "sha", "sha256", "base64", "url encode", "checksum", "encode"),
     ),
-    // FilesTools
+    ToolDefinition(
+        id = "binary_bitwise",
+        name = "Bitwise Calculator",
+        icon = Icons.Default.Pin,
+        category = ToolCategory.ProgrammingTools,
+        description = "Perform 32-bit binary bitwise operations (AND, OR, XOR, NOT, bit shifts) with binary, decimal, and hex representations.",
+        searchKeywords = listOf("bitwise", "binary", "and", "or", "xor", "shift", "hex", "programming"),
+    ),
+    // =========================================
+    // FilesTools (2 tools)
+    // =========================================
     ToolDefinition(
         id = "duplicate_photos",
         name = "Duplicate Photos",
-        icon = Icons.Default.Photo,
+        icon = Icons.Default.BurstMode,
         category = ToolCategory.FilesTools,
         description = "Find and delete exact duplicate photos to free up space. All comparison happens on-device — nothing is uploaded.",
         searchKeywords = listOf("duplicate", "photos", "dupes", "clean", "space", "gallery", "storage"),
@@ -1815,12 +2443,14 @@ val allTools = listOf(
     ToolDefinition(
         id = "storage_analyzer",
         name = "Storage Analyzer",
-        icon = Icons.Default.PieChart,
+        icon = Icons.Default.FolderOpen,
         category = ToolCategory.FilesTools,
         description = "See what's using your storage — largest files, biggest folders, and a breakdown by file type. Delete space hogs with confirmation.",
         searchKeywords = listOf("storage", "analyzer", "space", "cleaner", "files", "folders", "disk", "usage"),
     ),
-    // NetworkTools
+    // =========================================
+    // NetworkTools (11 tools)
+    // =========================================
     ToolDefinition(
         id = "wifi_signal",
         name = "WiFi Signal",
@@ -1840,7 +2470,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "wifi_qr_share",
         name = "WiFi QR Share",
-        icon = Icons.Default.Wifi,
+        icon = Icons.Default.WifiFind,
         category = ToolCategory.NetworkTools,
         description = "Generate a QR code from a WiFi network name and password so guests can scan and connect. Everything stays on device — nothing is sent anywhere.",
         searchKeywords = listOf("wifi", "qr", "share", "guest", "network", "password", "ssid", "hotspot"),
@@ -1848,7 +2478,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "web_tools",
         name = "Web Tools",
-        icon = Icons.Default.Language,
+        icon = Icons.Default.Web,
         category = ToolCategory.NetworkTools,
         description = "Inspect URLs, test HTTP response status codes, resolve DNS lookups, check latency ping, and inspect User-Agent.",
         searchKeywords = listOf("web", "http", "url", "dns", "ping", "user agent", "latency", "headers"),
@@ -1856,33 +2486,66 @@ val allTools = listOf(
     ToolDefinition(
         id = "network_speed_test",
         name = "Speed Test",
-        icon = Icons.Default.Speed,
+        icon = Icons.Default.NetworkCell,
         category = ToolCategory.NetworkTools,
         description = "Measure network latency ping, packet jitter, and throughput speed with latency health guidelines.",
         searchKeywords = listOf("speed", "test", "ping", "latency", "network", "throughput", "bandwidth", "jitter"),
     ),
-    // ImageTools (including former MediaConverters)
     ToolDefinition(
-        id = "image_resizer",
-        name = "Image Resizer",
-        icon = Icons.Default.Photo,
-        category = ToolCategory.ImageTools,
-        description = "Resize images by exact pixel dimensions or percentage scale with aspect ratio lock and quick 1080p/720p presets.",
-        searchKeywords = listOf("resize", "dimensions", "scale", "image", "photo", "pixel", "aspect ratio"),
+        id = "ping",
+        name = "Ping Tester",
+        icon = Icons.Default.SettingsEthernet,
+        category = ToolCategory.NetworkTools,
+        description = "Ping Tester from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("ping", "ping tester"),
     ),
     ToolDefinition(
-        id = "image_format_converter",
-        name = "Image Converter",
-        icon = Icons.Default.Image,
-        category = ToolCategory.ImageTools,
-        description = "Convert images between JPEG, PNG, and WEBP formats with adjustable quality slider and file size estimation.",
-        searchKeywords = listOf("convert", "format", "jpeg", "png", "webp", "image", "compression"),
+        id = "dns",
+        name = "DNS Lookup",
+        icon = Icons.Default.Dns,
+        category = ToolCategory.NetworkTools,
+        description = "DNS Lookup from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("dns", "dns lookup"),
     ),
-    // Health & Fitness Tools
+    ToolDefinition(
+        id = "whois",
+        name = "WHOIS Record",
+        icon = Icons.Default.ContactPage,
+        category = ToolCategory.NetworkTools,
+        description = "WHOIS Record from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("whois", "whois record"),
+    ),
+    ToolDefinition(
+        id = "ip-info",
+        name = "IP Information",
+        icon = Icons.Default.LocationCity,
+        category = ToolCategory.NetworkTools,
+        description = "IP Information from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("ip info", "ip information"),
+    ),
+    ToolDefinition(
+        id = "geo",
+        name = "Geolocation Tool",
+        icon = Icons.Default.MyLocation,
+        category = ToolCategory.NetworkTools,
+        description = "Geolocation Tool from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("geo", "geolocation tool"),
+    ),
+    ToolDefinition(
+        id = "ssl",
+        name = "SSL Checker",
+        icon = Icons.Default.Security,
+        category = ToolCategory.NetworkTools,
+        description = "SSL Checker from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("ssl", "ssl checker"),
+    ),
+    // =========================================
+    // HealthFitness (5 tools)
+    // =========================================
     ToolDefinition(
         id = "water_intake_calc",
         name = "Hydration Calculator",
-        icon = Icons.Default.LocalDrink,
+        icon = Icons.Default.LocalCafe,
         category = ToolCategory.HealthFitness,
         description = "Calculate daily water intake requirements based on weight, activity level, and climate with optimal hourly hydration schedule.",
         searchKeywords = listOf("water", "hydration", "intake", "drink", "health", "cups", "glasses", "fitness"),
@@ -1890,7 +2553,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "body_fat_calc",
         name = "Body Fat Calculator",
-        icon = Icons.Default.FitnessCenter,
+        icon = Icons.Default.DirectionsRun,
         category = ToolCategory.HealthFitness,
         description = "Estimate body fat percentage using standard US Navy circumference method with fitness classification categories.",
         searchKeywords = listOf("body fat", "navy", "lean", "waist", "neck", "hip", "obesity", "fitness"),
@@ -1898,7 +2561,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "target_heart_rate",
         name = "Target Heart Rate",
-        icon = Icons.Default.Favorite,
+        icon = Icons.Default.MonitorHeart,
         category = ToolCategory.HealthFitness,
         description = "Calculate maximum heart rate and 5 Karvonen aerobic & anaerobic exercise intensity training zones.",
         searchKeywords = listOf("heart rate", "hrr", "karvonen", "cardio", "zones", "fat burn", "bpm", "fitness"),
@@ -1914,16 +2577,18 @@ val allTools = listOf(
     ToolDefinition(
         id = "pace_calc",
         name = "Running Pace",
-        icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+        icon = Icons.Default.Timer10,
         category = ToolCategory.HealthFitness,
         description = "Calculate running and walking pace (min/km & min/mile) with race finish time predictions for 5K, 10K, Half, and Marathon.",
         searchKeywords = listOf("pace", "running", "marathon", "5k", "10k", "speed", "splits", "race", "runner"),
     ),
-    // Security & Privacy Tools
+    // =========================================
+    // SecurityPrivacy (9 tools)
+    // =========================================
     ToolDefinition(
         id = "password_audit",
         name = "Password Auditor",
-        icon = Icons.Default.Lock,
+        icon = Icons.Default.ShieldMoon,
         category = ToolCategory.SecurityPrivacy,
         description = "Audit password entropy bits, brute-force crack time estimates, and compliance with modern security criteria.",
         searchKeywords = listOf("password", "security", "audit", "entropy", "strength", "crack time", "safe"),
@@ -1931,7 +2596,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "aes_encryption",
         name = "AES-256 Encryptor",
-        icon = Icons.Default.Key,
+        icon = Icons.Default.EnhancedEncryption,
         category = ToolCategory.SecurityPrivacy,
         description = "Encrypt and decrypt confidential text using AES-256 GCM authenticated encryption with PBKDF2 passphrase key derivation.",
         searchKeywords = listOf("aes", "encrypt", "decrypt", "cipher", "crypto", "security", "privacy", "gcm"),
@@ -1939,7 +2604,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "checksum_verifier",
         name = "Checksum Verifier",
-        icon = Icons.Default.CheckCircle,
+        icon = Icons.Default.DoneAll,
         category = ToolCategory.SecurityPrivacy,
         description = "Compute and verify cryptographic checksum hashes across MD5, SHA-1, SHA-256, and SHA-512 algorithms.",
         searchKeywords = listOf("checksum", "hash", "sha256", "md5", "sha512", "integrity", "verify", "digest"),
@@ -1955,561 +2620,15 @@ val allTools = listOf(
     ToolDefinition(
         id = "uuid_validator",
         name = "UUID Inspector",
-        icon = Icons.Default.Key,
+        icon = Icons.Default.VerifiedUser,
         category = ToolCategory.SecurityPrivacy,
         description = "Inspect and validate UUID and GUID tokens for version type (v1, v4, v7), variant classification, and formatting compliance.",
         searchKeywords = listOf("uuid", "guid", "validator", "inspector", "v4", "v1", "v7", "token"),
     ),
-    // Additional Enhanced Tools across Categories
-    ToolDefinition(
-        id = "color_palette_gen",
-        name = "Palette Generator",
-        icon = Icons.Default.Palette,
-        category = ToolCategory.ImageTools,
-        description = "Generate aesthetic color harmonies (Complementary, Analogous, Triadic, Monochromatic) with 1-tap hex copying.",
-        searchKeywords = listOf("palette", "color", "harmony", "complementary", "analogous", "triadic", "hex", "design"),
-    ),
-    ToolDefinition(
-        id = "sound_exposure",
-        name = "Sound Exposure",
-        icon = Icons.Default.Equalizer,
-        category = ToolCategory.AudioTools,
-        description = "OSHA and NIOSH ambient sound exposure guidelines, maximum allowable safe durations, and noise risk levels.",
-        searchKeywords = listOf("sound", "exposure", "decibel", "noise", "osha", "niosh", "hearing", "ear", "safety"),
-    ),
-    ToolDefinition(
-        id = "matrix_calc",
-        name = "Matrix Calculator",
-        icon = Icons.Default.Functions,
-        category = ToolCategory.Calculators,
-        description = "Compute 2x2 matrix determinants, inverses, traces, and transpose operations with step-by-step display.",
-        searchKeywords = listOf("matrix", "determinant", "inverse", "transpose", "algebra", "math", "linear"),
-    ),
-    ToolDefinition(
-        id = "binary_bitwise",
-        name = "Bitwise Calculator",
-        icon = Icons.Default.Pin,
-        category = ToolCategory.ProgrammingTools,
-        description = "Perform 32-bit binary bitwise operations (AND, OR, XOR, NOT, bit shifts) with binary, decimal, and hex representations.",
-        searchKeywords = listOf("bitwise", "binary", "and", "or", "xor", "shift", "hex", "programming"),
-    ),
-    ToolDefinition(
-        id = "morse_trainer",
-        name = "Morse Trainer",
-        icon = Icons.Default.Casino,
-        category = ToolCategory.Games,
-        description = "Interactive flashcard quiz and learning trainer for International Morse Code letters, numbers, and symbols.",
-        searchKeywords = listOf("morse", "quiz", "trainer", "game", "code", "learn", "flashcard"),
-    ),
-    ToolDefinition(
-        id = "resistor_color_calc",
-        name = "Resistor Color Code",
-        icon = Icons.Default.Hardware,
-        category = ToolCategory.Converters,
-        description = "Calculate electronic resistor values and tolerance percentages by selecting 4-band color rings with live graphical preview.",
-        searchKeywords = listOf("resistor", "color code", "resistance", "ohm", "electronics", "circuit", "hardware"),
-    ),
-
-    ToolDefinition(
-        id = "image-gen",
-        name = "AI Image Gen",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.AiTools,
-        description = "AI Image Gen from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("image gen", "ai image gen"),
-    ),
-    ToolDefinition(
-        id = "chat",
-        name = "AI Chat Assistant",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.AiTools,
-        description = "AI Chat Assistant from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("chat", "ai chat assistant"),
-    ),
-    ToolDefinition(
-        id = "local",
-        name = "Local AI Utilities",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.AiTools,
-        description = "Local AI Utilities from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("local", "local ai utilities"),
-    ),
-    ToolDefinition(
-        id = "agent-ingest",
-        name = "Code Ingestion",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Automation,
-        description = "Code Ingestion from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("agent ingest", "code ingestion"),
-    ),
-    ToolDefinition(
-        id = "agent-generate",
-        name = "Test Generation",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Automation,
-        description = "Test Generation from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("agent generate", "test generation"),
-    ),
-    ToolDefinition(
-        id = "agent-results",
-        name = "View Results",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Automation,
-        description = "View Results from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("agent results", "view results"),
-    ),
-    ToolDefinition(
-        id = "agent-setup",
-        name = "API Setup",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Automation,
-        description = "API Setup from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("agent setup", "api setup"),
-    ),
-    ToolDefinition(
-        id = "notion-ingest",
-        name = "Notion Ingest",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Automation,
-        description = "Notion Ingest from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("notion ingest", "notion ingest"),
-    ),
-    ToolDefinition(
-        id = "notion-folder",
-        name = "Folder Sync",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Automation,
-        description = "Folder Sync from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("notion folder", "folder sync"),
-    ),
-    ToolDefinition(
-        id = "notion-scraper",
-        name = "Web Scraper",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Automation,
-        description = "Web Scraper from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("notion scraper", "web scraper"),
-    ),
-    ToolDefinition(
-        id = "notion-history",
-        name = "Sync History",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Automation,
-        description = "Sync History from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("notion history", "sync history"),
-    ),
-    ToolDefinition(
-        id = "notion-setup",
-        name = "Integration Setup",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Automation,
-        description = "Integration Setup from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("notion setup", "integration setup"),
-    ),
-    ToolDefinition(
-        id = "datediff",
-        name = "Date Difference",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Calculators,
-        description = "Date Difference from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("datediff", "date difference"),
-    ),
-    ToolDefinition(
-        id = "subnet",
-        name = "Subnet Calculator",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Calculators,
-        description = "Subnet Calculator from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("subnet", "subnet calculator"),
-    ),
-    ToolDefinition(
-        id = "word-rank",
-        name = "Word Rank Calculator",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Calculators,
-        description = "Word Rank Calculator from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("word rank", "word rank calculator"),
-    ),
-    ToolDefinition(
-        id = "json-csv",
-        name = "JSON ↔ CSV Converter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Converters,
-        description = "JSON ↔ CSV Converter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("json csv", "json ↔ csv converter"),
-    ),
-    ToolDefinition(
-        id = "xml-json",
-        name = "XML ↔ JSON Converter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Converters,
-        description = "XML ↔ JSON Converter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("xml json", "xml ↔ json converter"),
-    ),
-    ToolDefinition(
-        id = "yaml",
-        name = "YAML ↔ JSON Converter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Converters,
-        description = "YAML ↔ JSON Converter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("yaml", "yaml ↔ json converter"),
-    ),
-    ToolDefinition(
-        id = "base64",
-        name = "Base64 Converter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Converters,
-        description = "Base64 Converter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("base64", "base64 converter"),
-    ),
-    ToolDefinition(
-        id = "timezone",
-        name = "Timezone Converter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Converters,
-        description = "Timezone Converter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("timezone", "timezone converter"),
-    ),
-    ToolDefinition(
-        id = "batch",
-        name = "Batch Converter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Converters,
-        description = "Batch Converter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("batch", "batch converter"),
-    ),
-    ToolDefinition(
-        id = "viewer",
-        name = "Data Viewer",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DataLab,
-        description = "Data Viewer from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("viewer", "data viewer"),
-    ),
-    ToolDefinition(
-        id = "science",
-        name = "Data Science Hub",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DataLab,
-        description = "Data Science Hub from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("science", "data science hub"),
-    ),
-    ToolDefinition(
-        id = "adv-data",
-        name = "Advanced Data Hub",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DataLab,
-        description = "Advanced Data Hub from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("adv data", "advanced data hub"),
-    ),
-    ToolDefinition(
-        id = "reconcile",
-        name = "Reconciliation Tool",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DataLab,
-        description = "Reconciliation Tool from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("reconcile", "reconciliation tool"),
-    ),
-    ToolDefinition(
-        id = "mock",
-        name = "Mock Data Generator",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DataLab,
-        description = "Mock Data Generator from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("mock", "mock data generator"),
-    ),
-    ToolDefinition(
-        id = "synthetic",
-        name = "Synthetic Data Tool",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DataLab,
-        description = "Synthetic Data Tool from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("synthetic", "synthetic data tool"),
-    ),
-    ToolDefinition(
-        id = "pomodoro",
-        name = "Pomodoro Timer",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DateTime,
-        description = "Pomodoro Timer from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("pomodoro", "pomodoro timer"),
-    ),
-    ToolDefinition(
-        id = "countdown",
-        name = "Countdown Timer",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DateTime,
-        description = "Countdown Timer from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("countdown", "countdown timer"),
-    ),
-    ToolDefinition(
-        id = "panchangam",
-        name = "Telugu Panchangam",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DateTime,
-        description = "Telugu Panchangam from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("panchangam", "telugu panchangam"),
-    ),
-    ToolDefinition(
-        id = "api-tester",
-        name = "REST API Tester",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "REST API Tester from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("api tester", "rest api tester"),
-    ),
-    ToolDefinition(
-        id = "sql",
-        name = "SQL Formatter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "SQL Formatter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("sql", "sql formatter"),
-    ),
-    ToolDefinition(
-        id = "xml-fmt",
-        name = "XML Formatter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "XML Formatter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("xml fmt", "xml formatter"),
-    ),
-    ToolDefinition(
-        id = "json-ts",
-        name = "JSON to TS Interface",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "JSON to TS Interface from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("json ts", "json to ts interface"),
-    ),
-    ToolDefinition(
-        id = "kusto",
-        name = "KQL Formatter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "KQL Formatter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("kusto", "kql formatter"),
-    ),
-    ToolDefinition(
-        id = "diff",
-        name = "Diff Viewer",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "Diff Viewer from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("diff", "diff viewer"),
-    ),
-    ToolDefinition(
-        id = "jwt",
-        name = "JWT Debugger",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "JWT Debugger from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("jwt", "jwt debugger"),
-    ),
-    ToolDefinition(
-        id = "url",
-        name = "URL Tool",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "URL Tool from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("url", "url tool"),
-    ),
-    ToolDefinition(
-        id = "cron",
-        name = "Cron Parser",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "Cron Parser from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("cron", "cron parser"),
-    ),
-    ToolDefinition(
-        id = "minifier",
-        name = "Code Minifier",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "Code Minifier from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("minifier", "code minifier"),
-    ),
-    ToolDefinition(
-        id = "qr-barcode",
-        name = "QR & Barcode Generator",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "QR & Barcode Generator from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("qr barcode", "qr & barcode generator"),
-    ),
-    ToolDefinition(
-        id = "inspiration",
-        name = "Code Inspiration",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "Code Inspiration from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("inspiration", "code inspiration"),
-    ),
-    ToolDefinition(
-        id = "md-table",
-        name = "Markdown Table",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "Markdown Table from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("md table", "markdown table"),
-    ),
-    ToolDefinition(
-        id = "sql-builder",
-        name = "SQL Builder",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DevTools,
-        description = "SQL Builder from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("sql builder", "sql builder"),
-    ),
-    ToolDefinition(
-        id = "pdf",
-        name = "PDF Hub",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DocTools,
-        description = "PDF Hub from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("pdf", "pdf hub"),
-    ),
-    ToolDefinition(
-        id = "docx-md",
-        name = "Word to MD Converter",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DocTools,
-        description = "Word to MD Converter from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("docx md", "word to md converter"),
-    ),
-    ToolDefinition(
-        id = "doc-translator",
-        name = "Doc Translator",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DocTools,
-        description = "Doc Translator from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("doc translator", "doc translator"),
-    ),
-    ToolDefinition(
-        id = "text",
-        name = "Text Hub",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DocTools,
-        description = "Text Hub from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("text", "text hub"),
-    ),
-    ToolDefinition(
-        id = "md-editor",
-        name = "Markdown Editor",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.DocTools,
-        description = "Markdown Editor from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("md editor", "markdown editor"),
-    ),
-    ToolDefinition(
-        id = "finance",
-        name = "Finance Hub",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Calculators,
-        description = "Finance Hub from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("finance", "finance hub"),
-    ),
-    ToolDefinition(
-        id = "image",
-        name = "Image Hub",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.ImageTools,
-        description = "Image Hub from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("image", "image hub"),
-    ),
-    ToolDefinition(
-        id = "image-lab",
-        name = "Image Lab",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.ImageTools,
-        description = "Image Lab from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("image lab", "image lab"),
-    ),
-    ToolDefinition(
-        id = "fashion-guide",
-        name = "Fashion Styling Guide",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Lifestyle,
-        description = "Fashion Styling Guide from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("fashion guide", "fashion styling guide"),
-    ),
-    ToolDefinition(
-        id = "clothes-guide",
-        name = "Clothes & Care Guide",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Lifestyle,
-        description = "Clothes & Care Guide from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("clothes guide", "clothes & care guide"),
-    ),
-    ToolDefinition(
-        id = "traditional-guide",
-        name = "Traditional & Ethnic Guide",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Lifestyle,
-        description = "Traditional & Ethnic Guide from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("traditional guide", "traditional & ethnic guide"),
-    ),
-    ToolDefinition(
-        id = "worldwide",
-        name = "World Fashion Guide",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Lifestyle,
-        description = "World Fashion Guide from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("worldwide", "world fashion guide"),
-    ),
-    ToolDefinition(
-        id = "ping",
-        name = "Ping Tester",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.NetworkTools,
-        description = "Ping Tester from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("ping", "ping tester"),
-    ),
-    ToolDefinition(
-        id = "dns",
-        name = "DNS Lookup",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.NetworkTools,
-        description = "DNS Lookup from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("dns", "dns lookup"),
-    ),
-    ToolDefinition(
-        id = "whois",
-        name = "WHOIS Record",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.NetworkTools,
-        description = "WHOIS Record from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("whois", "whois record"),
-    ),
-    ToolDefinition(
-        id = "ip-info",
-        name = "IP Information",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.NetworkTools,
-        description = "IP Information from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("ip info", "ip information"),
-    ),
-    ToolDefinition(
-        id = "geo",
-        name = "Geolocation Tool",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.NetworkTools,
-        description = "Geolocation Tool from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("geo", "geolocation tool"),
-    ),
-    ToolDefinition(
-        id = "ssl",
-        name = "SSL Checker",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.NetworkTools,
-        description = "SSL Checker from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("ssl", "ssl checker"),
-    ),
     ToolDefinition(
         id = "anonymizer",
         name = "PII Anonymizer",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.NoAccounts,
         category = ToolCategory.SecurityPrivacy,
         description = "PII Anonymizer from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("anonymizer", "pii anonymizer"),
@@ -2517,7 +2636,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "security",
         name = "Hash & HMAC Generator",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.LockPerson,
         category = ToolCategory.SecurityPrivacy,
         description = "Hash & HMAC Generator from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("security", "hash & hmac generator"),
@@ -2525,7 +2644,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "rsa",
         name = "RSA Key Generator",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.KeyOff,
         category = ToolCategory.SecurityPrivacy,
         description = "RSA Key Generator from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("rsa", "rsa key generator"),
@@ -2533,15 +2652,176 @@ val allTools = listOf(
     ToolDefinition(
         id = "otp",
         name = "OTP Generator",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.PinDrop,
         category = ToolCategory.SecurityPrivacy,
         description = "OTP Generator from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("otp", "otp generator"),
     ),
+    // =========================================
+    // Automation (9 tools)
+    // =========================================
+    ToolDefinition(
+        id = "agent-ingest",
+        name = "Code Ingestion",
+        icon = Icons.Default.Input,
+        category = ToolCategory.Automation,
+        description = "Code Ingestion from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("agent ingest", "code ingestion"),
+    ),
+    ToolDefinition(
+        id = "agent-generate",
+        name = "Test Generation",
+        icon = Icons.Default.SettingsSuggest,
+        category = ToolCategory.Automation,
+        description = "Test Generation from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("agent generate", "test generation"),
+    ),
+    ToolDefinition(
+        id = "agent-results",
+        name = "View Results",
+        icon = Icons.Default.Assessment,
+        category = ToolCategory.Automation,
+        description = "View Results from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("agent results", "view results"),
+    ),
+    ToolDefinition(
+        id = "agent-setup",
+        name = "API Setup",
+        icon = Icons.Default.Settings,
+        category = ToolCategory.Automation,
+        description = "API Setup from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("agent setup", "api setup"),
+    ),
+    ToolDefinition(
+        id = "notion-ingest",
+        name = "Notion Ingest",
+        icon = Icons.Default.DriveFileMove,
+        category = ToolCategory.Automation,
+        description = "Notion Ingest from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("notion ingest", "notion ingest"),
+    ),
+    ToolDefinition(
+        id = "notion-folder",
+        name = "Folder Sync",
+        icon = Icons.Default.Folder,
+        category = ToolCategory.Automation,
+        description = "Folder Sync from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("notion folder", "folder sync"),
+    ),
+    ToolDefinition(
+        id = "notion-scraper",
+        name = "Web Scraper",
+        icon = Icons.Default.TravelExplore,
+        category = ToolCategory.Automation,
+        description = "Web Scraper from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("notion scraper", "web scraper"),
+    ),
+    ToolDefinition(
+        id = "notion-history",
+        name = "Sync History",
+        icon = Icons.Default.ManageHistory,
+        category = ToolCategory.Automation,
+        description = "Sync History from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("notion history", "sync history"),
+    ),
+    ToolDefinition(
+        id = "notion-setup",
+        name = "Integration Setup",
+        icon = Icons.Default.Tune,
+        category = ToolCategory.Automation,
+        description = "Integration Setup from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("notion setup", "integration setup"),
+    ),
+    // =========================================
+    // DataLab (6 tools)
+    // =========================================
+    ToolDefinition(
+        id = "viewer",
+        name = "Data Viewer",
+        icon = Icons.Default.Preview,
+        category = ToolCategory.DataLab,
+        description = "Data Viewer from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("viewer", "data viewer"),
+    ),
+    ToolDefinition(
+        id = "science",
+        name = "Data Science Hub",
+        icon = Icons.Default.Insights,
+        category = ToolCategory.DataLab,
+        description = "Data Science Hub from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("science", "data science hub"),
+    ),
+    ToolDefinition(
+        id = "adv-data",
+        name = "Advanced Data Hub",
+        icon = Icons.Default.Analytics,
+        category = ToolCategory.DataLab,
+        description = "Advanced Data Hub from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("adv data", "advanced data hub"),
+    ),
+    ToolDefinition(
+        id = "reconcile",
+        name = "Reconciliation Tool",
+        icon = Icons.Default.Sync,
+        category = ToolCategory.DataLab,
+        description = "Reconciliation Tool from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("reconcile", "reconciliation tool"),
+    ),
+    ToolDefinition(
+        id = "mock",
+        name = "Mock Data Generator",
+        icon = Icons.Default.DesignServices,
+        category = ToolCategory.DataLab,
+        description = "Mock Data Generator from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("mock", "mock data generator"),
+    ),
+    ToolDefinition(
+        id = "synthetic",
+        name = "Synthetic Data Tool",
+        icon = Icons.Default.PrecisionManufacturing,
+        category = ToolCategory.DataLab,
+        description = "Synthetic Data Tool from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("synthetic", "synthetic data tool"),
+    ),
+    // =========================================
+    // Lifestyle (7 tools)
+    // =========================================
+    ToolDefinition(
+        id = "fashion-guide",
+        name = "Fashion Styling Guide",
+        icon = Icons.Default.Checkroom,
+        category = ToolCategory.Lifestyle,
+        description = "Fashion Styling Guide from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("fashion guide", "fashion styling guide"),
+    ),
+    ToolDefinition(
+        id = "clothes-guide",
+        name = "Clothes & Care Guide",
+        icon = Icons.Default.DryCleaning,
+        category = ToolCategory.Lifestyle,
+        description = "Clothes & Care Guide from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("clothes guide", "clothes & care guide"),
+    ),
+    ToolDefinition(
+        id = "traditional-guide",
+        name = "Traditional & Ethnic Guide",
+        icon = Icons.Default.Style,
+        category = ToolCategory.Lifestyle,
+        description = "Traditional & Ethnic Guide from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("traditional guide", "traditional & ethnic guide"),
+    ),
+    ToolDefinition(
+        id = "worldwide",
+        name = "World Fashion Guide",
+        icon = Icons.Default.Flight,
+        category = ToolCategory.Lifestyle,
+        description = "World Fashion Guide from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("worldwide", "world fashion guide"),
+    ),
     ToolDefinition(
         id = "size-guide",
         name = "Size & Body Guide",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.Height,
         category = ToolCategory.Lifestyle,
         description = "Size & Body Guide from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("size guide", "size & body guide"),
@@ -2549,7 +2829,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "shoes",
         name = "Footwear Guide",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.RollerSkating,
         category = ToolCategory.Lifestyle,
         description = "Footwear Guide from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("shoes", "footwear guide"),
@@ -2557,55 +2837,18 @@ val allTools = listOf(
     ToolDefinition(
         id = "accessories",
         name = "Accessories Guide",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.Diamond,
         category = ToolCategory.Lifestyle,
         description = "Accessories Guide from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("accessories", "accessories guide"),
     ),
-    ToolDefinition(
-        id = "social",
-        name = "Social Audit",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Social,
-        description = "Social Audit from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("social", "social audit"),
-    ),
-    ToolDefinition(
-        id = "social-downloader",
-        name = "Social Downloader",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Social,
-        description = "Social Downloader from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("social downloader", "social downloader"),
-    ),
-    ToolDefinition(
-        id = "status",
-        name = "System Status",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.SystemTools,
-        description = "System Status from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("status", "system status"),
-    ),
-    ToolDefinition(
-        id = "telemetry",
-        name = "Live Telemetry",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.SystemTools,
-        description = "Live Telemetry from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("telemetry", "live telemetry"),
-    ),
-    ToolDefinition(
-        id = "lineage",
-        name = "Data Lineage",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.SystemTools,
-        description = "Data Lineage from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("lineage", "data lineage"),
-    ),
+    // =========================================
+    // WebTools (6 tools)
+    // =========================================
     ToolDefinition(
         id = "extension-sources",
         name = "Extension Sources",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.Extension,
         category = ToolCategory.WebTools,
         description = "Extension Sources from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("extension sources", "extension sources"),
@@ -2613,7 +2856,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "archive",
         name = "Web Archive",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.Archive,
         category = ToolCategory.WebTools,
         description = "Web Archive from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("archive", "web archive"),
@@ -2621,7 +2864,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "url2pdf",
         name = "URL to PDF",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.Print,
         category = ToolCategory.WebTools,
         description = "URL to PDF from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("url2pdf", "url to pdf"),
@@ -2629,7 +2872,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "userscripts",
         name = "User Scripts",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.Terminal,
         category = ToolCategory.WebTools,
         description = "User Scripts from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("userscripts", "user scripts"),
@@ -2637,7 +2880,7 @@ val allTools = listOf(
     ToolDefinition(
         id = "bookmarklets",
         name = "Bookmarklets",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.Bookmark,
         category = ToolCategory.WebTools,
         description = "Bookmarklets from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("bookmarklets", "bookmarklets"),
@@ -2645,26 +2888,36 @@ val allTools = listOf(
     ToolDefinition(
         id = "url2markdown",
         name = "Web URL to Markdown",
-        icon = Icons.Default.AutoAwesome,
+        icon = Icons.Default.ChromeReaderMode,
         category = ToolCategory.WebTools,
         description = "Web URL to Markdown from Epic Tools suite. Fully offline-first utility for Android.",
         searchKeywords = listOf("url2markdown", "web url to markdown"),
     ),
+    // =========================================
+    // SystemTools (3 tools)
+    // =========================================
     ToolDefinition(
-        id = "bluetooth",
-        name = "Bluetooth Scanner",
-        icon = Icons.Default.AutoAwesome,
-        category = ToolCategory.Sensors,
-        description = "Bluetooth Scanner from Epic Tools suite. Fully offline-first utility for Android.",
-        searchKeywords = listOf("bluetooth", "bluetooth scanner"),
+        id = "status",
+        name = "System Status",
+        icon = Icons.Default.CheckCircleOutline,
+        category = ToolCategory.SystemTools,
+        description = "System Status from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("status", "system status"),
     ),
     ToolDefinition(
-        id = "digital_clock_widget",
-        name = "Digital Clock Widget",
-        icon = Icons.Default.Schedule,
-        category = ToolCategory.AppTools,
-        description = "Material Expressive digital clock home screen widget with date, seconds, customizable colors, and transparency.",
-        searchKeywords = listOf("clock", "widget", "digital clock", "time", "date"),
+        id = "telemetry",
+        name = "Live Telemetry",
+        icon = Icons.Default.ShowChart,
+        category = ToolCategory.SystemTools,
+        description = "Live Telemetry from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("telemetry", "live telemetry"),
     ),
-
+    ToolDefinition(
+        id = "lineage",
+        name = "Data Lineage",
+        icon = Icons.Default.AccountTree,
+        category = ToolCategory.SystemTools,
+        description = "Data Lineage from Epic Tools suite. Fully offline-first utility for Android.",
+        searchKeywords = listOf("lineage", "data lineage"),
+    ),
 )
