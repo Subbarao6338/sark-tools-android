@@ -1,0 +1,552 @@
+package omni.toolbox.navigation
+
+import android.content.Context
+import android.content.Intent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
+import omni.toolbox.model.Tool
+import omni.toolbox.model.ToolProvider
+import omni.toolbox.model.UrlLinksManager
+import omni.toolbox.ui.screens.HomeScreen
+import omni.toolbox.ui.components.ToolGroupScreen
+import omni.toolbox.ui.screens.ai.*
+import omni.toolbox.ui.screens.system.DashboardScreen
+import omni.toolbox.ui.screens.system.DeveloperScreen
+import omni.toolbox.ui.screens.system.PowerBenchScreen
+import omni.toolbox.ui.screens.system.QuickTilesCreatorScreen
+import omni.toolbox.ui.screens.astronomy.*
+import omni.toolbox.ui.screens.audio.*
+import omni.toolbox.ui.screens.calculation.*
+import omni.toolbox.ui.screens.calculation.SizeCalculatorsScreen
+import omni.toolbox.ui.screens.conversion.*
+import omni.toolbox.ui.screens.developer.*
+import omni.toolbox.ui.screens.health.*
+import omni.toolbox.ui.screens.utility.TeluguPanchangamScreen
+import omni.toolbox.ui.screens.image.*
+import omni.toolbox.ui.screens.lifestyle.*
+import omni.toolbox.ui.screens.media.*
+import omni.toolbox.ui.screens.network.*
+import omni.toolbox.ui.screens.physics.*
+import omni.toolbox.ui.screens.productivity.*
+import omni.toolbox.ui.screens.productivity.SecurityScreen
+import omni.toolbox.ui.screens.automation.*
+import omni.toolbox.ui.screens.science.*
+import omni.toolbox.ui.screens.sensor.*
+import omni.toolbox.ui.screens.survival.*
+import omni.toolbox.ui.screens.system.*
+import omni.toolbox.ui.screens.text.*
+import omni.toolbox.ui.screens.utility.*
+import omni.toolbox.viewmodel.OmniViewModel
+import omni.toolbox.ui.screens.engineering.*
+import omni.toolbox.ui.screens.photography.*
+import omni.toolbox.ui.screens.music.*
+import omni.toolbox.ui.screens.outdoor.*
+import omni.toolbox.ui.screens.outdoor.CliffHeightScreen
+import omni.toolbox.ui.screens.outdoor.TriangulationScreen
+import omni.toolbox.ui.screens.outdoor.WaterPurificationScreen
+import omni.toolbox.ui.screens.science.BallisticsScreen
+import omni.toolbox.ui.screens.audio.WhistleScreen
+import omni.toolbox.ui.screens.audio.WhiteNoiseScreen
+import omni.toolbox.ui.screens.outdoor.LightningScreen
+import omni.toolbox.ui.screens.outdoor.SolarPanelScreen
+import omni.toolbox.ui.screens.sensor.ClinometerScreen
+import omni.toolbox.ui.screens.environment.*
+import omni.toolbox.ui.screens.automotive.*
+import omni.toolbox.ui.screens.social.*
+import omni.toolbox.ui.screens.electronics.*
+import omni.toolbox.ui.screens.data.*
+import omni.toolbox.ui.screens.comm.*
+import omni.toolbox.ui.screens.news.NewsScreen
+import omni.toolbox.ui.screens.shopping.ShoppingScreen
+import omni.toolbox.ui.screens.sports.SportsScreen
+import omni.toolbox.ui.screens.food.FoodDrinkScreen
+
+@Composable
+fun OmniToolboxApp(
+    themeMode: String,
+    onThemeChange: (String) -> Unit,
+    dynamicColor: Boolean,
+    onDynamicColorChange: (Boolean) -> Unit,
+    showCategoryCounts: Boolean,
+    onShowCategoryCountsChange: (Boolean) -> Unit,
+    aiApiKey: String,
+    onAiApiKeyChange: (String) -> Unit,
+    stableDiffusionUrl: String,
+    onStableDiffusionUrlChange: (String) -> Unit,
+    accentColor: Color?,
+    onAccentColorChange: (Color?) -> Unit,
+    intent: Intent? = null
+) {
+    val navController = rememberNavController()
+
+    LaunchedEffect(intent) {
+        intent?.getStringExtra("route")?.let { route ->
+            navController.navigate(route) {
+                launchSingleTop = true
+            }
+        }
+        intent?.data?.let { uri ->
+            if (uri.scheme == "omnitoolbox") {
+                val host = uri.host
+                val path = uri.path
+                val route = if (path != null && path.length > 1) "$host$path" else host
+                if (route != null) {
+                    navController.navigate(route) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+        }
+    }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    val omniViewModel: OmniViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+
+    var favorites by remember {
+        mutableStateOf(prefs.getStringSet("favorites", emptySet<String>()) ?: emptySet<String>())
+    }
+
+    val toggleFavorite: (String) -> Unit = { route ->
+        val newFavorites = if (favorites.contains(route)) {
+            favorites - route
+        } else {
+            favorites + route
+        }
+        favorites = newFavorites
+        prefs.edit().putStringSet("favorites", newFavorites).apply()
+    }
+
+    NavHost(navController = navController, startDestination = "home", modifier = Modifier.fillMaxSize()) {
+        composable("home") {
+            HomeScreen(
+                navController,
+                showCategoryCounts,
+                favorites,
+                onToggleFavorite = toggleFavorite
+            )
+        }
+        composable("settings") {
+            SettingsScreen(
+                navController,
+                themeMode, onThemeChange,
+                dynamicColor, onDynamicColorChange,
+                showCategoryCounts, onShowCategoryCountsChange,
+                aiApiKey, onAiApiKeyChange,
+                stableDiffusionUrl, onStableDiffusionUrlChange,
+                accentColor, onAccentColorChange
+            )
+        }
+
+        composable("dashboard") { DashboardScreen(navController) }
+        composable("developer_console") { DeveloperScreen(navController) }
+        composable("cloud_sync") { SyncScreen(navController, omniViewModel) }
+        composable("web_scraper") { DocsCrawlerScreen(navController, omniViewModel) }
+        composable("telemetry_stats") { StatsBackupScreen(navController, omniViewModel) }
+        composable("ai_companion") { AICompanionScreen(navController, aiApiKey) }
+        composable("security_vault") { SecurityScreen(navController, "Security Vault") }
+        composable("power_bench") { PowerBenchScreen(navController) }
+        composable("quick_tiles") { QuickTilesCreatorScreen(navController) }
+
+            addSpecialRoutes(navController)
+
+            // Group Tools mapping
+            ToolProvider.tools.filter { it.subToolRoutes != null }.forEach { groupTool ->
+                composable(groupTool.route) {
+                    if (groupTool.route == "perchance_tools") {
+                        PerchanceHubScreen(navController, favorites, toggleFavorite)
+                    } else {
+                        ToolGroupScreen(navController, groupTool.route, favorites, toggleFavorite)
+                    }
+                }
+            }
+
+            // Individual tools mapping
+            ToolProvider.tools.filter { it.subToolRoutes == null }.forEach { tool ->
+                if (isSpecialRoute(tool.route)) return@forEach
+                composable(tool.route) {
+                    ToolScreenDispatcher(navController, tool, aiApiKey, stableDiffusionUrl, omniViewModel)
+                }
+            }
+        }
+}
+
+fun NavGraphBuilder.addSpecialRoutes(navController: NavHostController) {
+    composable(route = "calculator", deepLinks = listOf(navDeepLink { uriPattern = "omnitoolbox://calculator" })) { CalculatorScreen(navController) }
+    composable(route = "compass", deepLinks = listOf(navDeepLink { uriPattern = "omnitoolbox://compass" })) { CompassScreen(navController) }
+    composable(route = "note", deepLinks = listOf(navDeepLink { uriPattern = "omnitoolbox://note" })) { NotePadScreen(navController) }
+    composable(route = "hub", deepLinks = listOf(navDeepLink { uriPattern = "omnitoolbox://hub" })) { WebToolScreen(navController, initialUrl = "https://epic-bookmarx.vercel.app/", showUrlBar = false, title = "Epic Bookmarx") }
+    composable(route = "qr_scanner", deepLinks = listOf(navDeepLink { uriPattern = "omnitoolbox://qr_scanner" })) { QrScannerScreen(navController) }
+    composable(route = "sos", deepLinks = listOf(navDeepLink { uriPattern = "omnitoolbox://sos" })) { EmergencySOSScreen(navController) }
+    composable(route = "metronome", deepLinks = listOf(navDeepLink { uriPattern = "omnitoolbox://metronome" })) { MetronomeScreen(navController) }
+
+    composable("web?url={url}&showBar={showBar}&title={title}", arguments = listOf(
+        navArgument("url") { type = NavType.StringType; nullable = true; defaultValue = null },
+        navArgument("showBar") { type = NavType.BoolType; defaultValue = true },
+        navArgument("title") { type = NavType.StringType; defaultValue = "Web Search" }
+    )) { backStackEntry ->
+        val url = backStackEntry.arguments?.getString("url")
+        val showBar = backStackEntry.arguments?.getBoolean("showBar") ?: true
+        val title = backStackEntry.arguments?.getString("title") ?: "Web Search"
+        WebToolScreen(navController, initialUrl = url, showUrlBar = showBar, title = title)
+    }
+
+    composable(
+        route = "media_grabber?url={url}",
+        arguments = listOf(navArgument("url") { type = NavType.StringType; nullable = true; defaultValue = null }),
+        deepLinks = listOf(navDeepLink { uriPattern = "omnitoolbox://media_grabber?url={url}" })
+    ) { backStackEntry ->
+        val url = backStackEntry.arguments?.getString("url")
+        MediaGrabberScreen(navController, initialUrl = url)
+    }
+}
+
+fun isSpecialRoute(route: String): Boolean {
+    return listOf("calculator", "compass", "note", "hub", "qr_scanner", "sos", "metronome", "web").contains(route)
+}
+
+@Composable
+fun ToolScreenDispatcher(navController: NavHostController, tool: Tool, aiApiKey: String, stableDiffusionUrl: String, omniViewModel: OmniViewModel) {
+    val route = tool.route
+
+    when {
+        // --- 1. Specialized Screens by Route (Direct Mapping) ---
+        route == "news_companion" -> NewsScreen(navController)
+        route == "shopping_companion" -> ShoppingScreen(navController)
+        route == "sports_companion" -> SportsScreen(navController)
+        route == "food_drink_companion" || route == "recipe_scaler" -> FoodDrinkScreen(navController)
+        route == "telemetry_stats" -> StatsBackupScreen(navController, omniViewModel)
+        route == "web_scraper" -> DocsCrawlerScreen(navController, omniViewModel)
+        route == "ai_image" -> ImageGeneratorScreen(navController, aiApiKey, stableDiffusionUrl)
+        route == "ai_tryon" -> VirtualTryOnScreen(navController, stableDiffusionUrl)
+        route == "ai_doc_translator" -> DocumentTranslatorScreen(navController, tool.name)
+        route == "binaural" -> BinauralBeatsScreen(navController)
+        route == "cipher_tools" -> HashGeneratorScreen(navController)
+        route == "bpm" -> BpmCounterScreen(navController)
+        route == "random" -> RandomGeneratorScreen(navController)
+        listOf("ai_chat", "ai_summarizer", "ai_code", "ai_grammar", "ai_obj_detect", "ai_sentiment", "ai_text_ext", "ai_translate", "video_noise_remover").contains(route) -> ChatToolScreen(navController, tool.name, aiApiKey)
+
+        route == "voice_memo" -> VoiceMemoScreen(navController)
+        route == "exif_viewer" -> ExifViewerScreen(navController)
+        route == "media_grabber" -> MediaGrabberScreen(navController, null)
+        route == "youtube_utility" -> YoutubeUtilityScreen(navController)
+        route == "file_conv" -> FileConverterScreen(navController)
+        route == "profile_photo_maker" -> ProfilePhotoMakerScreen(navController)
+        route == "batch_img_pro_v2" -> BatchImageProScreen(navController)
+        route == "gradient_gen" -> GradientGeneratorScreen(navController)
+        route == "image_color_picker" -> ColorPickerScreen(navController)
+
+        route == "periodic_table" -> PeriodicTableScreen(navController)
+        route == "pokedex" -> PokedexScreen(navController)
+        route == "constants" -> ConstantsTableScreen(navController)
+        route == "physics_formulas" -> PhysicsFormulasScreen(navController)
+        listOf("star_map", "constellations", "solar_system", "planet_finder").contains(route) -> StarMapScreen(navController)
+        route == "prime" -> PrimeCheckerScreen(navController)
+        route == "unit_circle" -> UnitCircleScreen(navController)
+        route == "clinometer" -> ClinometerScreen(navController)
+        route == "solar_panel" -> SolarPanelScreen(navController)
+        route == "lightning" -> LightningScreen(navController)
+        route == "moon_phase" -> MoonPhaseScreen(navController)
+        route == "white_noise" -> WhiteNoiseScreen(navController)
+        route == "whistle" -> WhistleScreen(navController)
+        route == "piano" -> PianoScreen(navController)
+        route == "water_purify" -> WaterPurificationScreen(navController)
+        route == "triangulate" -> TriangulationScreen(navController)
+        route == "cliff_height" -> CliffHeightScreen(navController)
+        route == "ballistics" -> BallisticsScreen(navController)
+        route == "dna_viz" -> DataVisualizerScreen(navController)
+
+        route == "flashlight" -> FlashlightScreen(navController)
+        route == "qr_gen" -> QrGeneratorScreen(navController)
+        route == "vibration" -> VibrationTestScreen(navController)
+        route == "wifi_qr" -> WifiQrScreen(navController)
+        route == "checklist" -> ChecklistScreen(navController)
+        route == "pomodoro" -> PomodoroScreen(navController)
+        listOf("task_board", "kanban").contains(route) -> TaskBoardScreen(navController)
+        route == "time_logger" -> TimeLoggerScreen(navController)
+        route == "daily_journal" -> NotePadScreen(navController)
+        route == "daily_quotes" -> DailyQuotesScreen(navController)
+        route == "clock" -> ClockScreen(navController)
+        route == "stopwatch" -> StopwatchScreen(navController)
+        route == "date_calc" -> DateCalculatorScreen(navController)
+        route == "area_calc" -> AreaCalcScreen(navController)
+        route == "volume_calc" -> VolumeCalcScreen(navController)
+        route == "discount" -> DiscountCalculatorScreen(navController)
+        route == "tip" -> TipCalculatorScreen(navController)
+        route == "mortgage_calc" -> MortgageCalculatorScreen(navController)
+        route == "sci_calc" -> ScientificCalculatorScreen(navController)
+        route == "tiles_widgets" -> TilesAndWidgetsScreen(navController)
+        route == "panchangam" -> TeluguPanchangamScreen(navController, omniViewModel)
+        route == "fashion_materials" -> SizeGuideScreen(navController, initialMainTab = 11)
+        route == "size_guide" -> SizeGuideScreen(navController)
+        route == "ruler" -> RulerScreen(navController)
+        route == "protractor" -> ProtractorScreen(navController)
+        route == "zodiac" -> ZodiacFinderScreen(navController)
+        route == "macro_splitter" -> MacroSplitterScreen(navController)
+        route == "billing" -> BillingScreen(navController)
+
+        listOf("unit_price", "unit_compare").contains(route) -> UnitPriceCalculatorScreen(navController)
+        route == "base_conv" -> BaseConverterScreen(navController)
+        route == "file_checksum" -> FileChecksumScreen(navController)
+        listOf("converter", "torque_conv").contains(route) -> UnitConverterScreen(navController)
+
+        route == "battery" -> BatteryScreen(navController)
+        route == "ram_info" -> RamInfoScreen(navController)
+        route == "cpu_info" -> CpuInfoScreen(navController)
+        route == "device" -> DeviceScreen(navController)
+        listOf("app_info", "update_check", "process_manager", "device_id").contains(route) -> AppInfoScreen(navController, tool.name)
+        route == "storage" -> StorageScreen(navController)
+        route == "app_inspector" -> AppDecompilerScreen(navController)
+        listOf("drawing_board", "signature_maker").contains(route) -> DrawingBoardScreen(navController, tool.name)
+        route == "terminal" -> TerminalScreen(navController)
+        route == "face_swap" -> FaceSwapScreen(navController)
+        route == "sensors_list" -> SensorsListScreen(navController)
+        route == "spl_meter" -> SplMeterScreen(navController)
+        route == "sensor_data" -> SensorDataScreen(navController, tool.name)
+        route == "data_viz" -> DataVisualizerScreen(navController)
+        route == "gforce_meter" -> SensorDataScreen(navController, tool.name)
+        route == "light" -> LightMeterScreen(navController)
+        route == "metal" -> MetalDetectorScreen(navController)
+        route == "altimeter" -> AltimeterScreen(navController)
+        route == "barometer" -> BarometerScreen(navController)
+        route == "level" -> LevelScreen(navController)
+
+        route == "csv_to_json" -> CsvToJsonScreen(navController)
+        route == "json" -> JsonFormatterScreen(navController)
+        route == "yaml_to_json" -> DeveloperExpertScreen(navController, tool.name)
+        listOf("anomaly_detection", "data_profiling", "data_statistics", "data_visualisations", "synthetic_data_gen", "data_quality", "data_cleaning", "data_transformation").contains(route) -> DataToolScreen(navController, route, tool.name)
+        route.startsWith("pdf_") || route == "images_to_pdf" -> PdfToolScreen(navController, tool.name)
+
+        route == "docs_online" -> OnlineDocsScreen(navController)
+        route == "password_gen" -> PasswordGenScreen(navController)
+        route == "password_manager" -> PasswordManagerScreen(navController)
+        route == "automation" -> AutomationScreen(navController, omniViewModel)
+        listOf("app_locker", "app_permissions", "perm_manager", "privacy_check").contains(route) -> SecurityScreen(navController, tool.name)
+
+        route == "meta_anal" -> MetaTagScreen(navController)
+        route == "markitdown" -> MarkItDownScreen(navController)
+
+        route == "network_info" -> NetworkInfoScreen(navController)
+        route == "my_ip" -> MyIPScreen(navController)
+
+        route == "compound_interest" -> CompoundInterestScreen(navController)
+        listOf("cagr_calc", "dcf_calc", "sip_calc", "gst_calc", "dividend_calc", "inflation_calc", "roi_calc", "salary_calc", "stock_profit", "retirement_planner", "expense_tracker").contains(route) -> FinanceToolScreen(navController, tool.name)
+        route == "tax_calc" -> TaxCalculatorScreen(navController)
+        route == "loan_calc" -> LoanCalculatorScreen(navController)
+        listOf("crypto_conv", "currency").contains(route) -> CurrencyConverterScreen(navController)
+
+        route == "water" -> WaterTrackerScreen(navController)
+        route == "step_counter" -> StepCounterScreen(navController)
+        route == "bmi" -> BMICalculatorScreen(navController)
+        route == "bmr" -> BmrCalculatorScreen(navController)
+        route == "calorie_calc" -> CalorieCalculatorScreen(navController)
+        route == "habit_tracker" -> HabitTrackerScreen(navController)
+        route == "meditation" -> MeditationTimerScreen(navController)
+        listOf("heart_rate", "medication_tracker").contains(route) -> MedicalToolsScreen(navController, tool.name)
+        listOf("blood_pressure", "blood_sugar", "eye_exercise", "period_tracker", "posture_check", "sleep_tracker", "stretch_guide", "water_reminder", "yoga_guide").contains(route) -> HealthScreen(navController, tool.name)
+
+        route == "travel_budget" -> TravelBudgetScreen(navController)
+        route == "world_map" -> WorldMapScreen(navController)
+        route == "world_clock" -> WorldClockScreen(navController)
+        route == "signal_mirror" -> SignalMirrorScreen(navController)
+        route == "weather_forecast" -> WeatherForecastScreen(navController)
+        listOf("air_quality", "uv_index", "rain_radar", "light_pollution", "moon_phase", "tides", "lightning").contains(route) -> EnvironmentToolScreen(navController, tool.name)
+        route == "weather_prediction" -> WeatherPredictionScreen(navController)
+        route == "survival_guide" -> SurvivalGuideScreen(navController)
+        route == "beacon_nav" -> BeaconNavigationScreen(navController)
+        route == "path_tracking" -> PathTrackingScreen(navController)
+        route == "packing_list" -> PackingListScreen(navController)
+        listOf("altitude_graph", "campfire_guide", "gps_status", "hiking_trails", "knots_guide", "route_planner").contains(route) -> OutdoorToolScreen(navController, tool.name)
+
+        route == "url_encoder" -> UrlEncoderScreen(navController)
+        route == "base64" -> Base64Screen(navController)
+        route == "jwt_tool" -> JwtToolScreen(navController)
+        route == "regex_tester" -> RegexTesterScreen(navController)
+        route == "markdown_preview" -> MarkdownPreviewScreen(navController)
+        route == "word_counter" -> WordCounterScreen(navController)
+        route == "case_converter" -> CaseConverterScreen(navController)
+        route == "lorem" -> LoremIpsumScreen(navController)
+        route == "morse" -> MorseCodeScreen(navController)
+        route == "morse_decoder" -> MorseDecoderScreen(navController)
+        route == "text_diff" -> TextDiffScreen(navController)
+        listOf("anagram", "ascii_table", "crontab_gen", "hex_viewer").contains(route) -> TextToolScreen(navController, tool.name)
+        route == "word_frequency" -> WordFrequencyScreen(navController)
+        route == "word_rank_calc" -> WordRankCalculatorScreen(navController)
+
+        route == "dialer" -> DialerScreen(navController)
+        route == "call_history" -> HistoryScreen(navController)
+        route == "contacts" -> ContactsScreen(navController)
+        route == "messages" -> MessagesScreen(navController)
+        listOf("doc_scanner", "duplicate_finder", "file_explorer", "file_shredder", "sql_format", "zip_unzip", "storage_cleaner").contains(route) -> FileToolScreen(navController, tool.name)
+        route == "vocal_remover" || route == "ai_stems_splitter" -> VocalRemoverScreen(navController, tool.name)
+        route == "wave_generator" || route == "noise_generator" -> AudioGeneratorScreen(navController, tool.name)
+        route == "m_8d_audio" -> AudioToolScreen(navController, tool.name)
+        route == "ping" -> PingScreen(navController)
+        route == "port_scanner" -> PortScannerScreen(navController)
+        listOf("dns_lookup", "whois", "speed_test", "wake_on_lan", "http_request", "ssh_client", "port_checker").contains(route) -> NetworkToolScreen(navController, tool.name)
+
+        route == "plant_care" -> PlantCareScreen(navController)
+        route == "fuel" -> FuelCostCalculatorScreen(navController)
+        listOf("speedometer", "fuel_consumption", "car_maintenance").contains(route) -> AutomotiveToolScreen(navController, tool.name)
+        listOf("image_palette", "color_palette_group", "color_conv_pro", "color_harmonies", "color_info", "color_mixing", "color_shading", "edit_palette", "generate_palette", "material_you_palette", "image_histogram").contains(route) -> ColorToolsScreen(navController)
+        route == "image_bg_remover" || route == "image_ai_tools" -> ImageAIScreen(navController, tool.name)
+
+        // --- Lifestyle Screens ---
+        route == "size_fit_group" -> SizeGuideScreen(navController)
+        route == "clothing_sizes" -> SizeGuideScreen(navController, initialMainTab = 0, showTabs = false)
+        route == "dress_guide" -> SizeGuideScreen(navController, initialMainTab = 0, initialSubTab = 0, showTabs = false)
+        route == "clothes_guide" -> SizeGuideScreen(navController, initialMainTab = 0, showTabs = false)
+        route == "shoe_sizes" || route == "footwear_guide" -> SizeGuideScreen(navController, initialMainTab = 3, showTabs = false)
+        route == "ring_sizes" -> SizeGuideScreen(navController, initialMainTab = 4, initialSubTab = 0, showTabs = false)
+        route == "headwear_guide" -> SizeGuideScreen(navController, initialMainTab = 4, initialSubTab = 1, showTabs = false)
+        route == "accessories_guide" -> SizeGuideScreen(navController, initialMainTab = 4, showTabs = false)
+        route == "indian_fashion" -> SizeGuideScreen(navController, initialMainTab = 5, showTabs = false)
+        route == "world_fashion" || route == "traditional_fashion" -> SizeGuideScreen(navController, initialMainTab = 6, showTabs = false)
+        route == "tribal_fashion" -> SizeGuideScreen(navController, initialMainTab = 7, showTabs = false)
+        route == "modern_fashion" || route == "fashion_guide" -> SizeGuideScreen(navController, initialMainTab = 8, showTabs = false)
+        route == "all_countries_sizes" -> SizeGuideScreen(navController, initialMainTab = 9, showTabs = false)
+        route == "topwear_guide" -> SizeGuideScreen(navController, initialMainTab = 0, initialSubTab = 1, showTabs = false)
+        route == "bottomwear_guide" -> SizeGuideScreen(navController, initialMainTab = 0, initialSubTab = 4, showTabs = false)
+        route == "waistwear_guide" -> SizeGuideScreen(navController, initialMainTab = 4, initialSubTab = 2, showTabs = false)
+        route == "bra_calculator" -> SizeCalculatorsScreen(navController, initialTab = 0, showTabs = false)
+        route == "underwear_calculator" -> SizeCalculatorsScreen(navController, initialTab = 1, showTabs = false)
+        route == "dress_calculator" -> SizeCalculatorsScreen(navController, initialTab = 2, showTabs = false)
+        route == "ring_calculator" -> SizeCalculatorsScreen(navController, initialTab = 3, showTabs = false)
+        route == "arm_calculator" -> SizeCalculatorsScreen(navController, initialTab = 4, showTabs = false)
+        route == "body_calculator" -> SizeCalculatorsScreen(navController, initialTab = 5, showTabs = false)
+        route == "kids_calculator" -> SizeCalculatorsScreen(navController, initialTab = 6, showTabs = false)
+        route == "bangle_calculator" -> SizeCalculatorsScreen(navController, initialTab = 7, showTabs = false)
+        route == "body_measurements" -> SizeGuideScreen(navController, initialMainTab = 8, initialSubTab = 1) // Using Modern for now as I renamed tabs
+
+        // --- 2. Shared Multi-Category Screens ---
+        listOf("matrix_calc", "eq_solver", "fraction_calc", "truth_table", "binary_calc", "stats").contains(route) -> MathToolScreen(navController, tool.name)
+        listOf("antenna_calc", "filter_design", "logic_gates", "pcb_trace", "resistor_code", "signal_gen_pro", "force_calc").contains(route) -> EngineeringToolScreen(navController, tool.name)
+        listOf("ohms_law", "circuit_calc", "electronics_tools", "smart_hub").contains(route) -> ElectronicsToolScreen(navController, tool.name)
+
+        // --- 3. Web Tools (Dynamic URL mapping) ---
+        route.startsWith("per_") || listOf("sec_adguard", "sec_nextdns", "sec_bitwarden", "sec_ente", "hub", "web", "mqtt_tester", "coin_tracker", "nft_viewer", "wallet_explorer", "currency_trends", "rain_radar").contains(route) -> {
+             WebDispatcher(navController, tool)
+        }
+
+        route.startsWith("dyn_link_") -> {
+            val context = LocalContext.current
+            val linkTitle = route.substringAfter("dyn_link_")
+            val link = remember(route) {
+                UrlLinksManager.getLinks(context).find { ToolProvider.sanitizeRoute(it.title) == linkTitle }
+            }
+            if (link != null) {
+                WebToolScreen(
+                    navController = navController,
+                    initialUrl = link.url,
+                    showUrlBar = false,
+                    title = link.title
+                )
+            }
+        }
+
+        // --- 4. Category-Based Fallback Screens ---
+        else -> CategoryFallbackDispatcher(navController, tool, aiApiKey)
+    }
+}
+
+@Composable
+fun WebDispatcher(navController: NavHostController, tool: Tool) {
+    val route = tool.route
+    val url = when(route) {
+        "per_hub" -> "https://perchance.org/welcome"
+        "per_image" -> "https://perchance.org/ai-image-generator"
+        "per_story" -> "https://perchance.org/ai-story-generator"
+        "per_character" -> "https://perchance.org/ai-character-generator"
+        "per_image_pro" -> "https://perchance.org/image-generator-professional"
+        "per_text_gen" -> "https://perchance.org/ai-text-generator"
+        "per_text_rewrite" -> "https://perchance.org/ai-text-rewriter"
+        "per_necs_story" -> "https://perchance.org/necs-story"
+        "mqtt_tester" -> "https://www.hivemq.com/mqtt-websocket-client/"
+        "coin_tracker" -> "https://coinmarketcap.com/"
+        "nft_viewer" -> "https://opensea.io/"
+        "wallet_explorer" -> "https://etherscan.io/"
+        "currency_trends" -> "https://www.tradingview.com/markets/currencies/rates-all/"
+        "rain_radar" -> "https://www.accuweather.com/en/us/national/weather-radar"
+        "sec_adguard" -> "https://adguard-dns.io/en/welcome.html"
+        "sec_nextdns" -> "https://my.nextdns.io"
+        "sec_bitwarden" -> "https://vault.bitwarden.com/"
+        "sec_ente" -> "https://auth.ente.com/"
+        "hub" -> "https://epic-bookmarx.vercel.app/"
+        "web" -> "https://www.google.com"
+        else -> "https://perchance.org"
+    }
+    WebToolScreen(navController, initialUrl = url, showUrlBar = (route == "web"), title = tool.name)
+}
+
+@Composable
+fun CategoryFallbackDispatcher(navController: NavHostController, tool: Tool, aiApiKey: String) {
+    val route = tool.route
+    val category = tool.category
+
+    when (category) {
+        "Games" -> GameToolScreen(navController, tool.name)
+        "Network" -> if (route == "device_discovery" || route == "wifi_anal" || route == "subnet_calc") NetworkInfoScreen(navController) else NetworkToolScreen(navController, tool.name)
+        "Finance" -> FinanceToolScreen(navController, tool.name)
+        "Social" -> if (route == "profile_photo_maker") ProfilePhotoMakerScreen(navController) else SocialToolScreen(navController, tool.name)
+        "Media", "GIF & Animation", "Music & Audio", "Image Lab", "Video Lab" -> MediaDispatcher(navController, tool)
+        "Health", "Health & Fitness", "Medical" -> HealthScreen(navController, tool.name)
+        "Device", "Sensors", "System Tools" -> if (route == "thermal_info") SensorDataScreen(navController, tool.name) else SystemLabScreen(navController, tool.name)
+        "Security", "Privacy & Security" -> SecurityScreen(navController, tool.name)
+        "Utilities", "Tools" -> SystemLabScreen(navController, tool.name)
+        "Weather" -> EnvironmentToolScreen(navController, tool.name)
+        "Travel", "Travel & Local" -> OutdoorToolScreen(navController, tool.name)
+        "Documents" -> FileToolScreen(navController, tool.name)
+        "DIY", "Education", "Home" -> EngineeringToolScreen(navController, tool.name)
+        "Developer" -> DeveloperExpertScreen(navController, tool.name)
+        "Data" -> if (route == "yaml_to_json") DeveloperExpertScreen(navController, tool.name) else FileToolScreen(navController, tool.name)
+        "Web" -> WebToolScreen(navController, initialUrl = "https://www.google.com", title = tool.name)
+        "Design" -> ColorToolsScreen(navController)
+        "AI Tools" -> ChatToolScreen(navController, tool.name, aiApiKey)
+        else -> SystemLabScreen(navController, tool.name)
+    }
+}
+
+@Composable
+fun MediaDispatcher(navController: NavHostController, tool: Tool) {
+    val route = tool.route
+    when {
+        tool.route == "guitar_tuner" || tool.route == "chord_lib" -> MusicToolScreen(navController, tool.name)
+        tool.route.startsWith("m_audio") || tool.route.startsWith("aud_") || tool.route.startsWith("ai_") ||
+                listOf(
+                    "m_3d_audio", "m_bass_booster", "m_echo_effect", "m_equalizer", "m_karaoke_maker",
+                    "m_mute_audio", "m_reverse_audio", "m_ringtone_maker", "m_silence_remover",
+                    "m_speech_to_text", "m_speed_changer", "m_text_to_speech", "m_voice_changer",
+                    "m_volume_booster", "aud_master_pro", "audio_noise_remover", "echo_remover",
+                    "reverb_remover", "vocal_autotuner", "add_sfx", "audio_loop",
+                    "key_bpm_finder", "noise_generator", "record_audio", "silence_generator",
+                    "sound_mastering", "wave_generator"
+                ).contains(route) -> AudioToolScreen(navController, tool.name)
+        tool.route.startsWith("video_") || tool.route.startsWith("vid_") ||
+                listOf(
+                    "frame_grabber", "m_video_to_audio", "mix_video_audio", "digital_magnifier",
+                    "mirror_tool", "video_compress", "video_trim", "vid_edit_pro", "video_to_gif",
+                    "vid_thumb", "video_delete", "video_flip", "video_loop", "video_reverse",
+                    "video_sfx", "video_silence", "video_speed_changer", "video_splitter",
+                    "video_stabilizer", "video_volume_booster", "video_merger"
+                ).contains(route) -> AudioToolScreen(navController, tool.name, mimeType = "video/*")
+        tool.category == "GIF & Animation" || listOf(
+            "apng_to_images", "apng_to_jxl", "gif_to_images", "gif_to_jxl", "gif_to_webp",
+            "image_to_apng", "images_to_apng", "images_to_gif", "images_to_jxl", "jpeg_to_jxl",
+            "jxl_to_images", "jxl_to_jpeg"
+        ).contains(route) -> AudioToolScreen(navController, tool.name, mimeType = "image/gif")
+        else -> ImageToolScreen(navController, tool.name)
+    }
+}

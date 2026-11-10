@@ -1,0 +1,27 @@
+package omni.toolbox.service
+
+import android.content.Intent
+import android.service.quicksettings.Tile
+import android.service.quicksettings.TileService
+import omni.toolbox.MainActivity
+import omni.toolbox.utils.startActivityAndCollapseCompat
+
+class QuickTileService : TileService() {
+    override fun onClick() {
+        super.onClick()
+        val tile = qsTile
+        if (tile != null) {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra("route", "dashboard")
+            }
+            startActivityAndCollapseCompat(intent)
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.state = Tile.STATE_ACTIVE
+        qsTile?.updateTile()
+    }
+}
