@@ -1,0 +1,344 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.settings;
+
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.view.MenuItem;
+import android.view.View;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.widget.SearchView;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentContainerView;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
+import androidx.preference.Preference;
+import androidx.preference.PreferenceFragmentCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
+import io.github.muntashirakon.AppManager.BaseActivity;
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.main.WindowWidthSizeClass;
+import io.github.muntashirakon.AppManager.self.SelfUriManager;
+import io.github.muntashirakon.AppManager.utils.MotionUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.util.UiUtils;
+
+public class SettingsActivity extends BaseActivity implements PreferenceFragmentCompat.OnPreferenceStartFragmentCallback {
+    public static final String TAG = SettingsActivity.class.getSimpleName();
+
+    private static final String SAVED_KEYS = "saved_keys";
+
+    @NonNull
+    public static Intent getSettingsIntent(@NonNull Context context, @Nullable String... paths) {
+        Intent intent = new Intent(context, SettingsActivity.class);
+        if (paths != null) {
+            intent.setData(getSettingUri(paths));
+        }
+        return intent;
+    }
+
+    @NonNull
+    private static Uri getSettingUri(@NonNull String... pathSegments) {
+        Uri.Builder builder = new Uri.Builder()
+                .scheme(SelfUriManager.APP_MANAGER_SCHEME)
+                .authority(SelfUriManager.SETTINGS_HOST);
+        for (String pathSegment : pathSegments) {
+            builder.appendPath(pathSegment);
+        }
+        return builder.build();
+    }
+
+    public LinearProgressIndicator progressIndicator;
+    @Nullable
+    public SearchView searchView;
+    @NonNull
+    private List<String> mKeys = Collections.emptyList();
+    @NonNull
+    private ArrayList<String> mSavedKeys = new ArrayList<>();
+    private int mLevel = 0;
+    private boolean mDualPaneMode;
+    @Nullable
+    private MaterialToolbar mSecondaryToolbar;
+    @Nullable
+    private View mMainPane;
+    @Nullable
+    private RecyclerView mSearchResultsView;
+    @Nullable
+    private View mSearchEmptyView;
+    @Nullable
+    private SettingsSearchAdapter mSearchAdapter;
+    private LinearProgressIndicator mSearchProgressIndicator;
+
+    @Override
+    protected void onAuthenticated(Bundle savedInstanceState) {
+        mDualPaneMode = shouldUseDualPane(getResources().getConfiguration().screenWidthDp);
+        setContentView(mDualPaneMode ? R.layout.activity_settings_dual_pane : R.layout.activity_settings);
+        setSupportActionBar(findViewById(R.id.toolbar));
+        mSecondaryToolbar = findViewById(R.id.toolbar2);
+        FragmentContainerView secondaryContainer = findViewById(R.id.secondary_layout);
+        progressIndicator = findViewById(R.id.progress_linear);
+        progressIndicator.setVisibilityAfterHide(View.GONE);
+        progressIndicator.hide();
+        mSearchProgressIndicator = findViewById(R.id.settings_search_progress);
+        if (mSearchProgressIndicator == null) {
+            mSearchProgressIndicator = progressIndicator;
+        } else {
+            mSearchProgressIndicator.setVisibilityAfterHide(View.GONE);
+            mSearchProgressIndicator.hide();
+        }
+        mMainPane = findViewById(R.id.main_layout);
+        mSearchResultsView = findViewById(R.id.settings_search_results);
+        mSearchEmptyView = findViewById(R.id.settings_search_empty);
+        if (mSearchResultsView != null) {
+            mSearchAdapter = new SettingsSearchAdapter();
+            mSearchAdapter.setListener(this::navigateToSearchResult);
+            mSearchResultsView.setLayoutManager(new LinearLayoutManager(this));
+            mSearchResultsView.setAdapter(mSearchAdapter);
+            mSearchResultsView.setHasFixedSize(true);
+        }
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayShowCustomEnabled(true);
+            searchView = UIUtils.setupSearchView(actionBar, new SearchView.OnQueryTextListener() {
+                @Override
+                public boolean onQueryTextSubmit(String query) {
+                    onQueryTextChange(query);
+                    if (searchView != null) {
+                        searchView.clearFocus();
+                    }
+                    return true;
+                }
+
+                @Override
+                public boolean onQueryTextChange(String newText) {
+                    applySettingsSearch(newText);
+                    return true;
+                }
+            });
+            searchView.setQueryHint(getString(R.string.search_settings));
+        }
+        // Apply necessary padding: ignore start
+        if (mSecondaryToolbar != null) {
+            UiUtils.applyWindowInsetsAsPadding(mSecondaryToolbar, true, false, false, true);
+        }
+        if (secondaryContainer != null) {
+            UiUtils.applyWindowInsetsAsPadding(secondaryContainer, false, true, false, true);
+        }
+
+        if (savedInstanceState != null) {
+            clearBackStack();
+            ArrayList<String> savedKeys = savedInstanceState.getStringArrayList(SAVED_KEYS);
+            if (savedKeys != null) {
+                mSavedKeys = savedKeys;
+            }
+        }
+        setKeysFromIntent(getIntent());
+
+        getSupportFragmentManager().addFragmentOnAttachListener((fragmentManager, fragment) -> {
+            if (!(fragment instanceof MainPreferences)) {
+                ++mLevel;
+            }
+        });
+        getSupportFragmentManager().addOnBackStackChangedListener(() -> {
+            mLevel = getSupportFragmentManager().getBackStackEntryCount();
+            Log.d(TAG, "Backstack changed. Level: %d", mLevel);
+            // Update saved level: Delete everything from mLevel to the last item)
+            int size = mSavedKeys.size();
+            if (mLevel <= size - 1) {
+                mSavedKeys.subList(mLevel, size).clear();
+            }
+        });
+
+        String defaultPref = getKey(mLevel);
+        if (defaultPref == null && mDualPaneMode) {
+            defaultPref = "custom_locale";
+        }
+        FragmentTransaction initialTransaction = MotionUtils.maybeSetDefaultFragmentAnimations(this,
+                getSupportFragmentManager().beginTransaction());
+        initialTransaction.replace(R.id.main_layout, MainPreferences.getInstance(defaultPref, mDualPaneMode))
+                .commit();
+    }
+
+    static boolean shouldUseDualPane(int screenWidthDp) {
+        return WindowWidthSizeClass.requiresTwoPane(screenWidthDp);
+    }
+
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        if (setKeysFromIntent(intent)) {
+            // Clear old items
+            mSavedKeys.clear();
+            clearBackStack();
+            Fragment fragment = getSupportFragmentManager().findFragmentById(R.id.main_layout);
+            if (fragment instanceof MainPreferences) {
+                ((MainPreferences) fragment).setPrefKey(getKey(mLevel = 0));
+                Log.d(TAG, "Selected pref: %s", fragment.getClass().getName());
+            }
+        }
+    }
+
+    @Override
+    public void setTitle(int titleId) {
+        if (mDualPaneMode) {
+            Objects.requireNonNull(mSecondaryToolbar).setTitle(titleId);
+        } else super.setTitle(titleId);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            getOnBackPressedDispatcher().onBackPressed();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public boolean onPreferenceStartFragment(@NonNull PreferenceFragmentCompat caller, @NonNull Preference pref) {
+        if (pref.getFragment() == null) {
+            return false;
+        }
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        Bundle args = pref.getExtras();
+        Fragment fragment = fragmentManager.getFragmentFactory().instantiate(getClassLoader(), pref.getFragment());
+        if (fragment instanceof PreferenceFragment) {
+            // Inject dual pane mode
+            args.putBoolean(PreferenceFragment.PREF_SECONDARY, mDualPaneMode);
+            // Inject subKey to the arguments
+            String subKey = getKey(mLevel + 1);
+            if (subKey != null && Objects.equals(pref.getKey(), getKey(mLevel))) {
+                args.putString(PreferenceFragment.PREF_KEY, subKey);
+            }
+            // Save current key
+            saveKey(mLevel, pref.getKey());
+        }
+        fragment.setArguments(args);
+        // The line below is kept because this is how it is handled in AndroidX library
+        fragment.setTargetFragment(caller, 0);
+        FragmentTransaction transaction = fragmentManager.beginTransaction();
+        if (!mDualPaneMode) {
+            MotionUtils.maybeSetDefaultFragmentAnimations(this, transaction)
+                    .addToBackStack(null);
+        }
+        transaction
+                .replace(mDualPaneMode ? R.id.secondary_layout : R.id.main_layout, fragment)
+                .commit();
+        return true;
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        outState.putStringArrayList(SAVED_KEYS, mSavedKeys);
+        super.onSaveInstanceState(outState);
+    }
+
+    @Nullable
+    private String getKey(int level) {
+        if (!mSavedKeys.isEmpty() && mSavedKeys.size() > level) {
+            String key = mSavedKeys.get(level);
+            if (key != null) {
+                return key;
+            }
+        }
+        if (mKeys.size() > level) {
+            return mKeys.get(level);
+        }
+        return null;
+    }
+
+    private void saveKey(int level, @Nullable String key) {
+        Log.d(TAG, "Save level: %d, Key: %s", level, key);
+        int size = mSavedKeys.size();
+        if (level >= size) {
+            // Create levels
+            int count = level - size + 1;
+            for (int i = 0; i < count; ++i) {
+                mSavedKeys.add(null);
+            }
+        }
+        // Add this level
+        mSavedKeys.set(level, key);
+    }
+
+    private boolean setKeysFromIntent(@NonNull Intent intent) {
+        Uri uri = intent.getData();
+        if (uri != null && SelfUriManager.APP_MANAGER_SCHEME.equals(uri.getScheme())
+                && SelfUriManager.SETTINGS_HOST.equals(uri.getHost()) && uri.getPath() != null) {
+            mKeys = Objects.requireNonNull(uri.getPathSegments());
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Filter the {@link SettingsSearchIndex} against {@code query} and toggle the
+     * results overlay. Empty query restores the normal main pane.
+     */
+    private void applySettingsSearch(@Nullable String query) {
+        if (mSearchResultsView == null || mSearchAdapter == null || mSearchEmptyView == null
+                || mMainPane == null) {
+            return;
+        }
+        final String text = query == null ? "" : query.trim();
+        if (text.isEmpty()) {
+            mSearchResultsView.setVisibility(View.GONE);
+            mSearchEmptyView.setVisibility(View.GONE);
+            mMainPane.setVisibility(View.VISIBLE);
+            mSearchAdapter.submit(Collections.emptyList());
+            mSearchProgressIndicator.hide();
+            return;
+        }
+        mMainPane.setVisibility(View.GONE);
+        mSearchEmptyView.setVisibility(View.GONE);
+        mSearchProgressIndicator.show();
+        Context appContext = getApplicationContext();
+        ThreadUtils.postOnBackgroundThread(() -> {
+            List<SettingsSearchIndex.Entry> matches = SettingsSearchIndex.get(appContext).search(text);
+            ThreadUtils.postOnMainThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (searchView == null) return;
+                CharSequence current = searchView.getQuery();
+                if (current == null || !text.equals(current.toString().trim())) {
+                    // Result is stale for the current query
+                    return;
+                }
+                mSearchProgressIndicator.hide();
+                mSearchAdapter.submit(matches);
+                boolean hasMatches = !matches.isEmpty();
+                mSearchResultsView.setVisibility(hasMatches ? View.VISIBLE : View.GONE);
+                mSearchEmptyView.setVisibility(hasMatches ? View.GONE : View.VISIBLE);
+            });
+        });
+    }
+
+    private void navigateToSearchResult(@NonNull SettingsSearchIndex.Entry entry) {
+        // Clear search state so onNewIntent navigation reveals the target fragment
+        if (searchView != null) {
+            searchView.setQuery("", false);
+            searchView.clearFocus();
+        }
+        applySettingsSearch(null);
+        String[] keys = entry.targetKey == null
+                ? new String[] { entry.parentKey }
+                : new String[] { entry.parentKey, entry.targetKey };
+        onNewIntent(getSettingsIntent(this, keys));
+    }
+}

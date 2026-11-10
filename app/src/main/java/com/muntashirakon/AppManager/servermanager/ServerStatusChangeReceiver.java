@@ -1,0 +1,163 @@
+// SPDX-License-Identifier: MIT
+
+package io.github.muntashirakon.AppManager.servermanager;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Process;
+import android.os.RemoteException;
+import android.os.SystemClock;
+
+import androidx.annotation.AnyThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import io.github.muntashirakon.AppManager.ipc.LocalServices;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.server.common.ConfigParams;
+import io.github.muntashirakon.AppManager.server.common.ServerActions;
+import io.github.muntashirakon.AppManager.settings.Ops;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.adb.AdbPairingRequiredException;
+
+// Copyright 2016 Zheng Li
+public class ServerStatusChangeReceiver extends BroadcastReceiver {
+    private static final String TAG = ServerStatusChangeReceiver.class.getSimpleName();
+    private static final long SERVER_START_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(30);
+    private static final AtomicInteger sServerStartGeneration = new AtomicInteger();
+
+    @Override
+    public void onReceive(Context context, @NonNull Intent intent) {
+        String action = intent.getAction();
+        if (action == null) {
+            return;
+        }
+        // Verify token before doing action
+        String token = intent.getStringExtra(ConfigParams.PARAM_TOKEN);
+        if (!ServerConfig.getLocalToken().equals(token)) {
+            Log.w(TAG, "Rejected server status broadcast with a mismatched token.");
+            return;
+        }
+        String serverPort = intent.getStringExtra(ConfigParams.PARAM_PATH);
+        int configuredPort = ServerConfig.getLocalServerPort();
+        if (!matchesConfiguredPort(serverPort, configuredPort)) {
+            Log.w(TAG, "Ignoring stale server status for port %s; configured port is %d.",
+                    serverPort, configuredPort);
+            return;
+        }
+        String uidString = intent.getStringExtra(ConfigParams.PARAM_UID);
+        if (uidString == null) {
+            Log.w(TAG, "No UID received from the server.");
+            return;
+        }
+        Log.d(TAG, "onReceive --> %s %s", action, uidString);
+        int uid;
+        try {
+            uid = Integer.parseInt(uidString);
+        } catch (NumberFormatException e) {
+            // A non-numeric UID crossing this process boundary would otherwise
+            // throw out of onReceive() and crash the host app process. Fail safe
+            // like the null-check above.
+            Log.w(TAG, "Invalid UID received from the server: %s", uidString);
+            return;
+        }
+
+        switch (action) {
+            case ServerActions.ACTION_SERVER_STARTED:
+                // Server was started for the first time
+                // setWorkingUid publishes to Ops.getWorkingUidLiveData(), which is what a status
+                // surface observes; no separate broadcast is needed for the UI to follow along.
+                Ops.setWorkingUid(uid);
+                startServerIfNotAlready(context);
+                break;
+            case ServerActions.ACTION_SERVER_STOPPED:
+                // Server was stopped. die() waits for any connect in progress, which can take a
+                // minute, so it can't run here on the main thread.
+                sServerStartGeneration.incrementAndGet();
+                Ops.setWorkingUid(Process.myUid());
+                ThreadUtils.postOnBackgroundThread(LocalServer::die);
+                break;
+            case ServerActions.ACTION_SERVER_CONNECTED:
+                // Server was connected with App Manager
+                Ops.setWorkingUid(uid);
+                break;
+            case ServerActions.ACTION_SERVER_DISCONNECTED:
+                // Exited from App Manager
+                Ops.setWorkingUid(Process.myUid());
+                break;
+        }
+    }
+
+    @VisibleForTesting
+    static boolean matchesConfiguredPort(@Nullable String serverPort, int configuredPort) {
+        if (serverPort == null) {
+            // Accept lifecycle broadcasts from an older server while upgrading in place.
+            return true;
+        }
+        try {
+            return Integer.parseInt(serverPort) == configuredPort;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    @AnyThread
+    private void startServerIfNotAlready(@NonNull Context context) {
+        int generation = sServerStartGeneration.incrementAndGet();
+        ThreadUtils.postOnBackgroundThread(() -> {
+            try {
+                long waitStarted = SystemClock.elapsedRealtime();
+                while (!LocalServer.alive(context)) {
+                    if (isStale(generation)) {
+                        return;
+                    }
+                    if (hasServerStartTimedOut(waitStarted, SystemClock.elapsedRealtime())) {
+                        Log.w(TAG, "Timed out waiting for the server to listen.");
+                        return;
+                    }
+                    // Server isn't yet in listening mode
+                    Log.w(TAG, "Waiting for server...");
+                    SystemClock.sleep(100);
+                }
+                if (isStale(generation)) {
+                    return;
+                }
+                LocalServer.getInstance();
+                if (isStale(generation)) {
+                    // The mode changed while this connected. Don't bind services for it.
+                    LocalServer.die();
+                    return;
+                }
+                LocalServices.bindServicesIfNotAlready();
+            } catch (IOException | AdbPairingRequiredException e) {
+                Log.w(TAG, "Failed to start server", e);
+            } catch (RemoteException e) {
+                Log.w(TAG, "Failed to start services", e);
+            }
+        });
+    }
+
+    private static boolean isStale(int generation) {
+        return generation != sServerStartGeneration.get() || Thread.currentThread().isInterrupted();
+    }
+
+    @VisibleForTesting
+    static boolean hasServerStartTimedOut(long waitStarted, long now) {
+        return now - waitStarted >= SERVER_START_TIMEOUT_MILLIS;
+    }
+
+    /**
+     * Drop the work a SERVER_STARTED broadcast began, so it can't bind services after the mode
+     * was switched away or rolled back.
+     */
+    @AnyThread
+    public static void cancelPendingServerStart() {
+        sServerStartGeneration.incrementAndGet();
+    }
+}

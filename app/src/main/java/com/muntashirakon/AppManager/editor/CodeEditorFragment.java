@@ -1,0 +1,1067 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.editor;
+
+import android.app.Activity;
+import android.content.ClipData;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Typeface;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Parcel;
+import android.os.Parcelable;
+import android.text.Editable;
+import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.TextUtils;
+import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
+import android.view.InflateException;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.HorizontalScrollView;
+import android.widget.TextView;
+
+import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.MainThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.appcompat.widget.LinearLayoutCompat;
+import androidx.appcompat.widget.PopupMenu;
+import androidx.core.os.BundleCompat;
+import androidx.core.os.ParcelCompat;
+import androidx.core.view.MenuProvider;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.ViewModelProvider;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.color.MaterialColors;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.elevation.SurfaceColors;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
+
+import java.util.Objects;
+import java.util.concurrent.Future;
+import java.util.regex.PatternSyntaxException;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.app.AndroidFragment;
+import io.github.muntashirakon.AppManager.fm.FmProvider;
+import io.github.muntashirakon.AppManager.intercept.IntentCompat;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.utils.MimeTypeUtils;
+import io.github.muntashirakon.AppManager.utils.MotionUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.dialog.TextInputDialogBuilder;
+import io.github.muntashirakon.io.Path;
+import io.github.muntashirakon.io.Paths;
+import io.github.muntashirakon.util.UiUtils;
+import io.github.rosemoe.sora.event.ContentChangeEvent;
+import io.github.rosemoe.sora.event.PublishSearchResultEvent;
+import io.github.rosemoe.sora.event.SelectionChangeEvent;
+import io.github.rosemoe.sora.lang.EmptyLanguage;
+import io.github.rosemoe.sora.lang.Language;
+import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme;
+import io.github.rosemoe.sora.text.Content;
+import io.github.rosemoe.sora.text.Cursor;
+import io.github.rosemoe.sora.text.LineSeparator;
+import io.github.rosemoe.sora.widget.CodeEditor;
+import io.github.rosemoe.sora.widget.DirectAccessProps;
+import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions;
+import io.github.rosemoe.sora.widget.SymbolInputView;
+import io.github.rosemoe.sora.widget.schemes.EditorColorScheme;
+
+public class CodeEditorFragment extends AndroidFragment implements MenuProvider {
+    private static final String TAG = CodeEditorFragment.class.getSimpleName();
+
+    public static final String ARG_OPTIONS = "options";
+
+    public static class Options implements Parcelable {
+        @Nullable
+        public final Uri uri;
+        @Nullable
+        public final String title;
+        @Nullable
+        public final String subtitle;
+        public final boolean readOnly;
+        public final boolean javaSmaliToggle;
+        public final boolean enableSharing;
+
+        private Options(@Nullable Uri uri, @Nullable String title, @Nullable String subtitle, boolean readOnly,
+                        boolean javaSmaliToggle, boolean enableSharing) {
+            this.uri = uri;
+            this.title = title;
+            this.subtitle = subtitle;
+            this.readOnly = readOnly;
+            this.javaSmaliToggle = javaSmaliToggle;
+            this.enableSharing = enableSharing;
+        }
+
+        protected Options(@NonNull Parcel in) {
+            uri = ParcelCompat.readParcelable(in, Uri.class.getClassLoader(), Uri.class);
+            title = in.readString();
+            subtitle = in.readString();
+            readOnly = in.readByte() != 0;
+            javaSmaliToggle = in.readByte() != 0;
+            enableSharing = in.readByte() != 0;
+        }
+
+        public static final Creator<Options> CREATOR = new Creator<Options>() {
+            @Override
+            public Options createFromParcel(Parcel in) {
+                return new Options(in);
+            }
+
+            @Override
+            public Options[] newArray(int size) {
+                return new Options[size];
+            }
+        };
+
+        @Override
+        public int describeContents() {
+            return 0;
+        }
+
+        @Override
+        public void writeToParcel(@NonNull Parcel dest, int flags) {
+            dest.writeParcelable(uri, flags);
+            dest.writeString(title);
+            dest.writeString(subtitle);
+            dest.writeByte((byte) (readOnly ? 1 : 0));
+            dest.writeByte((byte) (javaSmaliToggle ? 1 : 0));
+            dest.writeByte((byte) (enableSharing ? 1 : 0));
+        }
+
+        public static class Builder {
+            @Nullable
+            private Uri uri;
+            @Nullable
+            private String title;
+            @Nullable
+            private String subtitle;
+            private boolean readOnly = false;
+            private boolean javaSmaliToggle = false;
+            private boolean enableSharing = true;
+
+            public Builder() {
+            }
+
+            public Builder(@NonNull Options options) {
+                uri = options.uri;
+                title = options.title;
+                subtitle = options.subtitle;
+                readOnly = options.readOnly;
+                javaSmaliToggle = options.javaSmaliToggle;
+                enableSharing = options.enableSharing;
+            }
+
+            public Builder setUri(@Nullable Uri uri) {
+                this.uri = uri;
+                return this;
+            }
+
+            public Builder setTitle(@Nullable String title) {
+                this.title = title;
+                return this;
+            }
+
+            public Builder setSubtitle(@Nullable String subtitle) {
+                this.subtitle = subtitle;
+                return this;
+            }
+
+            public Builder setReadOnly(boolean readOnly) {
+                this.readOnly = readOnly;
+                return this;
+            }
+
+            public Builder setJavaSmaliToggle(boolean javaSmaliToggle) {
+                this.javaSmaliToggle = javaSmaliToggle;
+                return this;
+            }
+
+            public Builder setEnableSharing(boolean enableSharing) {
+                this.enableSharing = enableSharing;
+                return this;
+            }
+
+            public Options build() {
+                return new Options(uri, title, subtitle, readOnly, javaSmaliToggle, enableSharing);
+            }
+        }
+    }
+
+    private EditorColorScheme mColorScheme;
+    private CodeEditor mEditor;
+    private SymbolInputView mSymbolInputView;
+    private TextView mPositionButton;
+    private MaterialButton mLockButton;
+    private LinearLayoutCompat mSearchWidget;
+    private TextInputEditText mSearchView;
+    private TextInputEditText mReplaceView;
+    private TextInputLayout mReplaceViewContainer;
+    private MaterialButton mReplaceButton;
+    private MaterialButton mReplaceAllButton;
+    private TextView mSearchResultCount;
+    private View mJavaDecompileUnsupportedBanner;
+    private Options mOptions;
+    private SearchOptions mSearchOptions = new SearchOptions(false, false);
+    private MenuItem mSaveMenu;
+    private MenuItem mUndoMenu;
+    private MenuItem mRedoMenu;
+    private MenuItem mJavaSmaliToggleMenu;
+    private MenuItem mShareMenu;
+    private CodeEditorViewModel mViewModel;
+    @Nullable
+    private Future<?> mDiffResult;
+    private int mDiffRequestId;
+    private boolean mTextModified = false;
+    private final ActivityResultLauncher<Intent> mSaveOpenedFile = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                try {
+                    if (result.getResultCode() != Activity.RESULT_OK) {
+                        // No file was chosen, so nothing was saved and the editor stays.
+                        mViewModel.setExitAfterSave(false);
+                        return;
+                    }
+                    Intent data = result.getData();
+                    Uri uri = IntentCompat.getDataUri(data);
+                    if (uri == null) {
+                        mViewModel.setExitAfterSave(false);
+                        return;
+                    }
+                    int takeFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    saveFile(mEditor.getText(), uri);
+                    if (takeFlags != 0) {
+                        // Make this URI the current URI
+                        mOptions = new Options.Builder(mOptions)
+                                .setUri(uri)
+                                .setSubtitle(Paths.get(uri).getName())
+                                .build();
+                        mViewModel.setOptions(mOptions);
+                    }
+                } finally {
+                    showProgressIndicator(false);
+                    unlockEditor();
+                }
+            });
+    private final OnBackPressedCallback mExitSearchBackPressedCallback = new OnBackPressedCallback(false) {
+        @Override
+        public void handleOnBackPressed() {
+            if (mSearchWidget != null && mSearchWidget.getVisibility() == View.VISIBLE) {
+                hideSearchWidget();
+                return;
+            }
+            setEnabled(false);
+            requireActivity().getOnBackPressedDispatcher().onBackPressed();
+        }
+    };
+    private final OnBackPressedCallback mTextModifiedBackPressedCallback = new OnBackPressedCallback(false) {
+        @Override
+        public void handleOnBackPressed() {
+            if (mTextModified) {
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.exit_confirmation)
+                        .setMessage(R.string.file_modified_are_you_sure)
+                        .setPositiveButton(R.string.no, null)
+                        .setNegativeButton(R.string.yes, (dialog, which) -> {
+                            setEnabled(false);
+                            requireActivity().getOnBackPressedDispatcher().onBackPressed();
+                        })
+                        .setNeutralButton(R.string.save_and_exit, (dialog, which) -> {
+                            // Leave only once the save has been written and read back. A failed save,
+                            // a cancelled picker or a declined read-only prompt keeps the editor open
+                            // with the text, so nothing is lost silently.
+                            mViewModel.setExitAfterSave(true);
+                            saveFile();
+                        })
+                        .show();
+                return;
+            }
+            setEnabled(false);
+            requireActivity().getOnBackPressedDispatcher().onBackPressed();
+        }
+    };
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        try {
+            return inflater.inflate(R.layout.fragment_code_editor, container, false);
+        } catch (InflateException e) {
+            // One third-party view failing to build closes this screen, not the whole app.
+            Throwable cause = e;
+            while (cause.getCause() != null) cause = cause.getCause();
+            Log.e(TAG, "Could not build the code editor", e);
+            UIUtils.displayLongToast(R.string.code_editor_unavailable,
+                    cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName());
+            requireActivity().finish();
+            return null;
+        }
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        mViewModel = new ViewModelProvider(this).get(CodeEditorViewModel.class);
+        mOptions = Objects.requireNonNull(BundleCompat.getParcelable(requireArguments(), ARG_OPTIONS, Options.class));
+        mViewModel.setOptions(mOptions);
+        mColorScheme = EditorThemes.getColorScheme(requireContext());
+        mEditor = view.findViewById(R.id.editor);
+        mJavaDecompileUnsupportedBanner = view.findViewById(R.id.java_decompile_unsupported_banner);
+        updateJavaDecompileCaveat();
+        mEditor.setColorScheme(mColorScheme);
+        mEditor.setTypefaceText(Typeface.MONOSPACE);
+        mEditor.setTextSize(14);
+        mEditor.setLineSpacing(2f, 1.1f);
+        mEditor.setWordwrap(Prefs.Editor.isWordWrapEnabled());
+        mEditor.subscribeEvent(ContentChangeEvent.class, (event, unsubscribe) -> {
+            if (!mTextModified && event.getAction() != ContentChangeEvent.ACTION_SET_NEW_TEXT) {
+                markTextModified();
+            }
+            mEditor.postDelayed(this::updateLiveButtons, 50);
+        });
+        mEditor.subscribeEvent(SelectionChangeEvent.class, (event, unsubscribe) -> getFragmentActivity()
+                .ifPresent(activity -> updatePositionText()));
+        mEditor.subscribeEvent(PublishSearchResultEvent.class, (event, unsubscribe) -> getFragmentActivity()
+                .ifPresent(activity -> {
+                    updatePositionText();
+                    updateSearchResult();
+                }));
+        DirectAccessProps props = mEditor.getProps();
+        props.useICULibToSelectWords = false;
+        props.symbolPairAutoCompletion = false;
+        props.deleteMultiSpaces = -1;
+        props.deleteEmptyLineFast = false;
+        mSymbolInputView = view.findViewById(R.id.symbol_input);
+        mSymbolInputView.addSymbols(
+                new String[]{"⇥", "{", "}", "(", ")", ",", ".", ";", "\"", "?", "+", "-", "*", "/"},
+                new String[]{"\t", "{", "}", "(", ")", ",", ".", ";", "\"", "?", "+", "-", "*", "/"});
+        mSymbolInputView.setTextColor(MaterialColors.getColor(mSymbolInputView, com.google.android.material.R.attr.colorOnSurface));
+        mSymbolInputView.setBackground(null);
+        ((HorizontalScrollView) mSymbolInputView.getParent()).setBackgroundColor(SurfaceColors.SURFACE_2.getColor(requireContext()));
+        mSymbolInputView.bindEditor(mEditor);
+        if (mOptions.readOnly) {
+            mSymbolInputView.setVisibility(View.GONE);
+        }
+        // Setup search widget
+        mSearchWidget = view.findViewById(R.id.search_container);
+        mSearchView = view.findViewById(R.id.search_bar);
+        mSearchView.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (TextUtils.isEmpty(s)) {
+                    mEditor.getSearcher().stopSearch();
+                } else {
+                    try {
+                        mEditor.getSearcher().search(s.toString(), mSearchOptions);
+                    } catch (PatternSyntaxException ignore) {
+                    }
+                }
+            }
+        });
+        TextInputLayout searchViewContainer = view.findViewById(R.id.search_bar_container);
+        searchViewContainer.setEndIconOnClickListener(v -> {
+            PopupMenu popupMenu = new PopupMenu(v.getContext(), v);
+            Menu menu = popupMenu.getMenu();
+            menu.add(R.string.search_option_match_case)
+                    .setCheckable(true)
+                    .setChecked(!mSearchOptions.caseInsensitive)
+                    .setOnMenuItemClickListener(item -> {
+                        boolean ignoreCase = item.isChecked();
+                        item.setChecked(ignoreCase);
+                        mSearchOptions = new SearchOptions(mSearchOptions.type, ignoreCase);
+                        search(mSearchView.getText());
+                        return true;
+                    });
+            menu.add(R.string.search_option_regex)
+                    .setCheckable(true)
+                    .setChecked(mSearchOptions.type == SearchOptions.TYPE_REGULAR_EXPRESSION)
+                    .setOnMenuItemClickListener(item -> {
+                        boolean regex = !item.isChecked();
+                        item.setChecked(regex);
+                        int type = regex ? SearchOptions.TYPE_REGULAR_EXPRESSION : SearchOptions.TYPE_NORMAL;
+                        mSearchOptions = new SearchOptions(type, mSearchOptions.caseInsensitive);
+                        search(mSearchView.getText());
+                        return true;
+                    });
+            menu.add(R.string.search_option_whole_word)
+                    .setCheckable(true)
+                    .setChecked(mSearchOptions.type == SearchOptions.TYPE_WHOLE_WORD)
+                    .setOnMenuItemClickListener(item -> {
+                        boolean wholeWord = !item.isChecked();
+                        item.setChecked(wholeWord);
+                        int type = wholeWord ? SearchOptions.TYPE_WHOLE_WORD : SearchOptions.TYPE_NORMAL;
+                        mSearchOptions = new SearchOptions(type, mSearchOptions.caseInsensitive);
+                        search(mSearchView.getText());
+                        return true;
+                    });
+            popupMenu.show();
+        });
+        view.findViewById(R.id.search_close_button).setOnClickListener(v -> hideSearchWidget());
+        mSearchResultCount = view.findViewById(R.id.search_result_count);
+        view.findViewById(R.id.previous_button).setOnClickListener(v -> {
+            if (!mEditor.getSearcher().hasQuery()) {
+                return;
+            }
+            mEditor.getSearcher().gotoPrevious();
+        });
+        view.findViewById(R.id.next_button).setOnClickListener(v -> {
+            if (!mEditor.getSearcher().hasQuery()) {
+                return;
+            }
+            mEditor.getSearcher().gotoNext();
+        });
+        mReplaceView = view.findViewById(R.id.replace_bar);
+        mReplaceViewContainer = view.findViewById(R.id.replace_bar_container);
+        mReplaceButton = view.findViewById(R.id.replace_button);
+        mReplaceAllButton = view.findViewById(R.id.replace_all_button);
+        mReplaceButton.setOnClickListener(v -> {
+            if (!mEditor.getSearcher().hasQuery()) {
+                return;
+            }
+            CharSequence query = mReplaceView.getText();
+            if (!TextUtils.isEmpty(query)) {
+                mEditor.getSearcher().replaceCurrentMatch(query.toString());
+            }
+        });
+        mReplaceAllButton.setOnClickListener(v -> {
+            if (!mEditor.getSearcher().hasQuery()) {
+                return;
+            }
+            CharSequence query = mReplaceView.getText();
+            if (!TextUtils.isEmpty(query)) {
+                mEditor.getSearcher().replaceAll(query.toString());
+            }
+        });
+        // Setup status bar
+        mLockButton = view.findViewById(R.id.lock);
+        mLockButton.setOnClickListener(v -> {
+            // Toggle lock
+            if (mEditor.isEditable()) {
+                lockEditor();
+            } else {
+                unlockEditor();
+            }
+        });
+        TextView languageButton = view.findViewById(R.id.language);
+        TextView indentSizeButton = view.findViewById(R.id.tab_size);
+        languageButton.setOnClickListener(v -> showLanguagePicker(v, languageButton, indentSizeButton));
+        indentSizeButton.setOnClickListener(v -> showTabSizePicker(v, indentSizeButton));
+        TextView lineSeparatorButton = view.findViewById(R.id.line_separator);
+        lineSeparatorButton.setOnClickListener(v -> {
+            PopupMenu popupMenu = new PopupMenu(requireContext(), v);
+            Menu menu = popupMenu.getMenu();
+            menu.add(R.string.line_separator).setEnabled(false);
+            if (!mEditor.getLineSeparator().equals(LineSeparator.CRLF)) {
+                menu.add("CRLF - Windows (\\r\\n)").setOnMenuItemClickListener(menuItem -> {
+                    applyLineSeparator(LineSeparator.CRLF, lineSeparatorButton);
+                    return true;
+                });
+            }
+            if (!mEditor.getLineSeparator().equals(LineSeparator.CR)) {
+                menu.add("CR - Classic Mac OS (\\r)").setOnMenuItemClickListener(menuItem -> {
+                    applyLineSeparator(LineSeparator.CR, lineSeparatorButton);
+                    return true;
+                });
+            }
+            if (!mEditor.getLineSeparator().equals(LineSeparator.LF)) {
+                menu.add("LF - Unix & Mac OS (\\n)").setOnMenuItemClickListener(menuItem -> {
+                    applyLineSeparator(LineSeparator.LF, lineSeparatorButton);
+                    return true;
+                });
+            }
+            popupMenu.show();
+        });
+        mPositionButton = view.findViewById(R.id.position);
+        mPositionButton.setOnClickListener(v -> showGoToLineDialog());
+        requireActivity().addMenuProvider(this, getViewLifecycleOwner(), Lifecycle.State.RESUMED);
+
+        // Update live buttons at the start
+        updateLiveButtons();
+        updateStartupMenu();
+        UiUtils.applyWindowInsetsAsPaddingNoTop(view.findViewById(R.id.editor_container));
+
+        mViewModel.getContentLiveData().observe(getViewLifecycleOwner(), content -> {
+            showProgressIndicator(false);
+            if (content == null) {
+                UIUtils.displayLongToast(R.string.failed);
+                return;
+            }
+            mEditor.setEditorLanguage(getLanguage(mViewModel.getLanguage()));
+            if (mViewModel.isReadOnly()) {
+                mLockButton.setIconResource(R.drawable.ic_lock);
+                mLockButton.setContentDescription(getString(R.string.editor_locked_read_only));
+                mLockButton.setEnabled(false);
+                mEditor.setEditable(false);
+            } else {
+                mLockButton.setEnabled(true);
+                updateLockButtonContentDescription();
+            }
+            languageButton.setText(mViewModel.getLanguage());
+            languageButton.setEnabled(!mViewModel.isReadOnly());
+            indentSizeButton.setEnabled(!mViewModel.isReadOnly());
+            indentSizeButton.setText(buildTabSizeLabel());
+            lineSeparatorButton.setEnabled(!mViewModel.isReadOnly());
+            mEditor.setText(content);
+            lineSeparatorButton.setText(mEditor.getLineSeparator().name());
+            updatePositionText();
+        });
+        mViewModel.getSaveFileLiveData().observe(getViewLifecycleOwner(), result -> {
+            if (result.success) {
+                UIUtils.displayShortToast(R.string.saved_successfully);
+                if (mEditor != null) {
+                    mViewModel.updateOriginalContent(mEditor.getText().toString());
+                }
+                mTextModified = false;
+                mTextModifiedBackPressedCallback.setEnabled(false);
+                getActionBar().ifPresent(actionBar -> actionBar.setSubtitle(mOptions.subtitle));
+                if (mViewModel.consumeExitAfterSave(true)) {
+                    requireActivity().getOnBackPressedDispatcher().onBackPressed();
+                }
+            } else {
+                mViewModel.consumeExitAfterSave(false);
+                UIUtils.displayLongToast(result.originalIntact
+                        ? R.string.editor_save_failed_unchanged
+                        : R.string.editor_save_failed_damaged, result.reason);
+            }
+        });
+        mViewModel.getJavaFileLiveData().observe(getViewLifecycleOwner(), uri -> {
+            if (uri == null) {
+                UIUtils.displayLongToast(R.string.failed);
+                return;
+            }
+            CodeEditorFragment.Options options = new CodeEditorFragment.Options.Builder()
+                    .setUri(uri)
+                    .setTitle(mOptions.title)
+                    .setSubtitle(mOptions.subtitle)
+                    .setEnableSharing(true)
+                    .setJavaSmaliToggle(false)
+                    .setReadOnly(true)
+                    .build();
+            CodeEditorFragment fragment = new CodeEditorFragment();
+            Bundle args = new Bundle();
+            args.putParcelable(CodeEditorFragment.ARG_OPTIONS, options);
+            fragment.setArguments(args);
+            getFragmentActivity().ifPresent(activity -> activity
+                    .getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(((ViewGroup) requireView().getParent()).getId(), fragment)
+                    .addToBackStack(null)
+                    .commit());
+        });
+        mViewModel.loadFileContentIfAvailable();
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (mDiffResult != null) {
+            mDiffResult.cancel(true);
+            mDiffResult = null;
+        }
+        ++mDiffRequestId;
+        super.onDestroyView();
+    }
+
+    @Override
+    public void onAttach(@NonNull Context context) {
+        super.onAttach(context);
+        // Handle back press: The order MUST be kept same
+        requireActivity().getOnBackPressedDispatcher().addCallback(this, mTextModifiedBackPressedCallback);
+        requireActivity().getOnBackPressedDispatcher().addCallback(this, mExitSearchBackPressedCallback);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (mOptions == null) {
+            // The editor couldn't be built and the screen is closing.
+            return;
+        }
+        getActionBar().ifPresent(actionBar -> {
+            actionBar.setTitle(mOptions.title);
+            actionBar.setSubtitle((mTextModified ? "* " : "") + mOptions.subtitle);
+        });
+    }
+
+    @Override
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+        inflater.inflate(R.menu.activity_code_editor_actions, menu);
+        mSaveMenu = menu.findItem(R.id.action_save);
+        mUndoMenu = menu.findItem(R.id.action_undo);
+        mRedoMenu = menu.findItem(R.id.action_redo);
+        mJavaSmaliToggleMenu = menu.findItem(R.id.action_java_smali_toggle);
+        mShareMenu = menu.findItem(R.id.action_share);
+        updateStartupMenu();
+    }
+
+    @Override
+    public boolean onMenuItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_undo) {
+            if (mEditor != null && mEditor.canUndo()) {
+                mEditor.undo();
+                return true;
+            }
+        } else if (id == R.id.action_redo) {
+            if (mEditor != null && mEditor.canRedo()) {
+                mEditor.redo();
+                return true;
+            }
+        } else if (id == R.id.action_diff) {
+            showDiffDialog();
+            return true;
+        } else if (id == R.id.action_wrap) {
+            if (mEditor != null) {
+                boolean wordWrap = !mEditor.isWordwrap();
+                mEditor.setWordwrap(wordWrap);
+                Prefs.Editor.setWordWrapEnabled(wordWrap);
+                return true;
+            }
+        } else if (id == R.id.action_save) {
+            saveFile();
+            return true;
+        } else if (id == R.id.action_save_as) {
+            launchIntentSaver();
+            return true;
+        } else if (id == R.id.action_share) {
+            Path filePath = mViewModel.getSourceFile();
+            if (filePath != null) {
+                startActivity(Intent.createChooser(buildShareIntent(filePath), getString(R.string.share)));
+            }
+            return true;
+        } else if (id == R.id.action_java_smali_toggle) {
+            if (!mViewModel.isJavaDecompileSupported()) {
+                UIUtils.displayLongToast(R.string.dex_java_decompile_unsupported);
+                return true;
+            }
+            mViewModel.generateJava(mEditor.getText());
+            return true;
+        } else if (id == R.id.action_search) {
+            if (mSearchWidget != null) {
+                if (mSearchWidget.getVisibility() == View.VISIBLE) {
+                    hideSearchWidget();
+                } else showSearchWidget();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static Intent buildShareIntent(@NonNull Path filePath) {
+        Uri fileUri = FmProvider.getContentUri(filePath);
+        Intent intent = new Intent(Intent.ACTION_SEND)
+                .setType(MimeTypeUtils.normalizeMimeTypeOrDefault(filePath.getType()))
+                .putExtra(Intent.EXTRA_STREAM, fileUri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        // ClipData is required for FLAG_GRANT_READ_URI_PERMISSION to
+        // reach the chooser target on Android 18+ (auto-grant removed).
+        intent.setClipData(ClipData.newRawUri("", fileUri));
+        return intent;
+    }
+
+    private void showDiffDialog() {
+        String original = mViewModel.getOriginalContent();
+        if (original == null) {
+            UIUtils.displayShortToast(R.string.editor_no_changes);
+            return;
+        }
+        if (mEditor == null) {
+            return;
+        }
+        String current = mEditor.getText().toString();
+        if (original.equals(current)) {
+            UIUtils.displayShortToast(R.string.editor_no_changes);
+            return;
+        }
+        int requestId = ++mDiffRequestId;
+        if (mDiffResult != null) {
+            mDiffResult.cancel(true);
+        }
+        showProgressIndicator(true);
+        mDiffResult = ThreadUtils.postOnBackgroundThread(() -> {
+            CodeEditorDiff.Result result = CodeEditorDiff.compute(original, current);
+            ThreadUtils.postOnMainThread(() -> {
+                if (requestId != mDiffRequestId) {
+                    return;
+                }
+                mDiffResult = null;
+                if (!isAdded()) {
+                    return;
+                }
+                showProgressIndicator(false);
+                if (result.isTooLarge()) {
+                    UIUtils.displayShortToast(R.string.editor_diff_too_large);
+                    return;
+                }
+                if (result.isNoChanges()) {
+                    UIUtils.displayShortToast(R.string.editor_no_changes);
+                    return;
+                }
+                showDiffResult(result);
+            });
+        });
+    }
+
+    private void showDiffResult(@NonNull CodeEditorDiff.Result result) {
+        SpannableStringBuilder diff = new SpannableStringBuilder();
+        int addedColor = 0xFF4CAF50;
+        int removedColor = 0xFFF44336;
+        for (CodeEditorDiff.LineChange line : result.displayLines) {
+            int color = line.kind == CodeEditorDiff.Kind.ADDED ? addedColor : removedColor;
+            String prefix = line.kind == CodeEditorDiff.Kind.ADDED ? "+ " : "- ";
+            appendColoredLine(diff, prefix + line.text, color);
+        }
+        if (result.omitted > 0) {
+            diff.append("\n… ");
+            diff.append(getString(R.string.editor_diff_truncated, result.omitted));
+        }
+        String stats = getString(R.string.editor_diff_stats, result.added, result.removed);
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.editor_diff_title)
+                .setMessage(new SpannableStringBuilder(stats).append("\n\n").append(diff))
+                .setPositiveButton(R.string.ok, null)
+                .show();
+    }
+
+    private static void appendColoredLine(@NonNull SpannableStringBuilder builder,
+                                           @NonNull String text, int color) {
+        SpannableString span = new SpannableString(text);
+        span.setSpan(new ForegroundColorSpan(color), 0, text.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        builder.append(span).append("\n");
+    }
+
+    private void showProgressIndicator(boolean show) {
+        LinearProgressIndicator progressIndicator = requireActivity().findViewById(R.id.progress_linear);
+        if (progressIndicator != null) {
+            if (show) {
+                progressIndicator.show();
+            } else {
+                progressIndicator.hide();
+            }
+        }
+    }
+
+    private void updateLiveButtons() {
+        boolean readOnly = mViewModel.isReadOnly();
+        if (mSaveMenu != null) {
+            mSaveMenu.setEnabled(mTextModified && !readOnly);
+        }
+        if (mUndoMenu != null) {
+            mUndoMenu.setEnabled(mEditor != null && mEditor.canUndo() && !readOnly);
+        }
+        if (mRedoMenu != null) {
+            mRedoMenu.setEnabled(mEditor != null && mEditor.canRedo() && !readOnly);
+        }
+        if (mReplaceViewContainer != null) {
+            mReplaceViewContainer.setVisibility(readOnly ? View.GONE : View.VISIBLE);
+        }
+        if (mReplaceButton != null) {
+            mReplaceButton.setVisibility(readOnly ? View.GONE : View.VISIBLE);
+        }
+        if (mReplaceAllButton != null) {
+            mReplaceAllButton.setVisibility(readOnly ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    private void markTextModified() {
+        if (mTextModified) {
+            return;
+        }
+        mTextModified = true;
+        mTextModifiedBackPressedCallback.setEnabled(true);
+        getActionBar().ifPresent(actionBar -> actionBar.setSubtitle("* " + mOptions.subtitle));
+        updateLiveButtons();
+    }
+
+    private void updateStartupMenu() {
+        if (mViewModel == null) return;
+        boolean canGenerateJava = mViewModel.canGenerateJava();
+        boolean javaDecompileSupported = mViewModel.isJavaDecompileSupported();
+        if (mJavaSmaliToggleMenu != null) {
+            mJavaSmaliToggleMenu.setVisible(canGenerateJava);
+            mJavaSmaliToggleMenu.setEnabled(canGenerateJava && javaDecompileSupported);
+        }
+        if (mShareMenu != null) {
+            mShareMenu.setEnabled(mViewModel.isBackedByAFile());
+        }
+        updateJavaDecompileCaveat();
+    }
+
+    private void updateJavaDecompileCaveat() {
+        if (mJavaDecompileUnsupportedBanner != null) {
+            mJavaDecompileUnsupportedBanner.setVisibility(
+                    mViewModel != null && mViewModel.shouldShowJavaDecompileUnsupportedCaveat()
+                            ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    /**
+     * Languages backed by tmLanguage grammar JSON in {@code assets/languages/}.
+     * Listed in alphabetical order; the picker mirrors this order.
+     */
+    private static final String[] SUPPORTED_LANGUAGES = Languages.getSupportedLanguages();
+
+    /** Indent widths exposed in the tab-size picker plus the "use real tabs" toggle. */
+    private static final int[] TAB_SIZE_OPTIONS = {2, 4, 8};
+
+    /**
+     * Show a popup with the seven tmLanguage-backed editor languages bundled
+     * in {@code app/src/main/assets/languages/}. Picking switches both the
+     * highlighter (`mEditor.setEditorLanguage`) and the persisted view-model
+     * choice so the indent label re-renders against the new language's
+     * useTab/useSpace default.
+     */
+    private void showLanguagePicker(@NonNull View anchor,
+                                    @NonNull TextView languageButton,
+                                    @NonNull TextView indentSizeButton) {
+        if (mViewModel == null || mViewModel.isReadOnly()) return;
+        PopupMenu popup = new PopupMenu(requireContext(), anchor);
+        Menu menu = popup.getMenu();
+        menu.add(R.string.editor_language_picker_title).setEnabled(false);
+        String current = mViewModel.getLanguage();
+        for (String lang : SUPPORTED_LANGUAGES) {
+            menu.add(lang).setOnMenuItemClickListener(item -> {
+                mViewModel.setLanguage(lang);
+                mEditor.setEditorLanguage(getLanguage(lang));
+                languageButton.setText(lang);
+                indentSizeButton.setText(buildTabSizeLabel());
+                return true;
+            }).setChecked(lang.equals(current));
+        }
+        menu.setGroupCheckable(0, true, true);
+        popup.show();
+    }
+
+    /**
+     * Show a popup of standard indent widths (2 / 4 / 8 spaces). Picking calls
+     * {@code mEditor.setTabWidth(n)} and refreshes the indent label.
+     */
+    private void showTabSizePicker(@NonNull View anchor, @NonNull TextView indentSizeButton) {
+        if (mViewModel == null || mViewModel.isReadOnly()) return;
+        PopupMenu popup = new PopupMenu(requireContext(), anchor);
+        Menu menu = popup.getMenu();
+        menu.add(R.string.editor_tab_size_picker_title).setEnabled(false);
+        for (int width : TAB_SIZE_OPTIONS) {
+            String label = getResources().getQuantityString(
+                    R.plurals.editor_tab_size_option_spaces, width, width);
+            menu.add(label).setOnMenuItemClickListener(item -> {
+                mEditor.setTabWidth(width);
+                indentSizeButton.setText(buildTabSizeLabel());
+                return true;
+            });
+        }
+        popup.show();
+    }
+
+    /**
+     * Compose the indent-mode label for the toolbar. "{n} tabs" / "{n} spaces"
+     * is now driven from `R.plurals` so non-English locales pluralise the
+     * unit correctly.
+     */
+    @NonNull
+    private CharSequence buildTabSizeLabel() {
+        int width = mEditor.getTabWidth();
+        boolean useTab = mEditor.getEditorLanguage().useTab();
+        int pluralRes = useTab
+                ? R.plurals.editor_tab_size_option_tabs
+                : R.plurals.editor_tab_size_option_spaces;
+        return getResources().getQuantityString(pluralRes, width, width);
+    }
+
+    /**
+     * Prompt for a 1-based line number and move the cursor there. Sora-editor
+     * indexes lines from 0 internally, so we subtract 1 before calling
+     * {@code setSelection}. Out-of-range input clamps to a valid line.
+     */
+    private void showGoToLineDialog() {
+        if (mViewModel == null) return;
+        int lineCount = mEditor.getText().getLineCount();
+        new TextInputDialogBuilder(requireContext(), R.string.editor_go_to_line_input_label)
+                .setTitle(R.string.editor_go_to_line_title)
+                .setInputInputType(android.text.InputType.TYPE_CLASS_NUMBER)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.go, (dialog, which, input, isChecked) -> {
+                    if (input == null) return;
+                    int line;
+                    try {
+                        line = Integer.parseInt(input.toString().trim());
+                    } catch (NumberFormatException e) {
+                        return;
+                    }
+                    if (line < 1) line = 1;
+                    if (line > lineCount) line = lineCount;
+                    mEditor.setSelection(line - 1, 0);
+                })
+                .show();
+    }
+
+    @MainThread
+    private void updatePositionText() {
+        Cursor cursor = mEditor.getCursor();
+        StringBuilder text = new StringBuilder()
+                .append(1 + cursor.getLeftLine())
+                .append(":")
+                .append(cursor.getLeftColumn());
+        if (cursor.isSelected()) {
+            text.append(" (")
+                    .append(cursor.getRight() - cursor.getLeft())
+                    .append(" chars)");
+        }
+        mPositionButton.setText(text);
+    }
+
+    private void applyLineSeparator(@NonNull LineSeparator lineSeparator, @NonNull TextView lineSeparatorButton) {
+        if (mEditor.getLineSeparator().equals(lineSeparator)) {
+            return;
+        }
+        Content content = mEditor.getText();
+        String convertedText = CodeEditorLineSeparatorUtils.convert(content, lineSeparator);
+        Cursor cursor = mEditor.getCursor();
+        int leftLine = cursor.getLeftLine();
+        int leftColumn = cursor.getLeftColumn();
+        int rightLine = cursor.getRightLine();
+        int rightColumn = cursor.getRightColumn();
+        mEditor.setLineSeparator(lineSeparator);
+        if (!convertedText.contentEquals(content)) {
+            int lastLine = content.getLineCount() - 1;
+            int lastColumn = content.getColumnCount(lastLine);
+            content.replace(0, 0, lastLine, lastColumn, convertedText);
+            mEditor.setSelectionRegion(leftLine, leftColumn, rightLine, rightColumn);
+            markTextModified();
+        }
+        lineSeparatorButton.setText(mEditor.getLineSeparator().name());
+    }
+
+    @MainThread
+    private void updateSearchResult() {
+        int count = mEditor.getSearcher().hasQuery() ? mEditor.getSearcher().getMatchedPositionCount() : 0;
+        mSearchResultCount.setText(getResources().getQuantityString(R.plurals.search_results, count, count));
+    }
+
+    private void saveFile() {
+        if (!mViewModel.isBackedByAFile()) {
+            launchIntentSaver();
+        } else if (mViewModel.canWrite()) {
+            saveFile(mEditor.getText(), null);
+        } else {
+            new MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.read_only_file)
+                    .setMessage(R.string.read_only_file_warning)
+                    .setPositiveButton(R.string.yes, (dialog, which) -> launchIntentSaver())
+                    .setNegativeButton(R.string.no, (dialog, which) -> mViewModel.setExitAfterSave(false))
+                    .setOnCancelListener(dialog -> mViewModel.setExitAfterSave(false))
+                    .show();
+        }
+    }
+
+    private void saveFile(Content content, @Nullable Uri uri) {
+        if (mViewModel == null) return;
+        mViewModel.saveFile(content, uri == null ? null : Paths.get(uri));
+    }
+
+    @NonNull
+    public Language getLanguage(@Nullable String language) {
+        if (language == null || !(mColorScheme instanceof TextMateColorScheme)) {
+            return new EmptyLanguage();
+        }
+        return Languages.getLanguage(requireContext(), language, ((TextMateColorScheme) mColorScheme).getThemeSource());
+    }
+
+    public void showSearchWidget() {
+        if (mSearchWidget != null) {
+            mExitSearchBackPressedCallback.setEnabled(true);
+            MotionUtils.beginSharedAxisDelayedTransition(mSearchWidget, MotionUtils.AXIS_Y, true);
+            mSearchWidget.setVisibility(View.VISIBLE);
+            mSearchView.requestFocus();
+            search(mSearchView.getText());
+        }
+    }
+
+    public void hideSearchWidget() {
+        if (mSearchWidget != null) {
+            MotionUtils.beginSharedAxisDelayedTransition(mSearchWidget, MotionUtils.AXIS_Y, false);
+            mSearchWidget.setVisibility(View.GONE);
+            mEditor.getSearcher().stopSearch();
+            UiUtils.hideKeyboard(mSearchView);
+            mExitSearchBackPressedCallback.setEnabled(false);
+        }
+    }
+
+    private void search(@Nullable CharSequence s) {
+        if (TextUtils.isEmpty(s)) {
+            mEditor.getSearcher().stopSearch();
+        } else {
+            try {
+                mEditor.getSearcher().search(s.toString(), mSearchOptions);
+            } catch (PatternSyntaxException ignore) {
+            }
+        }
+    }
+
+    private void lockEditor() {
+        if (mViewModel.isReadOnly()) {
+            return;
+        }
+        if (mEditor.isEditable()) {
+            mEditor.setEditable(false);
+            mSymbolInputView.setVisibility(View.GONE);
+            mLockButton.setIconResource(R.drawable.ic_lock);
+            updateLockButtonContentDescription();
+        }
+    }
+
+    private void unlockEditor() {
+        if (mViewModel.isReadOnly()) {
+            return;
+        }
+        if (!mEditor.isEditable()) {
+            mEditor.setEditable(true);
+            mSymbolInputView.setVisibility(View.VISIBLE);
+            mLockButton.setIconResource(R.drawable.ic_unlock);
+            updateLockButtonContentDescription();
+        }
+    }
+
+    private void updateLockButtonContentDescription() {
+        mLockButton.setContentDescription(getString(mEditor.isEditable()
+                ? R.string.editor_lock : R.string.editor_unlock));
+    }
+
+    private void launchIntentSaver() {
+        showProgressIndicator(true);
+        lockEditor();
+        mSaveOpenedFile.launch(getSaveIntent());
+    }
+
+    private Intent getSaveIntent() {
+        return new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .setType("*/*")
+                .putExtra(Intent.EXTRA_TITLE, mViewModel.getFilename());
+    }
+}

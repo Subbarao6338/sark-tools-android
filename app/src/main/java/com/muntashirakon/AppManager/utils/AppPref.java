@@ -1,0 +1,771 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.utils;
+
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageInstaller;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.os.UserHandleHidden;
+import android.util.Log;
+import android.view.View;
+
+import androidx.annotation.IntDef;
+import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatDelegate;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+
+import io.github.muntashirakon.AppManager.BuildConfig;
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.apk.signing.SigSchemes;
+import io.github.muntashirakon.AppManager.backup.BackupFlags;
+import io.github.muntashirakon.AppManager.backup.CryptoUtils;
+import io.github.muntashirakon.AppManager.backup.schedule.AutoBackupScheduler;
+import io.github.muntashirakon.AppManager.crypto.auth.AuthManager;
+import io.github.muntashirakon.AppManager.debloat.DebloaterListOptions;
+import io.github.muntashirakon.AppManager.details.AppDetailsFragment;
+import io.github.muntashirakon.AppManager.dex.SmaliDecodeOptions;
+import io.github.muntashirakon.AppManager.fm.FmListOptions;
+import io.github.muntashirakon.AppManager.logcat.helper.LogcatHelper;
+import io.github.muntashirakon.AppManager.main.MainListOptions;
+import io.github.muntashirakon.AppManager.rules.struct.ComponentRule;
+import io.github.muntashirakon.AppManager.runningapps.RunningAppsActivity;
+import io.github.muntashirakon.AppManager.servermanager.ServerConfig;
+import io.github.muntashirakon.AppManager.settings.Ops;
+
+public class AppPref {
+    private static final String PREF_NAME = "preferences";
+    public static final String DEVICE_LOCAL_PREF_NAME = "device_local_secrets";
+    private static final String DEVICE_BINDING_KEY = "device_local_binding_id";
+    private static final String DEVICE_LOCAL_RESET_NOTICE_KEY = "device_local_secrets_reset_notice";
+
+    private static final int PREF_SKIP = 5;
+
+    /**
+     * Preference keys. It's necessary to do things manually as the shared prefs in Android is
+     * literary unusable.
+     * <br/>
+     * Keep these in sync with {@link #getDefaultValue(PrefKey)}.
+     */
+    @Keep
+    public enum PrefKey {
+        PREF_ADB_LOCAL_SERVER_PORT_INT,
+        PREF_ADB_MANUAL_STAGING_PARENT_STR,
+        PREF_APP_INFO_ACTION_RAIL_PRIORITY_STR,
+        PREF_APP_OP_SHOW_DEFAULT_BOOL,
+        PREF_APP_OP_SORT_ORDER_INT,
+        PREF_APP_THEME_INT,
+        PREF_APP_THEME_CUSTOM_INT,
+        // This is just a placeholder to prevent crash
+        PREF_APP_THEME_PURE_BLACK_BOOL,
+        // We store this in plain text because if the attackers attack us, they can also attack the other apps
+        PREF_AUTHORIZATION_KEY_STR,
+
+        PREF_BACKUP_ANDROID_KEYSTORE_BOOL,
+        PREF_BACKUP_COMPRESSION_METHOD_STR,
+        PREF_BACKUP_EXCLUSION_PATTERNS_STR,
+        PREF_BACKUP_FLAGS_INT,
+        PREF_BACKUP_PAUSE_APPS_BOOL,
+        PREF_BACKUP_RETENTION_MAX_COUNT_INT,
+        PREF_BACKUP_RETENTION_MAX_AGE_DAYS_INT,
+        PREF_BACKUP_SCHEDULE_ENABLED_BOOL,
+        PREF_BACKUP_SCHEDULE_HOUR_INT,
+        PREF_BACKUP_SCHEDULE_MINUTE_INT,
+        PREF_BACKUP_SCHEDULE_REQUIRE_CHARGING_BOOL,
+        PREF_BACKUP_SCHEDULE_NETWORK_INT,
+        PREF_BACKUP_SCHEDULE_MINIMUM_AGE_DAYS_INT,
+        PREF_BACKUP_SCHEDULE_LAST_RUN_LONG,
+        PREF_BACKUP_SCHEDULE_LAST_RESULT_STR,
+        PREF_BACKUP_SCHEDULE_LAST_DIAGNOSTICS_STR,
+        PREF_BACKUP_SCHEDULE_LAST_SKIPPED_STR,
+        PREF_BACKUP_SCHEDULE_LAST_ORIGIN_STR,
+        PREF_BACKUP_VOLUME_STR,
+
+        PREF_COMPONENTS_SORT_ORDER_INT,
+        PREF_CONCURRENCY_THREAD_COUNT_INT,
+        PREF_CUSTOM_LOCALE_STR,
+
+        PREF_DISPLAY_CHANGELOG_BOOL,
+        PREF_DISPLAY_CHANGELOG_LAST_VERSION_LONG,
+
+        PREF_ONBOARDING_SHOWN_BOOL,
+        PREF_MAIN_TOUR_SHOWN_BOOL,
+
+        PREF_DEBLOAT_DEFINITIONS_AUTO_UPDATE_BOOL,
+        PREF_DEBLOAT_DEFINITIONS_LAST_CHECK_LONG,
+        PREF_DEBLOAT_DEFINITIONS_VERSION_STR,
+        PREF_DEBLOAT_DEFINITIONS_SHA256_STR,
+        PREF_TRACKER_DATABASE_FRESHNESS_CHECK_BOOL,
+        PREF_TRACKER_DATABASE_LAST_CHECK_LONG,
+        PREF_TRACKER_DATABASE_LATEST_VERSION_STR,
+        PREF_DEBLOATER_FILTER_FLAGS_INT,
+
+        PREF_ENABLE_KILL_FOR_SYSTEM_BOOL,
+        PREF_ENABLE_ACTION_AUTH_GATE_BOOL,
+        PREF_ENABLE_AUTO_LOCK_BOOL,
+        PREF_ENABLE_PERSISTENT_SESSION_BOOL,
+        PREF_ENABLE_PERMISSION_CHANGE_MONITOR_BOOL,
+        PREF_ENABLE_PERMISSION_WATCHER_ENFORCE_BOOL,
+        PREF_ENABLE_SIGNING_CERT_CHANGE_MONITOR_BOOL,
+        PREF_ENABLE_APP_CHANGE_AUDITOR_BOOL,
+        PREF_ENABLE_APP_UPDATE_CHANGE_REPORT_BOOL,
+        PREF_ENABLE_SCREEN_LOCK_BOOL,
+        PREF_ENABLE_TOAST_HISTORY_BOOL,
+        PREF_ENABLED_FEATURES_INT,
+        PREF_ENCRYPTION_STR,
+        PREF_LOCAL_CRASH_SINK_ENABLED_BOOL,
+
+        PREF_AUTO_FREEZE_ON_LOCK_BOOL,
+        PREF_AUTO_FREEZE_DELAY_SECONDS_INT,
+        PREF_FREEZE_TYPE_INT,
+        PREF_EDITOR_WORD_WRAP_BOOL,
+        PREF_FM_DISPLAY_IN_LAUNCHER_BOOL,
+        PREF_FM_FOLDER_OPTIONS_STR,
+        PREF_FM_HOME_STR,
+        PREF_FM_LAST_PATH_STR,
+        PREF_FM_OPTIONS_INT,
+        PREF_FM_REMEMBER_LAST_PATH_BOOL,
+        PREF_FM_SMALI_COMMENT_LEVEL_STR,
+        PREF_FM_SMALI_REMOVE_ANNOTATIONS_BOOL,
+        PREF_FM_SORT_ORDER_INT,
+        PREF_FM_SORT_REVERSE_BOOL,
+
+        PREF_GUIDED_MODE_BOOL,
+        PREF_GLOBAL_BLOCKING_ENABLED_BOOL,
+        PREF_DEFAULT_BLOCKING_METHOD_STR,
+
+        PREF_INSTALLER_BLOCK_TRACKERS_BOOL,
+        PREF_INSTALLER_ALWAYS_ON_BACKGROUND_BOOL,
+        PREF_INSTALLER_DEFAULT_PKG_SOURCE_INT,
+        PREF_INSTALLER_DISABLE_VERIFICATION_BOOL,
+        PREF_INSTALLER_DISPLAY_CHANGES_BOOL,
+        PREF_INSTALLER_FORCE_DEX_OPT_BOOL,
+        PREF_INSTALLER_INSTALL_LOCATION_INT,
+        PREF_INSTALLER_INSTALLER_APP_STR,
+        PREF_INSTALLER_SET_ORIGIN_BOOL,
+        PREF_INSTALLER_SIGN_APK_BOOL,
+        PREF_INSTALLER_UPDATE_OWNERSHIP_BOOL,
+
+        PREF_LAST_VERSION_CODE_LONG,
+        PREF_LAST_LOCAL_SERVER_BOOTSTRAP_SIGNATURE_STR,
+        PREF_LAYOUT_ORIENTATION_INT,
+
+        PREF_LOG_VIEWER_BUFFER_INT,
+        PREF_LOG_VIEWER_DEFAULT_LOG_LEVEL_INT,
+        PREF_LOG_VIEWER_DISPLAY_LIMIT_INT,
+        PREF_LOG_VIEWER_EXPAND_BY_DEFAULT_BOOL,
+        PREF_LOG_VIEWER_FILTER_PATTERN_STR,
+        PREF_LOG_VIEWER_OMIT_SENSITIVE_INFO_BOOL,
+        PREF_LOG_VIEWER_SHOW_PID_TID_TIMESTAMP_BOOL,
+        PREF_LOG_VIEWER_WRITE_PERIOD_INT,
+
+        PREF_FORCE_STOP_TILE_TARGET_STR,
+        PREF_TASKER_PLUGIN_SIGNING_SECRET_STR,
+
+        PREF_MAIN_WINDOW_FILTER_FLAGS_INT,
+        PREF_MAIN_WINDOW_FILTER_INSTALL_DATE_END_LONG,
+        PREF_MAIN_WINDOW_FILTER_INSTALL_DATE_START_LONG,
+        PREF_MAIN_WINDOW_FILTER_PROFILE_INVERSE_BOOL,
+        PREF_MAIN_WINDOW_FILTER_PROFILE_STR,
+        PREF_MAIN_WINDOW_FILTER_USERS_STR,
+        PREF_MAIN_WINDOW_SORT_ORDER_INT,
+        PREF_MAIN_WINDOW_SORT_REVERSE_BOOL,
+
+        PREF_MODE_OF_OPS_STR,
+        PREF_OP_HISTORY_RETENTION_DAYS_INT,
+        PREF_OP_HISTORY_SORT_ORDER_INT,
+        PREF_OPEN_PGP_PACKAGE_STR,
+        PREF_OPEN_PGP_USER_ID_STR,
+        PREF_PERMISSION_WATCHER_INTERVAL_MINUTES_INT,
+        PREF_PERMISSIONS_SORT_ORDER_INT,
+        PREF_OVERLAYS_SORT_ORDER_INT,
+
+        PREF_RUNNING_APPS_FILTER_FLAGS_INT,
+        PREF_RUNNING_APPS_REFRESH_INTERVAL_SECONDS_INT,
+        PREF_RUNNING_APPS_SORT_ORDER_INT,
+
+        PREF_QUICK_FREEZE_PROFILE_ID_STR,
+
+        PREF_SAVED_APK_FORMAT_STR,
+        PREF_SELECTED_USERS_STR,
+        PREF_SEND_NOTIFICATIONS_TO_CONNECTED_DEVICES_BOOL,
+        PREF_SERVER_CONTROL_BROADCASTS_BOOL,
+        PREF_SIGNATURE_SCHEMES_INT,
+        PREF_SHOW_DISCLAIMER_BOOL,
+
+        PREF_TIPS_PREFS_INT,
+
+        PREF_VIRUS_TOTAL_API_KEY_STR,
+        PREF_VIRUS_TOTAL_PROMPT_BEFORE_UPLOADING_BOOL,
+
+        PREF_USE_SYSTEM_FONT_BOOL,
+        PREF_ZIP_ALIGN_BOOL,
+        PREF_PREMIUM_PREVIEW_BOOL,
+        PREF_TRACKER_BLOCKING_INTENSITY_STR,
+        ;
+
+        private static final String[] sKeys = new String[values().length];
+        @Type
+        private static final int[] sTypes = new int[values().length];
+        private static final List<PrefKey> sPrefKeyList = Arrays.asList(values());
+
+        static {
+            String keyStr;
+            int typeSeparator;
+            PrefKey[] keyValues = values();
+            for (int i = 0; i < keyValues.length; ++i) {
+                keyStr = keyValues[i].name();
+                typeSeparator = keyStr.lastIndexOf('_');
+                sKeys[i] = keyStr.substring(PREF_SKIP, typeSeparator).toLowerCase(Locale.ROOT);
+                sTypes[i] = inferType(keyStr.substring(typeSeparator + 1));
+            }
+        }
+
+        public static int indexOf(PrefKey key) {
+            return sPrefKeyList.indexOf(key);
+        }
+
+        public static int indexOf(String key) {
+            return ArrayUtils.indexOf(sKeys, key);
+        }
+
+        /** Persisted SharedPreferences key string for a {@link PrefKey}. */
+        @NonNull
+        public static String getKey(@NonNull PrefKey key) {
+            return sKeys[key.ordinal()];
+        }
+
+        @Type
+        private static int inferType(@NonNull String typeName) {
+            switch (typeName) {
+                case "BOOL":
+                    return TYPE_BOOLEAN;
+                case "FLOAT":
+                    return TYPE_FLOAT;
+                case "INT":
+                    return TYPE_INTEGER;
+                case "LONG":
+                    return TYPE_LONG;
+                case "STR":
+                    return TYPE_STRING;
+                default:
+                    throw new IllegalArgumentException("Unsupported type.");
+            }
+        }
+    }
+
+    @IntDef(value = {
+            TYPE_BOOLEAN,
+            TYPE_FLOAT,
+            TYPE_INTEGER,
+            TYPE_LONG,
+            TYPE_STRING
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Type {
+    }
+
+    public static final int TYPE_BOOLEAN = 0;
+    public static final int TYPE_FLOAT = 1;
+    public static final int TYPE_INTEGER = 2;
+    public static final int TYPE_LONG = 3;
+    public static final int TYPE_STRING = 4;
+
+    /**
+     * Persisted keys in {@link #PREF_NAME} that hold live secrets, or that would open this device
+     * to other apps if a bundle from somewhere else could turn them on. They must never
+     * leave the device inside a snapshot bundle, and an imported bundle must never
+     * be allowed to set or clear them. Derived from the enum so this denylist cannot
+     * drift from the key names.
+     */
+    public static final Set<String> SENSITIVE_PREF_KEYS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            PrefKey.getKey(PrefKey.PREF_AUTHORIZATION_KEY_STR),
+            PrefKey.getKey(PrefKey.PREF_SERVER_CONTROL_BROADCASTS_BOOL),
+            PrefKey.getKey(PrefKey.PREF_TASKER_PLUGIN_SIGNING_SECRET_STR),
+            PrefKey.getKey(PrefKey.PREF_VIRUS_TOTAL_API_KEY_STR))));
+
+    /**
+     * Return whether a parsed value is a registered, portable main preference with the
+     * declared type. Snapshot import uses this as a fail-closed schema boundary instead of
+     * accepting arbitrary keys or values into the live settings store.
+     */
+    public static boolean isPortablePreference(@NonNull String key, @Nullable Object value) {
+        int index = PrefKey.indexOf(key);
+        return index >= 0
+                && !SENSITIVE_PREF_KEYS.contains(key)
+                && isCorrectType(value, PrefKey.sTypes[index]);
+    }
+
+    /** Name of the SharedPreferences file backing {@link AppPref}. */
+    @NonNull
+    public static String getSharedPreferencesName() {
+        return PREF_NAME;
+    }
+
+    @SuppressLint("StaticFieldLeak")
+    private static AppPref sAppPref;
+
+    @NonNull
+    public static AppPref getInstance() {
+        if (sAppPref == null) {
+            sAppPref = new AppPref(ContextUtils.getContext());
+        }
+        return sAppPref;
+    }
+
+    @NonNull
+    public static AppPref getNewInstance(@NonNull Context context) {
+        return new AppPref(context);
+    }
+
+    @NonNull
+    public static Object get(PrefKey key) {
+        int index = PrefKey.indexOf(key);
+        AppPref appPref = getInstance();
+        SharedPreferences preferences = appPref.getPreferencesForKey(PrefKey.sKeys[index]);
+        switch (PrefKey.sTypes[index]) {
+            case TYPE_BOOLEAN:
+                return preferences.getBoolean(PrefKey.sKeys[index], (boolean) appPref.getDefaultValue(key));
+            case TYPE_FLOAT:
+                return preferences.getFloat(PrefKey.sKeys[index], (float) appPref.getDefaultValue(key));
+            case TYPE_INTEGER:
+                return preferences.getInt(PrefKey.sKeys[index], (int) appPref.getDefaultValue(key));
+            case TYPE_LONG:
+                return preferences.getLong(PrefKey.sKeys[index], (long) appPref.getDefaultValue(key));
+            case TYPE_STRING:
+                return Objects.requireNonNull(preferences.getString(PrefKey.sKeys[index],
+                        (String) appPref.getDefaultValue(key)));
+        }
+        throw new IllegalArgumentException("Unknown key or type.");
+    }
+
+    public static boolean getBoolean(PrefKey key) {
+        return (boolean) get(key);
+    }
+
+    public static int getInt(PrefKey key) {
+        return (int) get(key);
+    }
+
+    public static long getLong(PrefKey key) {
+        return (long) get(key);
+    }
+
+    @NonNull
+    public static String getString(PrefKey key) {
+        return (String) get(key);
+    }
+
+    public static void set(PrefKey key, Object value) {
+        getInstance().setPref(key, value);
+    }
+
+    @NonNull
+    private final SharedPreferences mPreferences;
+    private final SharedPreferences mDeviceLocalPreferences;
+
+    private final Context mContext;
+
+    private AppPref(@NonNull Context context) {
+        mContext = context;
+        mPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        mDeviceLocalPreferences = context.getSharedPreferences(DEVICE_LOCAL_PREF_NAME,
+                Context.MODE_PRIVATE);
+        init();
+    }
+
+    public void setPref(PrefKey key, Object value) {
+        int index = PrefKey.indexOf(key);
+        // Use a fresh editor per write and apply() (never commit()). The old code
+        // mutated one long-lived shared editor from every thread, so a flush also
+        // persisted other threads' pending-but-unflushed puts, and the immediate
+        // commit() after apply() forced a synchronous fsync on the calling thread
+        // (main-thread disk I/O / ANR risk, plus a redundant double flush).
+        SharedPreferences.Editor editor = getPreferencesForKey(PrefKey.sKeys[index]).edit();
+        if (value instanceof Boolean) editor.putBoolean(PrefKey.sKeys[index], (Boolean) value);
+        else if (value instanceof Float) editor.putFloat(PrefKey.sKeys[index], (Float) value);
+        else if (value instanceof Integer) editor.putInt(PrefKey.sKeys[index], (Integer) value);
+        else if (value instanceof Long) editor.putLong(PrefKey.sKeys[index], (Long) value);
+        else if (value instanceof String) editor.putString(PrefKey.sKeys[index], (String) value);
+        editor.apply();
+    }
+
+    public void setPref(String key, @Nullable Object value) {
+        int index = PrefKey.indexOf(key);
+        if (index == -1) throw new IllegalArgumentException("Invalid key: " + key);
+        // Set default value if the requested value is null
+        if (value == null) value = getDefaultValue(PrefKey.sPrefKeyList.get(index));
+        SharedPreferences.Editor editor = getPreferencesForKey(key).edit();
+        if (value instanceof Boolean) editor.putBoolean(key, (Boolean) value);
+        else if (value instanceof Float) editor.putFloat(key, (Float) value);
+        else if (value instanceof Integer) editor.putInt(key, (Integer) value);
+        else if (value instanceof Long) editor.putLong(key, (Long) value);
+        else if (value instanceof String) editor.putString(key, (String) value);
+        editor.apply();
+    }
+
+    @NonNull
+    public Object get(String key) {
+        int index = PrefKey.indexOf(key);
+        if (index == -1) throw new IllegalArgumentException("Invalid key: " + key);
+        Object defaultValue = getDefaultValue(PrefKey.sPrefKeyList.get(index));
+        switch (PrefKey.sTypes[index]) {
+            case TYPE_BOOLEAN:
+                return getPreferencesForKey(key).getBoolean(key, (boolean) defaultValue);
+            case TYPE_FLOAT:
+                return getPreferencesForKey(key).getFloat(key, (float) defaultValue);
+            case TYPE_INTEGER:
+                return getPreferencesForKey(key).getInt(key, (int) defaultValue);
+            case TYPE_LONG:
+                return getPreferencesForKey(key).getLong(key, (long) defaultValue);
+            case TYPE_STRING:
+                return Objects.requireNonNull(getPreferencesForKey(key).getString(key, (String) defaultValue));
+        }
+        throw new IllegalArgumentException("Unknown key or type.");
+    }
+
+    @NonNull
+    public Object getValue(PrefKey key) {
+        int index = PrefKey.indexOf(key);
+        switch (PrefKey.sTypes[index]) {
+            case TYPE_BOOLEAN:
+                return getPreferencesForKey(PrefKey.sKeys[index]).getBoolean(PrefKey.sKeys[index],
+                        (boolean) getDefaultValue(key));
+            case TYPE_FLOAT:
+                return getPreferencesForKey(PrefKey.sKeys[index]).getFloat(PrefKey.sKeys[index],
+                        (float) getDefaultValue(key));
+            case TYPE_INTEGER:
+                return getPreferencesForKey(PrefKey.sKeys[index]).getInt(PrefKey.sKeys[index],
+                        (int) getDefaultValue(key));
+            case TYPE_LONG:
+                return getPreferencesForKey(PrefKey.sKeys[index]).getLong(PrefKey.sKeys[index],
+                        (long) getDefaultValue(key));
+            case TYPE_STRING:
+                return Objects.requireNonNull(getPreferencesForKey(PrefKey.sKeys[index]).getString(PrefKey.sKeys[index],
+                        (String) getDefaultValue(key)));
+        }
+        throw new IllegalArgumentException("Unknown key or type.");
+    }
+
+    private void init() {
+        reconcileDeviceLocalStore();
+        SharedPreferences.Editor portableEditor = mPreferences.edit();
+        SharedPreferences.Editor deviceLocalEditor = mDeviceLocalPreferences.edit();
+        Map<String, ?> portableValues = mPreferences.getAll();
+        Map<String, ?> deviceLocalValues = mDeviceLocalPreferences.getAll();
+        for (int i = 0; i < PrefKey.sKeys.length; ++i) {
+            String key = PrefKey.sKeys[i];
+            int type = PrefKey.sTypes[i];
+            boolean deviceLocal = SENSITIVE_PREF_KEYS.contains(key);
+            SharedPreferences preferences = deviceLocal ? mDeviceLocalPreferences : mPreferences;
+            SharedPreferences.Editor editor = deviceLocal ? deviceLocalEditor : portableEditor;
+            Map<String, ?> all = deviceLocal ? deviceLocalValues : portableValues;
+            // (Re)write the default when the key is missing OR stored with the wrong value type.
+            // A corrupt/hand-edited/snapshot-imported preferences file can hold a registered key
+            // with a mismatched type (e.g. an int key stored as a String); the strongly-typed
+            // getters would then throw ClassCastException on every read and brick that screen. This
+            // previously only seeded defaults for absent keys, so such a key was never repaired.
+            if (preferences.contains(key) && isCorrectType(all.get(key), type)) {
+                continue;
+            }
+            switch (type) {
+                case TYPE_BOOLEAN:
+                    editor.putBoolean(key, (boolean) getDefaultValue(PrefKey.sPrefKeyList.get(i)));
+                    break;
+                case TYPE_FLOAT:
+                    editor.putFloat(key, (float) getDefaultValue(PrefKey.sPrefKeyList.get(i)));
+                    break;
+                case TYPE_INTEGER:
+                    editor.putInt(key, (int) getDefaultValue(PrefKey.sPrefKeyList.get(i)));
+                    break;
+                case TYPE_LONG:
+                    editor.putLong(key, (long) getDefaultValue(PrefKey.sPrefKeyList.get(i)));
+                    break;
+                case TYPE_STRING:
+                    editor.putString(key, (String) getDefaultValue(PrefKey.sPrefKeyList.get(i)));
+            }
+        }
+        portableEditor.apply();
+        deviceLocalEditor.apply();
+    }
+
+    /**
+     * Keep live credentials bound to one Android installation. The portable marker is restored by
+     * Android Backup while its device-local peer is excluded; a missing/mismatched peer therefore
+     * means this state crossed a device boundary. Legacy secrets are deliberately discarded instead
+     * of migrated because Android may have restored them before this version first runs.
+     */
+    private void reconcileDeviceLocalStore() {
+        boolean hadLegacySecrets = false;
+        SharedPreferences.Editor portableEditor = mPreferences.edit();
+        SharedPreferences.Editor deviceLocalEditor = mDeviceLocalPreferences.edit();
+        for (String key : SENSITIVE_PREF_KEYS) {
+            if (mPreferences.contains(key)) {
+                hadLegacySecrets = true;
+                portableEditor.remove(key);
+            }
+        }
+
+        String portableBinding = getStoredString(mPreferences, DEVICE_BINDING_KEY);
+        String localBinding = getStoredString(mDeviceLocalPreferences, DEVICE_BINDING_KEY);
+        boolean transferred = portableBinding != null
+                && (localBinding == null || !portableBinding.equals(localBinding));
+        if (hadLegacySecrets || transferred) {
+            deviceLocalEditor.clear();
+            portableEditor.putBoolean(DEVICE_LOCAL_RESET_NOTICE_KEY, true);
+            localBinding = null;
+        }
+        if (portableBinding == null && localBinding != null) {
+            portableBinding = localBinding;
+        } else if (portableBinding == null || localBinding == null || !portableBinding.equals(localBinding)) {
+            portableBinding = UUID.randomUUID().toString();
+        }
+        portableEditor.putString(DEVICE_BINDING_KEY, portableBinding).apply();
+        deviceLocalEditor.putString(DEVICE_BINDING_KEY, portableBinding).apply();
+    }
+
+    @Nullable
+    private static String getStoredString(@NonNull SharedPreferences preferences,
+                                          @NonNull String key) {
+        Object value = preferences.getAll().get(key);
+        return value instanceof String ? (String) value : null;
+    }
+
+    @NonNull
+    private SharedPreferences getPreferencesForKey(@NonNull String key) {
+        return SENSITIVE_PREF_KEYS.contains(key) ? mDeviceLocalPreferences : mPreferences;
+    }
+
+    /** Returns and clears the one-shot warning created after a restore or legacy-secret purge. */
+    public static boolean consumeDeviceLocalResetNotice() {
+        SharedPreferences preferences = getInstance().mPreferences;
+        if (!preferences.getBoolean(DEVICE_LOCAL_RESET_NOTICE_KEY, false)) {
+            return false;
+        }
+        preferences.edit().remove(DEVICE_LOCAL_RESET_NOTICE_KEY).apply();
+        return true;
+    }
+
+    private static boolean isCorrectType(@Nullable Object value, int type) {
+        if (value == null) return false;
+        switch (type) {
+            case TYPE_BOOLEAN:
+                return value instanceof Boolean;
+            case TYPE_FLOAT:
+                return value instanceof Float;
+            case TYPE_INTEGER:
+                return value instanceof Integer;
+            case TYPE_LONG:
+                return value instanceof Long;
+            case TYPE_STRING:
+                return value instanceof String;
+            default:
+                return false;
+        }
+    }
+
+    @NonNull
+    public Object getDefaultValue(@NonNull PrefKey key) {
+        switch (key) {
+            case PREF_ADB_LOCAL_SERVER_PORT_INT:
+                return (UserHandleHidden.myUserId() + ServerConfig.DEFAULT_LOCAL_SERVER_PORT_BASE);
+            case PREF_BACKUP_FLAGS_INT:
+                return BackupFlags.BACKUP_INT_DATA | BackupFlags.BACKUP_RULES
+                        | BackupFlags.BACKUP_APK_FILES | BackupFlags.BACKUP_EXTRAS;
+            case PREF_BACKUP_COMPRESSION_METHOD_STR:
+                return TarUtils.TAR_GZIP;
+            case PREF_ENABLE_KILL_FOR_SYSTEM_BOOL:
+            case PREF_SERVER_CONTROL_BROADCASTS_BOOL:
+            case PREF_GLOBAL_BLOCKING_ENABLED_BOOL:
+            case PREF_INSTALLER_ALWAYS_ON_BACKGROUND_BOOL:
+            case PREF_INSTALLER_BLOCK_TRACKERS_BOOL:
+            case PREF_INSTALLER_DISABLE_VERIFICATION_BOOL:
+            case PREF_INSTALLER_FORCE_DEX_OPT_BOOL:
+            case PREF_INSTALLER_SIGN_APK_BOOL:
+            case PREF_BACKUP_ANDROID_KEYSTORE_BOOL:
+            case PREF_BACKUP_SCHEDULE_ENABLED_BOOL:
+            case PREF_ENABLE_SCREEN_LOCK_BOOL:
+            case PREF_MAIN_WINDOW_SORT_REVERSE_BOOL:
+            case PREF_LOG_VIEWER_EXPAND_BY_DEFAULT_BOOL:
+            case PREF_APP_THEME_PURE_BLACK_BOOL:
+            case PREF_DISPLAY_CHANGELOG_BOOL:
+            case PREF_EDITOR_WORD_WRAP_BOOL:
+            case PREF_ONBOARDING_SHOWN_BOOL:
+            case PREF_MAIN_TOUR_SHOWN_BOOL:
+            case PREF_FM_DISPLAY_IN_LAUNCHER_BOOL:
+            case PREF_FM_REMEMBER_LAST_PATH_BOOL:
+            case PREF_FM_SMALI_REMOVE_ANNOTATIONS_BOOL:
+            case PREF_FM_SORT_REVERSE_BOOL:
+            case PREF_ENABLE_PERSISTENT_SESSION_BOOL:
+            case PREF_ENABLE_PERMISSION_CHANGE_MONITOR_BOOL:
+            case PREF_ENABLE_SIGNING_CERT_CHANGE_MONITOR_BOOL:
+            case PREF_ENABLE_APP_CHANGE_AUDITOR_BOOL:
+            case PREF_ENABLE_APP_UPDATE_CHANGE_REPORT_BOOL:
+            case PREF_ENABLE_TOAST_HISTORY_BOOL:
+            case PREF_ENABLE_ACTION_AUTH_GATE_BOOL:
+            case PREF_LOCAL_CRASH_SINK_ENABLED_BOOL:
+            case PREF_MAIN_WINDOW_FILTER_PROFILE_INVERSE_BOOL:
+            case PREF_USE_SYSTEM_FONT_BOOL:
+            case PREF_PREMIUM_PREVIEW_BOOL:
+            case PREF_DEBLOAT_DEFINITIONS_AUTO_UPDATE_BOOL:
+                return false;
+            case PREF_APP_OP_SHOW_DEFAULT_BOOL:
+            case PREF_SHOW_DISCLAIMER_BOOL:
+            case PREF_LOG_VIEWER_SHOW_PID_TID_TIMESTAMP_BOOL:
+            case PREF_LOG_VIEWER_OMIT_SENSITIVE_INFO_BOOL:
+            case PREF_INSTALLER_DISPLAY_CHANGES_BOOL:
+            case PREF_INSTALLER_SET_ORIGIN_BOOL:
+            case PREF_INSTALLER_UPDATE_OWNERSHIP_BOOL:
+            case PREF_VIRUS_TOTAL_PROMPT_BEFORE_UPLOADING_BOOL:
+            case PREF_ZIP_ALIGN_BOOL:
+            case PREF_SEND_NOTIFICATIONS_TO_CONNECTED_DEVICES_BOOL:
+            case PREF_ENABLE_AUTO_LOCK_BOOL:
+            case PREF_GUIDED_MODE_BOOL:
+            case PREF_BACKUP_SCHEDULE_REQUIRE_CHARGING_BOOL:
+            case PREF_BACKUP_PAUSE_APPS_BOOL:
+            case PREF_TRACKER_DATABASE_FRESHNESS_CHECK_BOOL:
+            case PREF_ENABLE_PERMISSION_WATCHER_ENFORCE_BOOL:
+                return true;
+            case PREF_BACKUP_SCHEDULE_HOUR_INT:
+                return AutoBackupScheduler.DEFAULT_HOUR;
+            case PREF_CONCURRENCY_THREAD_COUNT_INT:
+            case PREF_APP_THEME_CUSTOM_INT:
+            case PREF_OP_HISTORY_RETENTION_DAYS_INT:
+            case PREF_OP_HISTORY_SORT_ORDER_INT:
+            case PREF_PERMISSION_WATCHER_INTERVAL_MINUTES_INT:
+            case PREF_TIPS_PREFS_INT:
+            case PREF_BACKUP_RETENTION_MAX_COUNT_INT:
+            case PREF_BACKUP_RETENTION_MAX_AGE_DAYS_INT:
+            case PREF_BACKUP_SCHEDULE_MINUTE_INT:
+            case PREF_BACKUP_SCHEDULE_NETWORK_INT:
+                return 0;
+            case PREF_BACKUP_SCHEDULE_MINIMUM_AGE_DAYS_INT:
+                return AutoBackupScheduler.DEFAULT_MINIMUM_AGE_DAYS;
+            case PREF_LAST_VERSION_CODE_LONG:
+            case PREF_DISPLAY_CHANGELOG_LAST_VERSION_LONG:
+            case PREF_DEBLOAT_DEFINITIONS_LAST_CHECK_LONG:
+            case PREF_TRACKER_DATABASE_LAST_CHECK_LONG:
+            case PREF_BACKUP_SCHEDULE_LAST_RUN_LONG:
+            case PREF_MAIN_WINDOW_FILTER_INSTALL_DATE_END_LONG:
+            case PREF_MAIN_WINDOW_FILTER_INSTALL_DATE_START_LONG:
+                return 0L;
+            case PREF_ENABLED_FEATURES_INT:
+                return 0xffff_ffff;  /* All features enabled */
+            case PREF_APP_THEME_INT:
+                return AppCompatDelegate.MODE_NIGHT_YES;
+            case PREF_MAIN_WINDOW_FILTER_FLAGS_INT:
+                return MainListOptions.FILTER_NO_FILTER;
+            case PREF_MAIN_WINDOW_SORT_ORDER_INT:
+                return MainListOptions.SORT_BY_APP_LABEL;
+            case PREF_CUSTOM_LOCALE_STR:
+                return LangUtils.LANG_AUTO;
+            case PREF_APP_OP_SORT_ORDER_INT:
+            case PREF_COMPONENTS_SORT_ORDER_INT:
+            case PREF_PERMISSIONS_SORT_ORDER_INT:
+                return AppDetailsFragment.SORT_BY_NAME;
+            case PREF_OVERLAYS_SORT_ORDER_INT:
+                return AppDetailsFragment.SORT_BY_PRIORITY;
+            case PREF_RUNNING_APPS_SORT_ORDER_INT:
+                return RunningAppsActivity.SORT_BY_PID;
+            case PREF_RUNNING_APPS_FILTER_FLAGS_INT:
+                return RunningAppsActivity.FILTER_NONE;
+            case PREF_RUNNING_APPS_REFRESH_INTERVAL_SECONDS_INT:
+                return RunningAppsActivity.REFRESH_INTERVAL_10_SECONDS;
+            case PREF_ENCRYPTION_STR:
+                return CryptoUtils.MODE_NO_ENCRYPTION;
+            case PREF_OPEN_PGP_PACKAGE_STR:
+            case PREF_OPEN_PGP_USER_ID_STR:
+            case PREF_ADB_MANUAL_STAGING_PARENT_STR:
+            case PREF_APP_INFO_ACTION_RAIL_PRIORITY_STR:
+            case PREF_MAIN_WINDOW_FILTER_PROFILE_STR:
+            case PREF_MAIN_WINDOW_FILTER_USERS_STR:
+            case PREF_FORCE_STOP_TILE_TARGET_STR:
+            case PREF_TASKER_PLUGIN_SIGNING_SECRET_STR:
+            case PREF_QUICK_FREEZE_PROFILE_ID_STR:
+            case PREF_SELECTED_USERS_STR:
+            case PREF_VIRUS_TOTAL_API_KEY_STR:
+            case PREF_DEBLOAT_DEFINITIONS_VERSION_STR:
+            case PREF_DEBLOAT_DEFINITIONS_SHA256_STR:
+            case PREF_TRACKER_DATABASE_LATEST_VERSION_STR:
+            case PREF_LAST_LOCAL_SERVER_BOOTSTRAP_SIGNATURE_STR:
+            case PREF_BACKUP_EXCLUSION_PATTERNS_STR:
+            case PREF_BACKUP_SCHEDULE_LAST_RESULT_STR:
+            case PREF_BACKUP_SCHEDULE_LAST_DIAGNOSTICS_STR:
+            case PREF_BACKUP_SCHEDULE_LAST_SKIPPED_STR:
+            case PREF_BACKUP_SCHEDULE_LAST_ORIGIN_STR:
+            case PREF_FM_FOLDER_OPTIONS_STR:
+                return "";
+            case PREF_FM_SMALI_COMMENT_LEVEL_STR:
+                return SmaliDecodeOptions.DEFAULT_COMMENT_LEVEL;
+            case PREF_MODE_OF_OPS_STR:
+                return Ops.MODE_AUTO;
+            case PREF_INSTALLER_DEFAULT_PKG_SOURCE_INT:
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    // Shell default
+                    return PackageInstaller.PACKAGE_SOURCE_OTHER;
+                } else return 0;
+            case PREF_INSTALLER_INSTALL_LOCATION_INT:
+                return PackageInfo.INSTALL_LOCATION_AUTO;
+            case PREF_INSTALLER_INSTALLER_APP_STR:
+                return BuildConfig.APPLICATION_ID;
+            case PREF_SIGNATURE_SCHEMES_INT:
+                return SigSchemes.DEFAULT_SCHEMES;
+            case PREF_BACKUP_VOLUME_STR:
+            case PREF_FM_HOME_STR:
+                return Uri.fromFile(Environment.getExternalStorageDirectory()).toString();
+            case PREF_LOG_VIEWER_FILTER_PATTERN_STR:
+                return mContext.getString(R.string.pref_filter_pattern_default);
+            case PREF_LOG_VIEWER_DISPLAY_LIMIT_INT:
+                return LogcatHelper.DEFAULT_DISPLAY_LIMIT;
+            case PREF_LOG_VIEWER_WRITE_PERIOD_INT:
+                return LogcatHelper.DEFAULT_LOG_WRITE_INTERVAL;
+            case PREF_LOG_VIEWER_DEFAULT_LOG_LEVEL_INT:
+                return Log.VERBOSE;
+            case PREF_LOG_VIEWER_BUFFER_INT:
+                return LogcatHelper.LOG_ID_DEFAULT;
+            case PREF_LAYOUT_ORIENTATION_INT:
+                return View.LAYOUT_DIRECTION_LTR;
+            case PREF_DEFAULT_BLOCKING_METHOD_STR:
+                // This is default for root
+                return ComponentRule.COMPONENT_TO_BE_BLOCKED_IFW_DISABLE;
+            case PREF_SAVED_APK_FORMAT_STR:
+                return "%label%_%version%";
+            case PREF_TRACKER_BLOCKING_INTENSITY_STR:
+                return io.github.muntashirakon.AppManager.rules.compontents.TrackerBlockingIntensity.STRICT.name();
+            case PREF_AUTHORIZATION_KEY_STR:
+                return AuthManager.generateKey();
+            case PREF_AUTO_FREEZE_ON_LOCK_BOOL:
+                return false;
+            case PREF_AUTO_FREEZE_DELAY_SECONDS_INT:
+                return 0;
+            case PREF_FREEZE_TYPE_INT:
+                return FreezeUtils.FREEZE_DISABLE;
+            case PREF_FM_OPTIONS_INT:
+                return FmListOptions.OPTIONS_DISPLAY_DOT_FILES | FmListOptions.OPTIONS_FOLDERS_FIRST;
+            case PREF_FM_SORT_ORDER_INT:
+                return FmListOptions.SORT_BY_NAME;
+            case PREF_DEBLOATER_FILTER_FLAGS_INT:
+                return DebloaterListOptions.getDefaultFilterFlags();
+            case PREF_FM_LAST_PATH_STR:
+                return "{}";
+        }
+        throw new IllegalArgumentException("Pref key not found.");
+    }
+}

@@ -1,0 +1,521 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.editor;
+
+import static org.xmlpull.v1.XmlPullParser.END_DOCUMENT;
+import static org.xmlpull.v1.XmlPullParser.END_TAG;
+import static org.xmlpull.v1.XmlPullParser.IGNORABLE_WHITESPACE;
+import static org.xmlpull.v1.XmlPullParser.START_TAG;
+import static org.xmlpull.v1.XmlPullParser.TEXT;
+
+import android.app.Application;
+import android.net.Uri;
+import android.os.Build;
+
+import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+
+import org.jetbrains.annotations.Contract;
+import org.xmlpull.v1.XmlPullParserException;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.io.Reader;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Future;
+
+import io.github.muntashirakon.AppManager.apk.parser.AndroidBinXmlDecoder;
+import io.github.muntashirakon.AppManager.apk.parser.AndroidBinXmlEncoder;
+import io.github.muntashirakon.AppManager.dex.DexUtils;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.self.filecache.FileCache;
+import io.github.muntashirakon.AppManager.utils.ExUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.compat.xml.TypedXmlPullParser;
+import io.github.muntashirakon.compat.xml.TypedXmlSerializer;
+import io.github.muntashirakon.compat.xml.Xml;
+import io.github.muntashirakon.io.IoUtils;
+import io.github.muntashirakon.io.Path;
+import io.github.muntashirakon.io.Paths;
+import io.github.muntashirakon.lifecycle.SingleLiveEvent;
+import io.github.rosemoe.sora.text.Content;
+import io.github.rosemoe.sora.text.ContentIO;
+
+public class CodeEditorViewModel extends AndroidViewModel {
+    public static final String TAG = CodeEditorViewModel.class.getSimpleName();
+
+    private static final Map<String, String> EXT_TO_LANGUAGE_MAP = new HashMap<String, String>() {{
+        // We skip the default ones
+        put("bash", "sh");
+        put("cfg", "properties");
+        put("conf", "properties");
+        put("css", "properties");
+        put("cmd", "sh");
+        put("htm", "xml");
+        put("html", "xml");
+        put("ini", "properties");
+        put("kt", "kotlin");
+        put("kts", "kotlin");
+        put("prop", "properties");
+        put("toml", "properties");
+        put("tokens", "properties");
+        put("xhtml", "xml");
+        put("zsh", "sh");
+    }};
+
+    @IntDef({XML_TYPE_NONE, XML_TYPE_AXML, XML_TYPE_ABX})
+    @Retention(RetentionPolicy.SOURCE)
+    private @interface XmlType {
+    }
+
+    public static final int XML_TYPE_NONE = 0;
+    public static final int XML_TYPE_AXML = 1;
+    public static final int XML_TYPE_ABX = 2;
+
+    /**
+     * The largest file the editor opens. Manifests, binary XML preference files and the text files
+     * people edit on a phone are a few hundred kilobytes at most, far below this.
+     */
+    @VisibleForTesting
+    static final int MAX_FILE_BYTES = 16 * 1024 * 1024;
+
+    @Nullable
+    private volatile String mOriginalContent;
+    @Nullable
+    private String mLanguage;
+    private boolean mCanGenerateJava;
+    @XmlType
+    private int mXmlType = XML_TYPE_NONE;
+    @Nullable
+    private Path mSourceFile;
+    private CodeEditorFragment.Options mOptions;
+    @Nullable
+    private Future<?> mContentLoaderResult;
+    @Nullable
+    private Future<?> mJavaConverterResult;
+
+    private final FileCache mFileCache = new FileCache();
+    private final MutableLiveData<Content> mContentLiveData = new MutableLiveData<>();
+    // Only for smali
+    private final SingleLiveEvent<Uri> mJavaFileLiveData = new SingleLiveEvent<>();
+    private final MutableLiveData<SaveResult> mSaveFileLiveData = new MutableLiveData<>();
+    // Save and exit leaves only after a save lands, so the request outlives a configuration change.
+    private volatile boolean mExitAfterSave;
+
+    /** How a save ended. A failed save says whether the file on disk still holds its old bytes. */
+    public static final class SaveResult {
+        public final boolean success;
+        public final boolean originalIntact;
+        @Nullable
+        public final String reason;
+
+        private SaveResult(boolean success, boolean originalIntact, @Nullable String reason) {
+            this.success = success;
+            this.originalIntact = originalIntact;
+            this.reason = reason;
+        }
+
+        @NonNull
+        static SaveResult saved() {
+            return new SaveResult(true, true, null);
+        }
+
+        @NonNull
+        static SaveResult failed(@NonNull String reason, boolean originalIntact) {
+            return new SaveResult(false, originalIntact, reason);
+        }
+    }
+
+    public CodeEditorViewModel(@NonNull Application application) {
+        super(application);
+    }
+
+    @Override
+    protected void onCleared() {
+        if (mContentLoaderResult != null) {
+            mContentLoaderResult.cancel(true);
+        }
+        if (mJavaConverterResult != null) {
+            mJavaConverterResult.cancel(true);
+        }
+        IoUtils.closeQuietly(mFileCache);
+        super.onCleared();
+    }
+
+    public LiveData<Content> getContentLiveData() {
+        return mContentLiveData;
+    }
+
+    public LiveData<Uri> getJavaFileLiveData() {
+        return mJavaFileLiveData;
+    }
+
+    public LiveData<SaveResult> getSaveFileLiveData() {
+        return mSaveFileLiveData;
+    }
+
+    public void setOptions(@NonNull CodeEditorFragment.Options options) {
+        mOptions = options;
+        mSourceFile = options.uri != null ? Paths.get(options.uri) : null;
+        String extension = mSourceFile != null ? mSourceFile.getExtension() : null;
+        mLanguage = getLanguageFromExt(extension);
+        mCanGenerateJava = options.javaSmaliToggle || "smali".equals(mLanguage);
+    }
+
+    @Nullable
+    public Path getSourceFile() {
+        return mSourceFile;
+    }
+
+    /**
+     * Reads a file of at most {@code limit} bytes, or returns {@code null} when it is larger or
+     * unreadable. The editor accepts XML and any text file from other apps, whatever the file is
+     * called, so an oversized one must fail before it is held whole in memory, decoded as binary XML,
+     * or turned into editor text.
+     */
+    @VisibleForTesting
+    @Nullable
+    static byte[] readFileBytes(@NonNull Path file, int limit) {
+        try (InputStream is = file.openInputStream()) {
+            byte[] bytes = IoUtils.readFully(is, limit + 1, false);
+            if (bytes.length > limit) {
+                Log.w(TAG, "Not opening %s: it is larger than %d bytes.", file, limit);
+                return null;
+            }
+            return bytes;
+        } catch (IOException e) {
+            Log.e(TAG, "Could not read file %s", e, file);
+            return null;
+        }
+    }
+
+    public void loadFileContentIfAvailable() {
+        if (mSourceFile == null) return;
+        if (mContentLoaderResult != null) {
+            mContentLoaderResult.cancel(true);
+        }
+        mContentLoaderResult = ThreadUtils.postOnBackgroundThread(() -> {
+            Content content = null;
+            byte[] bytes = readFileBytes(mSourceFile, MAX_FILE_BYTES);
+            if (bytes == null) {
+                // Too large or unreadable: fail rather than read it again without a limit.
+                mContentLiveData.postValue(null);
+                return;
+            }
+            if ("xml".equals(mLanguage)) {
+                ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                try {
+                    if (AndroidBinXmlDecoder.isBinaryXml(buffer)) {
+                        content = new Content(AndroidBinXmlDecoder.decode(bytes));
+                        mXmlType = XML_TYPE_AXML;
+                    } else if (Xml.isBinaryXml(buffer)) {
+                        // ABX (Android Binary XML) decoding is enabled for viewing.
+                        // Write-back is blocked in canWrite() because the text→ABX path is lossy
+                        // (typed attributes like int/boolean become strings). See copyXml().
+                        content = new Content(getXmlFromAbx(bytes));
+                        mXmlType = XML_TYPE_ABX;
+                    }
+                } catch (IOException e) {
+                    Log.e(TAG, "Unable to convert XML bytes to plain text.", e);
+                }
+            }
+            if (content == null) {
+                try (InputStream is = new ByteArrayInputStream(bytes)) {
+                    content = ContentIO.createFrom(is);
+                    mXmlType = XML_TYPE_NONE;
+                } catch (IOException e) {
+                    Log.e(TAG, "Could not read file %s", e, mSourceFile);
+                }
+            }
+            if (content != null) {
+                mOriginalContent = content.toString();
+            }
+            mContentLiveData.postValue(content);
+        });
+    }
+
+    @Nullable
+    public String getOriginalContent() {
+        return mOriginalContent;
+    }
+
+    public void updateOriginalContent(@NonNull String content) {
+        mOriginalContent = content;
+    }
+
+    /**
+     * Saves the editor's text. The text is copied on the calling thread, since the editor may change
+     * while the save runs, then encoded in full before the file is touched. See {@link EditorSaver} for
+     * how a failure keeps the original bytes.
+     */
+    public void saveFile(@NonNull Content content, @Nullable Path alternativeFile) {
+        String text = content.toString();
+        int xmlType = mXmlType;
+        Path sourceFile = mSourceFile;
+        ThreadUtils.postOnBackgroundThread(() -> {
+            if (sourceFile == null && alternativeFile == null) {
+                mSaveFileLiveData.postValue(SaveResult.failed("there is no file to save to", true));
+                return;
+            }
+            // Important: Alternative file gets the top priority
+            Path savingPath = alternativeFile != null ? alternativeFile : sourceFile;
+            try {
+                EditorSaver.save(() -> encode(text, xmlType), new EditorSaver.PathTarget(savingPath), MAX_FILE_BYTES);
+                mSaveFileLiveData.postValue(SaveResult.saved());
+            } catch (EditorSaver.SaveException e) {
+                Log.e(TAG, "Could not save %s (original intact: %b)", e, savingPath, e.originalIntact);
+                mSaveFileLiveData.postValue(SaveResult.failed(String.valueOf(e.getMessage()), e.originalIntact));
+            }
+        });
+    }
+
+    /** Asks the editor to close after the next save, but only if that save succeeds. */
+    public void setExitAfterSave(boolean exitAfterSave) {
+        mExitAfterSave = exitAfterSave;
+    }
+
+    /** Whether to close now: true once, for a successful save that Save and exit asked for. */
+    public boolean consumeExitAfterSave(boolean saveSucceeded) {
+        boolean exit = mExitAfterSave && saveSucceeded;
+        mExitAfterSave = false;
+        return exit;
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static byte[] encode(@NonNull String text, @XmlType int xmlType) throws IOException {
+        switch (xmlType) {
+            case XML_TYPE_AXML:
+                // ABX attributes retain types that a generic serializer would lose.
+                return AndroidBinXmlEncoder.encodeString(text);
+            case XML_TYPE_ABX: {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                try (InputStream is = new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8))) {
+                    copyAbxFromXml(is, out);
+                }
+                return out.toByteArray();
+            }
+            default:
+            case XML_TYPE_NONE:
+                return text.getBytes(StandardCharsets.UTF_8);
+        }
+    }
+
+    public boolean isReadOnly() {
+        return mOptions == null || mOptions.readOnly;
+    }
+
+    public boolean canWrite() {
+        // ABX files are view-only: text→ABX is lossy (typed attrs become strings).
+        if (mXmlType == XML_TYPE_ABX) return false;
+        return !isReadOnly() && mSourceFile != null && mSourceFile.canWrite();
+    }
+
+    public boolean isBackedByAFile() {
+        return mSourceFile != null;
+    }
+
+    @NonNull
+    public String getFilename() {
+        if (mSourceFile == null) {
+            return "untitled.txt";
+        }
+        return mSourceFile.getName();
+    }
+
+    public boolean canGenerateJava() {
+        return mCanGenerateJava;
+    }
+
+    public boolean isJavaDecompileSupported() {
+        return isJavaDecompileSupported(Build.VERSION.SDK_INT);
+    }
+
+    public boolean shouldShowJavaDecompileUnsupportedCaveat() {
+        return shouldShowJavaDecompileUnsupportedCaveat(mCanGenerateJava, Build.VERSION.SDK_INT);
+    }
+
+    @VisibleForTesting
+    static boolean isJavaDecompileSupported(int sdkInt) {
+        return sdkInt >= Build.VERSION_CODES.O;
+    }
+
+    @VisibleForTesting
+    static boolean shouldShowJavaDecompileUnsupportedCaveat(boolean canGenerateJava, int sdkInt) {
+        return canGenerateJava && !isJavaDecompileSupported(sdkInt);
+    }
+
+    @Nullable
+    public String getLanguage() {
+        return mLanguage;
+    }
+
+    /**
+     * Override the auto-detected language. Used by the manual language picker
+     * in {@link CodeEditorFragment} when the file extension misses or the user
+     * wants smali highlighting on a non-smali file. Does not re-tokenise on
+     * its own — caller is expected to follow up with {@code setEditorLanguage}.
+     */
+    public void setLanguage(@Nullable String language) {
+        mLanguage = language;
+    }
+
+    public void generateJava(Content smaliContent) {
+        if (!mCanGenerateJava || !isJavaDecompileSupported()) {
+            return;
+        }
+        if (mJavaConverterResult != null) {
+            mJavaConverterResult.cancel(true);
+        }
+        mJavaConverterResult = ThreadUtils.postOnBackgroundThread(() -> {
+            List<String> smaliContents;
+            if (mSourceFile != null) {
+                Path parent = mSourceFile.getParent();
+                String baseName = DexUtils.getClassNameWithoutInnerClasses(Paths.trimPathExtension(mSourceFile.getName()));
+                String baseSmali = baseName + ".smali";
+                String baseStartWith = baseName + "$";
+                Path[] paths = parent != null ? parent.listFiles((dir, name) -> name.equals(baseSmali) || name.startsWith(baseStartWith))
+                        : new Path[0];
+                List<String> siblings = readSiblingSmali(paths, mSourceFile, MAX_FILE_BYTES);
+                if (siblings == null) {
+                    mJavaFileLiveData.postValue(null);
+                    return;
+                }
+                smaliContents = new ArrayList<>(siblings.size() + 1);
+                smaliContents.add(smaliContent.toString());
+                smaliContents.addAll(siblings);
+            } else {
+                smaliContents = Collections.singletonList(smaliContent.toString());
+            }
+            if (ThreadUtils.isInterrupted()) {
+                return;
+            }
+            try {
+                File cachedFile = mFileCache.createCachedFile("java");
+                try (PrintStream ps = new PrintStream(cachedFile)) {
+                    ps.print(DexUtils.toJavaCode(smaliContents, -1));
+                }
+                mJavaFileLiveData.postValue(Uri.fromFile(cachedFile));
+            } catch (Exception e) {
+                Log.w(TAG, e);
+                mJavaFileLiveData.postValue(null);
+            }
+        });
+    }
+
+    /**
+     * Reads the class's other smali files for the Java view, skipping the one open in the editor. They
+     * sit next to a file another app may have handed over, so they share the editor's limit in total.
+     *
+     * @return their contents, or {@code null} when one can't be read or together they exceed {@code limit}
+     */
+    @VisibleForTesting
+    @Nullable
+    static List<String> readSiblingSmali(@NonNull Path[] paths, @Nullable Path skip, int limit) {
+        List<String> contents = new ArrayList<>(paths.length);
+        long total = 0;
+        for (Path path : paths) {
+            if (path.equals(skip)) {
+                continue;
+            }
+            byte[] bytes = readFileBytes(path, limit);
+            if (bytes == null) {
+                return null;
+            }
+            total += bytes.length;
+            if (total > limit) {
+                Log.w(TAG, "Not generating Java: the class's smali files exceed %d bytes.", limit);
+                return null;
+            }
+            contents.add(new String(bytes, StandardCharsets.UTF_8));
+        }
+        return contents;
+    }
+
+    @Contract("!null -> !null")
+    @Nullable
+    @VisibleForTesting
+    static String getLanguageFromExt(@Nullable String ext) {
+        String lang = EXT_TO_LANGUAGE_MAP.get(ext);
+        if (lang != null) return lang;
+        return ext;
+    }
+
+    private static String getXmlFromAbx(@NonNull byte[] data) throws IOException {
+        try (InputStream is = new BufferedInputStream(new ByteArrayInputStream(data));
+             ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            TypedXmlPullParser parser = Xml.newBinaryPullParser();
+            parser.setInput(is, StandardCharsets.UTF_8.name());
+            TypedXmlSerializer serializer = Xml.newFastSerializer();
+            serializer.setOutput(os, StandardCharsets.UTF_8.name());
+            copyXml(parser, serializer);
+            return os.toString();
+        } catch (XmlPullParserException e) {
+            return ExUtils.rethrowAsIOException(e);
+        }
+    }
+
+    private static void copyAbxFromXml(@NonNull InputStream in, @NonNull OutputStream out) throws IOException {
+        try (Reader is = new InputStreamReader(in)) {
+            TypedXmlPullParser parser = Xml.newFastPullParser();
+            parser.setInput(is);
+            TypedXmlSerializer serializer = Xml.newBinarySerializer();
+            serializer.setOutput(out, StandardCharsets.UTF_8.name());
+            copyXml(parser, serializer);
+        } catch (XmlPullParserException e) {
+            ExUtils.rethrowAsIOException(e);
+        }
+    }
+
+    public static void copyXml(@NonNull TypedXmlPullParser parser, @NonNull TypedXmlSerializer serializer)
+            throws IOException, XmlPullParserException {
+        serializer.startDocument(null, null);
+        int event;
+        do {
+            event = parser.nextToken();
+            switch (event) {
+                case START_TAG:
+                    serializer.startTag(null, parser.getName());
+                    for (int i = 0; i < parser.getAttributeCount(); i++) {
+                        String attributeName = parser.getAttributeName(i);
+                        serializer.attribute(null, attributeName, parser.getAttributeValue(i));
+                    }
+                    break;
+                case END_TAG:
+                    serializer.endTag(null, parser.getName());
+                    break;
+                case TEXT:
+                    serializer.text(parser.getText());
+                    break;
+                case IGNORABLE_WHITESPACE:
+                    serializer.ignorableWhitespace(parser.getText());
+                    break;
+                case END_DOCUMENT:
+                    serializer.endDocument();
+                    break;
+                default:
+                    throw new UnsupportedOperationException();
+            }
+        } while (event != END_DOCUMENT);
+    }
+}

@@ -1,0 +1,161 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.apk.parser;
+
+import static org.xmlpull.v1.XmlPullParser.END_DOCUMENT;
+import static org.xmlpull.v1.XmlPullParser.END_TAG;
+import static org.xmlpull.v1.XmlPullParser.START_DOCUMENT;
+import static org.xmlpull.v1.XmlPullParser.START_TAG;
+
+import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+
+import com.reandroid.apk.AndroidFrameworks;
+import com.reandroid.arsc.chunk.PackageBlock;
+import com.reandroid.arsc.chunk.xml.ResXmlDocument;
+import com.reandroid.arsc.chunk.xml.ResXmlPullParser;
+import com.reandroid.arsc.io.BlockReader;
+
+import org.xmlpull.v1.XmlPullParserException;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+
+import io.github.muntashirakon.AppManager.utils.IntegerUtils;
+import io.github.muntashirakon.io.IoUtils;
+
+public class AndroidBinXmlDecoder {
+    private static final String NEWLINE = "\n";
+
+    public static boolean isBinaryXml(@NonNull ByteBuffer buffer) {
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        buffer.mark();
+        int version = IntegerUtils.getUInt16(buffer);
+        int header = IntegerUtils.getUInt16(buffer);
+        buffer.reset();
+        // 0x0000 is NULL header. The only example of application using a NULL header is NP Manager
+        return (version == 0x0003 || version == 0x0000) && header == 0x0008;
+    }
+
+    @NonNull
+    public static String decode(@NonNull byte[] data) throws IOException {
+        return decode(ByteBuffer.wrap(data));
+    }
+
+    @NonNull
+    public static String decode(@NonNull InputStream is) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] buf = new byte[IoUtils.DEFAULT_BUFFER_SIZE];
+        int n;
+        while (-1 != (n = is.read(buf))) {
+            buffer.write(buf, 0, n);
+        }
+        return decode(buffer.toByteArray());
+    }
+
+    @NonNull
+    public static String decode(@NonNull ByteBuffer byteBuffer) throws IOException {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            decode(byteBuffer, bos);
+            byte[] bs = bos.toByteArray();
+            return new String(bs, StandardCharsets.UTF_8);
+        }
+    }
+
+    public static void decode(@NonNull ByteBuffer byteBuffer, @NonNull OutputStream os) throws IOException {
+        try (BlockReader reader = new BlockReader(toByteArray(byteBuffer));
+             PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name())) {
+            ResXmlDocument resXmlDocument = new ResXmlDocument();
+            resXmlDocument.readBytes(reader);
+            resXmlDocument.setPackageBlock(getFrameworkPackageBlock());
+            try (ResXmlPullParser parser = new ResXmlPullParser(resXmlDocument)) {
+                StringBuilder indent = new StringBuilder(10);
+                final String indentStep = "  ";
+                out.print("<?xml version=\"1.0\" encoding=\"utf-8\"?>" + NEWLINE);
+                XML_BUILDER:
+                while (true) {
+                    int type = parser.next();
+                    switch (type) {
+                        case START_TAG: {
+                            out.printf("%s<%s%s", indent, getNamespacePrefix(parser.getPrefix()), parser.getName());
+                            indent.append(indentStep);
+
+                            int nsStart = parser.getNamespaceCount(parser.getDepth() - 1);
+                            int nsEnd = parser.getNamespaceCount(parser.getDepth());
+                            for (int i = nsStart; i < nsEnd; ++i) {
+                                out.printf(NEWLINE + "%sxmlns:%s=\"%s\"", indent,
+                                        parser.getNamespacePrefix(i),
+                                        parser.getNamespaceUri(i));
+                            }
+
+                            for (int i = 0; i != parser.getAttributeCount(); ++i) {
+                                out.printf(NEWLINE + "%s%s%s=\"%s\"",
+                                        indent,
+                                        getNamespacePrefix(parser.getAttributePrefix(i)),
+                                        parser.getAttributeName(i),
+                                        parser.getAttributeValue(i));
+                            }
+                            out.print(">" + NEWLINE);
+                            break;
+                        }
+                        case END_TAG: {
+                            indent.setLength(indent.length() - indentStep.length());
+                            out.printf("%s</%s%s>%s", indent, getNamespacePrefix(parser.getPrefix()), parser.getName(),
+                                    NEWLINE);
+                            break;
+                        }
+                        case END_DOCUMENT:
+                            break XML_BUILDER;
+                        case START_DOCUMENT:
+                            // Unreachable statement
+                            break;
+                    }
+                }
+            }
+        } catch (XmlPullParserException e) {
+            throw new IOException(e);
+        }
+    }
+
+    @NonNull
+    private static String getNamespacePrefix(String prefix) {
+        if (TextUtils.isEmpty(prefix)) {
+            return "";
+        }
+        return prefix + ":";
+    }
+
+    /**
+     * Copy a {@link ByteBuffer}'s remaining window into a fresh array. Unlike
+     * {@link ByteBuffer#array()} this respects {@code position}/{@code limit}/
+     * {@code arrayOffset} and works for read-only and direct (e.g. mmapped) buffers,
+     * so callers can safely pass a sliced buffer.
+     */
+    @NonNull
+    public static byte[] toByteArray(@NonNull ByteBuffer byteBuffer) {
+        ByteBuffer dup = byteBuffer.duplicate();
+        byte[] out = new byte[dup.remaining()];
+        dup.get(out);
+        return out;
+    }
+
+    @NonNull
+    public static synchronized PackageBlock getFrameworkPackageBlock() {
+        // Lazily built and cached; synchronized so concurrent manifest parsing (per-app
+        // loaders, filters) cannot double-run the heavy framework-table init or observe a
+        // partially published reference.
+        if (sFrameworkPackageBlock == null) {
+            sFrameworkPackageBlock = AndroidFrameworks.getLatest().getTableBlock().getAllPackages().next();
+        }
+        return sFrameworkPackageBlock;
+    }
+
+    private static PackageBlock sFrameworkPackageBlock;
+}

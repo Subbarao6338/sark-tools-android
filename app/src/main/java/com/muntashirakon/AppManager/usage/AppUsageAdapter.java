@@ -1,0 +1,297 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.usage;
+
+import android.graphics.drawable.Drawable;
+import android.text.format.Formatter;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+
+import androidx.annotation.GuardedBy;
+import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+import com.google.android.material.textview.MaterialTextView;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+
+import io.github.muntashirakon.AppManager.BuildConfig;
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.self.imagecache.ImageLoader;
+import io.github.muntashirakon.AppManager.utils.DateUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.util.AdapterUtils;
+import io.github.muntashirakon.widget.RecyclerView;
+
+class AppUsageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+    private static final int VIEW_TYPE_HEADER = 1;
+    private static final int VIEW_TYPE_LIST_ITEM = 2;
+
+    @GuardedBy("mAdapterList")
+    private final List<PackageUsageInfo> mAdapterList = new ArrayList<>();
+    private final AppUsageActivity mActivity;
+
+    static class ListHeaderViewHolder extends RecyclerView.ViewHolder {
+        final MaterialTextView screenTimeView;
+        final MaterialTextView usageIntervalView;
+        final MaterialTextView comparisonSummaryView;
+        final MaterialButton previousButton;
+        final MaterialButton nextButton;
+        final BarChartView barChartView;
+
+        public ListHeaderViewHolder(@NonNull View itemView) {
+            super(itemView);
+            screenTimeView = itemView.findViewById(R.id.screen_time);
+            usageIntervalView = itemView.findViewById(R.id.time);
+            comparisonSummaryView = itemView.findViewById(R.id.comparison_summary);
+            previousButton = itemView.findViewById(R.id.action_previous);
+            nextButton = itemView.findViewById(R.id.action_next);
+            barChartView = itemView.findViewById(R.id.bar_chart);
+        }
+    }
+
+    static class ListItemViewHolder extends RecyclerView.ViewHolder {
+        ImageView appIcon;
+        MaterialTextView appLabel;
+        MaterialTextView badge;
+        MaterialTextView packageName;
+        MaterialTextView lastUsageDate;
+        MaterialTextView mobileDataUsage;
+        MaterialTextView wifiDataUsage;
+        MaterialTextView screenTime;
+        MaterialTextView comparison;
+        MaterialTextView percentUsage;
+        LinearProgressIndicator usageIndicator;
+
+        public ListItemViewHolder(@NonNull View itemView) {
+            super(itemView);
+            appIcon = itemView.findViewById(R.id.icon);
+            appIcon.setClipToOutline(true);
+            appIcon.setContentDescription(null);
+            appIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            badge = itemView.findViewById(R.id.badge);
+            appLabel = itemView.findViewById(R.id.label);
+            packageName = itemView.findViewById(R.id.package_name);
+            lastUsageDate = itemView.findViewById(R.id.date);
+            mobileDataUsage = itemView.findViewById(R.id.data_usage);
+            wifiDataUsage = itemView.findViewById(R.id.wifi_usage);
+            screenTime = itemView.findViewById(R.id.screen_time);
+            comparison = itemView.findViewById(R.id.comparison);
+            percentUsage = itemView.findViewById(R.id.percent_usage);
+            usageIndicator = itemView.findViewById(R.id.progress_linear);
+        }
+    }
+
+    AppUsageAdapter(@NonNull AppUsageActivity activity) {
+        mActivity = activity;
+    }
+
+    void setDefaultList(List<PackageUsageInfo> list) {
+        synchronized (mAdapterList) {
+            if (list == null || list.isEmpty()) {
+                AdapterUtils.notifyDataSetChanged(this, mAdapterList, Collections.emptyList());
+                return;
+            }
+            if (!mAdapterList.isEmpty()) {
+                notifyItemChanged(0, AdapterUtils.STUB);
+            }
+            AdapterUtils.notifyDataSetChanged(this, 1, mAdapterList, list);
+        }
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        if (position == 0) {
+            return VIEW_TYPE_HEADER;
+        }
+        return VIEW_TYPE_LIST_ITEM;
+    }
+
+    @Override
+    public int getItemCount() {
+        synchronized (mAdapterList) {
+            return mAdapterList.size();
+        }
+    }
+
+    @Override
+    public long getItemId(int position) {
+        if (position == 0) {
+            return 0;
+        }
+        synchronized (mAdapterList) {
+            return Objects.hashCode(mAdapterList.get(position));
+        }
+    }
+
+    @NonNull
+    @Override
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view;
+        switch (viewType) {
+            case VIEW_TYPE_HEADER:
+                view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_app_usage_header, parent, false);
+                return new ListHeaderViewHolder(view);
+            case VIEW_TYPE_LIST_ITEM:
+            default:
+                view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_app_usage, parent, false);
+                return new ListItemViewHolder(view);
+        }
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        if (position == 0) {
+            onBindViewHolder((ListHeaderViewHolder) holder);
+        } else onBindViewHolder((ListItemViewHolder) holder, position);
+    }
+
+    public void onBindViewHolder(@NonNull ListHeaderViewHolder holder) {
+        int intervalType = mActivity.viewModel.getCurrentInterval();
+        long duration = mActivity.viewModel.getTotalScreenTime();
+        long date = mActivity.viewModel.getCurrentDate();
+        CharSequence formattedDuration = DateUtils.getFormattedDuration(mActivity, duration);
+        CharSequence intervalDescription = UsageUtils.getIntervalDescription(mActivity, intervalType, date);
+        StringBuilder contentDescription = new StringBuilder()
+                .append(mActivity.getString(R.string.app_usage))
+                .append(" ")
+                .append(intervalDescription)
+                .append(". ")
+                .append(formattedDuration);
+        holder.itemView.setContentDescription(contentDescription);
+        holder.screenTimeView.setText(formattedDuration);
+        holder.usageIntervalView.setText(intervalDescription);
+        if (mActivity.viewModel.isCompareWithPrevious()) {
+            holder.comparisonSummaryView.setVisibility(View.VISIBLE);
+            holder.comparisonSummaryView.setText(mActivity.getString(R.string.app_usage_comparison_total,
+                    getSignedDurationText(mActivity.viewModel.getTotalScreenTime()
+                            - mActivity.viewModel.getPreviousTotalScreenTime())));
+        } else {
+            holder.comparisonSummaryView.setVisibility(View.GONE);
+        }
+        holder.nextButton.setVisibility(UsageUtils.hasNextDay(date) ? View.VISIBLE : View.INVISIBLE);
+        holder.nextButton.setOnClickListener(v -> mActivity.viewModel.loadNext());
+        holder.previousButton.setOnClickListener(v -> mActivity.viewModel.loadPrevious());
+        UsageDataProcessor.updateChartWithAppUsage(holder.barChartView, mActivity.viewModel.getPackageUsageEntries(), intervalType, date);
+    }
+
+    public void onBindViewHolder(@NonNull ListItemViewHolder holder, int position) {
+        final PackageUsageInfo usageInfo;
+        synchronized (mAdapterList) {
+            usageInfo = mAdapterList.get(position);
+        }
+        final int percentUsage = getUsagePercent(usageInfo.screenTime);
+        // Set label (or package name on failure)
+        holder.appLabel.setText(usageInfo.appLabel);
+        // Set icon
+        holder.appIcon.setTag(usageInfo.packageName);
+        ImageLoader.getInstance().displayImage(usageInfo.packageName, usageInfo.applicationInfo, holder.appIcon);
+        // Set user ID
+        if (mActivity.viewModel.hasMultipleUsers()) {
+            holder.badge.setVisibility(View.VISIBLE);
+            holder.badge.setText(String.format(Locale.getDefault(), "%d", usageInfo.userId));
+            holder.badge.setContentDescription(mActivity.getString(R.string.app_usage_user_badge_a11y,
+                    usageInfo.userId));
+        } else {
+            holder.badge.setVisibility(View.GONE);
+            holder.badge.setContentDescription(null);
+        }
+        // Set package name
+        holder.packageName.setText(usageInfo.packageName);
+        // Set usage
+        long lastTimeUsed = usageInfo.lastUsageTime > 1 ? (System.currentTimeMillis() - usageInfo.lastUsageTime) : 0;
+        long currentDate = mActivity.viewModel.getCurrentDate();
+        String lastUsedText;
+        if (usageInfo.packageName.equals(BuildConfig.APPLICATION_ID) && UsageUtils.isToday(currentDate)) {
+            // Special case for App Manager since the user is using the app right now
+            lastUsedText = mActivity.getString(R.string.running);
+        } else if (lastTimeUsed > 1) {
+            lastUsedText = String.format(Locale.getDefault(), "%s %s",
+                    DateUtils.getFormattedDuration(mActivity, lastTimeUsed), mActivity.getString(R.string.ago));
+        } else {
+            lastUsedText = mActivity.getString(R.string._undefined);
+        }
+        holder.lastUsageDate.setText(lastUsedText);
+        String screenTimesWithTimesOpened;
+        // Set times opened
+        screenTimesWithTimesOpened = mActivity.getResources().getQuantityString(R.plurals.no_of_times_opened, usageInfo.timesOpened, usageInfo.timesOpened);
+        // Set screen time
+        screenTimesWithTimesOpened += ", " + DateUtils.getFormattedDuration(mActivity, usageInfo.screenTime);
+        holder.screenTime.setText(screenTimesWithTimesOpened);
+        AppUsageViewModel.UsageComparison usageComparison = mActivity.viewModel.getUsageComparison(usageInfo);
+        String comparisonDescription = null;
+        if (mActivity.viewModel.isCompareWithPrevious() && usageComparison != null) {
+            comparisonDescription = mActivity.getString(R.string.app_usage_comparison_row,
+                    getSignedDurationText(usageComparison.screenTimeDelta),
+                    String.format(Locale.getDefault(), "%+d", usageComparison.timesOpenedDelta));
+            holder.comparison.setVisibility(View.VISIBLE);
+            holder.comparison.setText(comparisonDescription);
+        } else {
+            holder.comparison.setVisibility(View.GONE);
+            holder.comparison.setText(null);
+        }
+        // Set data usage
+        AppUsageStatsManager.DataUsage mobileData = usageInfo.mobileData;
+        String mobileDataDescription;
+        if (mobileData != null && (mobileData.first != 0 || mobileData.second != 0)) {
+            Drawable phoneIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_phone_android);
+            String sent = Formatter.formatFileSize(mActivity, mobileData.first);
+            String received = Formatter.formatFileSize(mActivity, mobileData.second);
+            String dataUsage = String.format("  ↑ %1$s ↓ %2$s", sent, received);
+            holder.mobileDataUsage.setText(UIUtils.setImageSpan(dataUsage, phoneIcon, holder.mobileDataUsage));
+            mobileDataDescription = mActivity.getString(R.string.app_usage_data_plain, sent, received);
+        } else {
+            holder.mobileDataUsage.setText("");
+            mobileDataDescription = mActivity.getString(R.string.app_usage_no_mobile_data);
+        }
+        AppUsageStatsManager.DataUsage wifiData = usageInfo.wifiData;
+        String wifiDataDescription;
+        if (wifiData != null && (wifiData.first != 0 || wifiData.second != 0)) {
+            Drawable wifiIcon = ContextCompat.getDrawable(mActivity, R.drawable.ic_wifi);
+            String sent = Formatter.formatFileSize(mActivity, wifiData.first);
+            String received = Formatter.formatFileSize(mActivity, wifiData.second);
+            String dataUsage = String.format("  ↑ %1$s ↓ %2$s", sent, received);
+            holder.wifiDataUsage.setText(UIUtils.setImageSpan(dataUsage, wifiIcon, holder.wifiDataUsage));
+            wifiDataDescription = mActivity.getString(R.string.app_usage_data_plain, sent, received);
+        } else {
+            holder.wifiDataUsage.setText("");
+            wifiDataDescription = mActivity.getString(R.string.app_usage_no_wifi_data);
+        }
+        // Set usage percentage
+        holder.percentUsage.setText(String.format(Locale.getDefault(), "%d%%", percentUsage));
+        holder.usageIndicator.show();
+        holder.usageIndicator.setProgress(percentUsage);
+        String contentDescription = mActivity.getString(R.string.app_usage_item_content_description,
+                usageInfo.appLabel, usageInfo.packageName, lastUsedText, screenTimesWithTimesOpened,
+                mobileDataDescription, wifiDataDescription, percentUsage);
+        if (comparisonDescription != null) {
+            contentDescription += ". " + comparisonDescription;
+        }
+        holder.itemView.setContentDescription(contentDescription);
+        // On Click Listener
+        holder.itemView.setOnClickListener(v -> mActivity.viewModel.loadPackageUsageInfo(usageInfo));
+    }
+
+    int getUsagePercent(long screenTime) {
+        if (mActivity.viewModel.getTotalScreenTime() <= 0) {
+            return 0;
+        }
+        return (int) (screenTime * 100. / mActivity.viewModel.getTotalScreenTime());
+    }
+
+    @NonNull
+    private String getSignedDurationText(long duration) {
+        if (duration > 0) {
+            return "+ " + DateUtils.getFormattedDuration(mActivity, duration);
+        }
+        return DateUtils.getFormattedDuration(mActivity, duration, true);
+    }
+}

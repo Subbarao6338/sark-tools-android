@@ -1,0 +1,310 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.debloat;
+
+import android.app.Application;
+import android.os.UserHandleHidden;
+import android.text.TextUtils;
+
+import androidx.annotation.AnyThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.WorkerThread;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+
+import io.github.muntashirakon.AppManager.StaticDataset;
+import io.github.muntashirakon.AppManager.misc.AdvancedSearchView;
+import io.github.muntashirakon.AppManager.types.UserPackagePair;
+import io.github.muntashirakon.AppManager.users.Users;
+import io.github.muntashirakon.AppManager.utils.AppPref;
+import io.github.muntashirakon.AppManager.utils.ArrayUtils;
+import io.github.muntashirakon.AppManager.utils.MultithreadedExecutor;
+
+public class DebloaterViewModel extends AndroidViewModel {
+    @DebloaterListOptions.Filter
+    private int mFilterFlags;
+    private String mQueryString = null;
+    @AdvancedSearchView.SearchType
+    private int mQueryType;
+    @NonNull
+    private final List<DebloatObject> mDebloatObjects = new ArrayList<>();
+
+    private final Map<String, int[]> mSelectedPackages = new HashMap<>();
+    private final MutableLiveData<List<DebloatObject>> mDebloatObjectListLiveData = new MutableLiveData<>();
+    private final ExecutorService mExecutor = MultithreadedExecutor.getNewInstance();
+
+    public DebloaterViewModel(@NonNull Application application) {
+        super(application);
+        mFilterFlags = AppPref.getInt(AppPref.PrefKey.PREF_DEBLOATER_FILTER_FLAGS_INT);
+    }
+
+    public boolean hasFilterFlag(@DebloaterListOptions.Filter int flag) {
+        return (mFilterFlags & flag) != 0;
+    }
+
+    public boolean hasActiveFilters() {
+        return mFilterFlags != DebloaterListOptions.FILTER_NO_FILTER;
+    }
+
+    public boolean hasSearchQuery() {
+        return !TextUtils.isEmpty(mQueryString);
+    }
+
+    public void addFilterFlag(@DebloaterListOptions.Filter int flag) {
+        mFilterFlags |= flag;
+        AppPref.set(AppPref.PrefKey.PREF_DEBLOATER_FILTER_FLAGS_INT, mFilterFlags);
+        loadPackages();
+    }
+
+    public void removeFilterFlag(@DebloaterListOptions.Filter int flag) {
+        mFilterFlags &= ~flag;
+        AppPref.set(AppPref.PrefKey.PREF_DEBLOATER_FILTER_FLAGS_INT, mFilterFlags);
+        loadPackages();
+    }
+
+    public void clearFilters() {
+        mFilterFlags = DebloaterListOptions.FILTER_NO_FILTER;
+        AppPref.set(AppPref.PrefKey.PREF_DEBLOATER_FILTER_FLAGS_INT, mFilterFlags);
+        loadPackages();
+    }
+
+    public void setQuery(String queryString, @AdvancedSearchView.SearchType int searchType) {
+        mQueryString = queryString;
+        mQueryType = searchType;
+        loadPackages();
+    }
+
+    public LiveData<List<DebloatObject>> getDebloatObjectListLiveData() {
+        return mDebloatObjectListLiveData;
+    }
+
+    public int getTotalItemCount() {
+        return mDebloatObjects.size();
+    }
+
+    public int getSelectedItemCount() {
+        return mSelectedPackages.size();
+    }
+
+    public void select(@NonNull DebloatObject debloatObject) {
+        mSelectedPackages.put(debloatObject.packageName, debloatObject.getUsers());
+    }
+
+    public void deselect(@NonNull DebloatObject debloatObject) {
+        mSelectedPackages.remove(debloatObject.packageName);
+    }
+
+    public void deselectAll() {
+        mSelectedPackages.clear();
+    }
+
+    public boolean isSelected(@NonNull DebloatObject debloatObject) {
+        return mSelectedPackages.containsKey(debloatObject.packageName);
+    }
+
+    public Map<String, int[]> getSelectedPackages() {
+        return mSelectedPackages;
+    }
+
+    @NonNull
+    public List<DebloatObject> getSelectedDebloatObjects() {
+        List<DebloatObject> selectedDebloatObjects = new ArrayList<>();
+        for (DebloatObject debloatObject : mDebloatObjects) {
+            if (mSelectedPackages.containsKey(debloatObject.packageName)) {
+                selectedDebloatObjects.add(debloatObject);
+            }
+        }
+        return selectedDebloatObjects;
+    }
+
+    public int countPresetMatches(@NonNull DebloatPreset preset) {
+        return getPresetMatches(preset).size();
+    }
+
+    public int selectPreset(@NonNull DebloatPreset preset) {
+        List<DebloatObject> matches = getPresetMatches(preset);
+        mSelectedPackages.clear();
+        for (DebloatObject debloatObject : matches) {
+            select(debloatObject);
+        }
+        return matches.size();
+    }
+
+    public int selectByPackageNames(@NonNull List<DebloatPresetIO.DebloatPresetEntry> entries) {
+        mSelectedPackages.clear();
+        int matched = 0;
+        java.util.Set<String> targetPackages = new java.util.HashSet<>(entries.size());
+        for (DebloatPresetIO.DebloatPresetEntry entry : entries) {
+            if (entry.packageName != null) {
+                targetPackages.add(entry.packageName);
+            }
+        }
+        for (DebloatObject debloatObject : mDebloatObjects) {
+            if (targetPackages.contains(debloatObject.packageName)) {
+                select(debloatObject);
+                ++matched;
+            }
+        }
+        return matched;
+    }
+
+    @NonNull
+    private List<DebloatObject> getPresetMatches(@NonNull DebloatPreset preset) {
+        List<DebloatObject> matches = new ArrayList<>();
+        for (DebloatObject debloatObject : mDebloatObjects) {
+            if (preset.matches(debloatObject)) {
+                matches.add(debloatObject);
+            }
+        }
+        return matches;
+    }
+
+    @NonNull
+    public ArrayList<UserPackagePair> getSelectedPackagesWithUsers() {
+        return getPackagesWithUsers(getSelectedDebloatObjects());
+    }
+
+    @NonNull
+    public ArrayList<UserPackagePair> getPackagesWithUsers(@NonNull List<DebloatObject> debloatObjects) {
+        ArrayList<UserPackagePair> userPackagePairs = new ArrayList<>();
+        int myUserId = UserHandleHidden.myUserId();
+        int[] userIds = Users.getUsersIds();
+        for (DebloatObject debloatObject : debloatObjects) {
+            String packageName = debloatObject.packageName;
+            int[] userHandles = debloatObject.getUsers();
+            if (userHandles == null || userHandles.length == 0) {
+                // Assign current user in it
+                userPackagePairs.add(new UserPackagePair(packageName, myUserId));
+            } else {
+                for (int userHandle : userHandles) {
+                    if (!ArrayUtils.contains(userIds, userHandle)) continue;
+                    userPackagePairs.add(new UserPackagePair(packageName, userHandle));
+                }
+            }
+        }
+        return userPackagePairs;
+    }
+
+    @AnyThread
+    public void loadPackages() {
+        loadPackages(false);
+    }
+
+    /**
+     * @param reloadInstallInfo when {@code true}, the installed/frozen/user state of every
+     *                          debloat entry is recomputed. Pass {@code true} after a batch
+     *                          operation (uninstall/freeze) so the list and its filters stop
+     *                          acting on stale state; {@code false} for plain filter/sort.
+     */
+    @AnyThread
+    public void loadPackages(boolean reloadInstallInfo) {
+        mExecutor.submit(() -> {
+            loadDebloatObjects(reloadInstallInfo);
+            List<DebloatObject> debloatObjects = new ArrayList<>();
+            if (mFilterFlags == DebloaterListOptions.FILTER_NO_FILTER) {
+                debloatObjects.addAll(mDebloatObjects);
+            } else {
+                for (DebloatObject debloatObject : mDebloatObjects) {
+                    // List
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_LIST_AOSP) == 0 && debloatObject.type.equals("aosp")) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_LIST_CARRIER) == 0 && debloatObject.type.equals("carrier")) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_LIST_GOOGLE) == 0 && debloatObject.type.equals("google")) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_LIST_MISC) == 0 && debloatObject.type.equals("misc")) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_LIST_OEM) == 0 && debloatObject.type.equals("oem")) {
+                        continue;
+                    }
+                    // Removal
+                    int removalType = debloatObject.getRemoval();
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_REMOVAL_SAFE) == 0 && removalType == DebloatObject.REMOVAL_SAFE) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_REMOVAL_REPLACE) == 0 && removalType == DebloatObject.REMOVAL_REPLACE) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_REMOVAL_CAUTION) == 0 && removalType == DebloatObject.REMOVAL_CAUTION) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_REMOVAL_UNSAFE) == 0 && removalType == DebloatObject.REMOVAL_UNSAFE) {
+                        continue;
+                    }
+                    // Filter others
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_INSTALLED_APPS) != 0 && !debloatObject.isInstalled()) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_UNINSTALLED_APPS) != 0 && debloatObject.isInstalled()) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_USER_APPS) != 0 && !debloatObject.isUserApp()) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_SYSTEM_APPS) != 0 && !debloatObject.isSystemApp()) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_FROZEN_APPS) != 0 && !debloatObject.isFrozen()) {
+                        continue;
+                    }
+                    if ((mFilterFlags & DebloaterListOptions.FILTER_UNFROZEN_APPS) != 0 && debloatObject.isFrozen()) {
+                        continue;
+                    }
+                    debloatObjects.add(debloatObject);
+                }
+            }
+            if (TextUtils.isEmpty(mQueryString)) {
+                mDebloatObjectListLiveData.postValue(debloatObjects);
+                return;
+            }
+            // Apply searching
+            List<DebloatObject> newList = AdvancedSearchView.matches(mQueryString, debloatObjects,
+                    (AdvancedSearchView.ChoicesGenerator<DebloatObject>) item -> {
+                        List<String> choices = new ArrayList<>();
+                        choices.add(item.packageName);
+                        CharSequence label = item.getLabel();
+                        if (label != null) {
+                            choices.add(label.toString().toLowerCase(Locale.getDefault()));
+                        }
+                        String warning = item.getWarning();
+                        if (warning != null && !warning.isEmpty()) {
+                            choices.add(warning.toLowerCase(Locale.getDefault()));
+                        }
+                        String description = item.getDescription();
+                        if (description != null && !description.isEmpty()) {
+                            choices.add(description.toLowerCase(Locale.getDefault()));
+                        }
+                        return choices;
+                    },
+                    mQueryType);
+            mDebloatObjectListLiveData.postValue(newList);
+        });
+    }
+
+    @WorkerThread
+    private void loadDebloatObjects(boolean reloadInstallInfo) {
+        if (!mDebloatObjects.isEmpty() && !reloadInstallInfo) {
+            return;
+        }
+        // getDebloatObjectsWithInstalledInfo() recomputes installed/frozen/user state on
+        // each call, so re-running it refreshes the cache instead of serving stale state.
+        List<DebloatObject> withInfo = StaticDataset.getDebloatObjectsWithInstalledInfo(getApplication());
+        mDebloatObjects.clear();
+        mDebloatObjects.addAll(withInfo);
+        Collections.sort(mDebloatObjects, (o1, o2) -> CharSequence.compare(o1.getLabelOrPackageName(), o2.getLabelOrPackageName()));
+    }
+}

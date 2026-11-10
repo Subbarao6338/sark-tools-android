@@ -1,0 +1,748 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.scanner;
+
+import static io.github.muntashirakon.AppManager.utils.UIUtils.getColoredText;
+import static io.github.muntashirakon.AppManager.utils.UIUtils.getMonospacedText;
+import static io.github.muntashirakon.AppManager.utils.UIUtils.getPrimaryText;
+import static io.github.muntashirakon.AppManager.utils.UIUtils.getSmallerText;
+
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.os.Bundle;
+import android.text.Spannable;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.TextUtils;
+import android.util.Pair;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+
+import androidx.annotation.ColorInt;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.collection.ArrayMap;
+import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
+
+import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.color.MaterialColors;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+import java.io.File;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.regex.Pattern;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.StaticDataset;
+import io.github.muntashirakon.AppManager.rules.compontents.TrackerCategory;
+import io.github.muntashirakon.AppManager.scanner.vt.VtFileReport;
+import io.github.muntashirakon.AppManager.scanner.vt.VtAvEngineResult;
+import io.github.muntashirakon.AppManager.settings.FeatureController;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.utils.ArrayUtils;
+import io.github.muntashirakon.AppManager.utils.DateUtils;
+import io.github.muntashirakon.AppManager.utils.DigestUtils;
+import io.github.muntashirakon.AppManager.utils.ExportTextUtils;
+import io.github.muntashirakon.AppManager.utils.LangUtils;
+import io.github.muntashirakon.AppManager.utils.PackageUtils;
+import io.github.muntashirakon.AppManager.utils.TextUtilsCompat;
+import io.github.muntashirakon.AppManager.utils.Utils;
+import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
+import io.github.muntashirakon.dialog.SearchableMultiChoiceDialogBuilder;
+import io.github.muntashirakon.util.UiUtils;
+import io.github.muntashirakon.AppManager.logs.Log;
+
+public class ScannerFragment extends Fragment {
+    private static final String TAG = ScannerFragment.class.getSimpleName();
+
+    private CharSequence mAppName;
+    private ScannerViewModel mViewModel;
+    private ScannerActivity mActivity;
+
+    private MaterialCardView mVtContainerView;
+    private TextView mVtTitleView;
+    private TextView mVtDescriptionView;
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_scanner, container, false);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        mViewModel = new ViewModelProvider(requireActivity()).get(ScannerViewModel.class);
+        mActivity = (ScannerActivity) requireActivity();
+        int cardColor = MaterialColors.getColor(mActivity,
+                com.google.android.material.R.attr.colorSurfaceContainerLow,
+                ScannerFragment.class.getCanonicalName());
+        MaterialCardView classesView = view.findViewById(R.id.classes);
+        classesView.setCardBackgroundColor(cardColor);
+        MaterialCardView trackersView = view.findViewById(R.id.tracker);
+        trackersView.setCardBackgroundColor(cardColor);
+        MaterialCardView offlineBannerView = view.findViewById(R.id.scanner_offline_banner);
+        offlineBannerView.setCardBackgroundColor(cardColor);
+        mVtContainerView = view.findViewById(R.id.vt);
+        mVtContainerView.setCardBackgroundColor(cardColor);
+        mVtTitleView = view.findViewById(R.id.vt_title);
+        mVtDescriptionView = view.findViewById(R.id.vt_description);
+        MaterialCardView libsView = view.findViewById(R.id.libs);
+        libsView.setCardBackgroundColor(cardColor);
+        MaterialCardView apkInfoView = view.findViewById(R.id.apk);
+        apkInfoView.setCardBackgroundColor(cardColor);
+        MaterialCardView signaturesView = view.findViewById(R.id.signatures);
+        signaturesView.setCardBackgroundColor(cardColor);
+        MaterialCardView missingLibsView = view.findViewById(R.id.missing_libs);
+        missingLibsView.setCardBackgroundColor(cardColor);
+        boolean internetEnabled = FeatureController.isInternetEnabled();
+        offlineBannerView.setVisibility(internetEnabled ? View.GONE : View.VISIBLE);
+        // VirusTotal
+        if (!internetEnabled) {
+            if (Prefs.VirusTotal.getApiKey() != null) {
+                setOnlineReportRequiresNetwork(mVtContainerView, mVtTitleView, mVtDescriptionView,
+                        R.string.virus_total);
+            } else {
+                mVtContainerView.setVisibility(View.GONE);
+            }
+            view.findViewById(R.id.vt_disclaimer).setVisibility(View.GONE);
+        } else if (!FeatureController.isVirusTotalEnabled() || Prefs.VirusTotal.getApiKey() == null) {
+            mVtContainerView.setVisibility(View.GONE);
+            view.findViewById(R.id.vt_disclaimer).setVisibility(View.GONE);
+        }
+        // Checksum
+        mViewModel.apkChecksumsLiveData().observe(getViewLifecycleOwner(), checksums -> {
+            if (checksums == null) {
+                return;
+            }
+            List<CharSequence> lines = new ArrayList<>();
+            for (Pair<String, String> digest : checksums) {
+                lines.add(new SpannableStringBuilder()
+                        .append(getPrimaryText(mActivity, digest.first + LangUtils.getSeparatorString()))
+                        .append(getMonospacedText(digest.second)));
+            }
+            CharSequence checksumDetails = TextUtilsCompat.joinSpannable("\n", lines);
+            ((TextView) view.findViewById(R.id.apk_title)).setText(R.string.apk_checksums);
+            ((TextView) view.findViewById(R.id.apk_description)).setText(R.string.tap_to_see_details);
+            apkInfoView.setOnClickListener(v -> new MaterialAlertDialogBuilder(mActivity)
+                    .setTitle(R.string.apk_checksums)
+                    .setMessage(checksumDetails)
+                    .setPositiveButton(R.string.ok, null)
+                    .show());
+        });
+        // Package info: Title & subtitle
+        mViewModel.packageInfoLiveData().observe(getViewLifecycleOwner(), packageInfo -> {
+            if (packageInfo != null) {
+                String archiveFilePath = mViewModel.getApkFile().getAbsolutePath();
+                final ApplicationInfo applicationInfo = packageInfo.applicationInfo;
+                applicationInfo.publicSourceDir = archiveFilePath;
+                applicationInfo.sourceDir = archiveFilePath;
+                mAppName = applicationInfo.loadLabel(mActivity.getPackageManager());
+            } else {
+                File apkFile = mViewModel.getApkFile();
+                mAppName = apkFile != null ? apkFile.getName() : mViewModel.getApkUri().getLastPathSegment();
+            }
+            mActivity.setTitle(mAppName);
+            mActivity.setSubtitle(R.string.scanner);
+        });
+        // APK verifier result
+        mViewModel.apkVerifierResultLiveData().observe(getViewLifecycleOwner(), result -> {
+            TextView checksumDescription = view.findViewById(R.id.checksum_description);
+            Spannable verifierInfo = PackageUtils.getApkVerifierInfo(result, mActivity);
+            SpannableStringBuilder details = new SpannableStringBuilder(verifierInfo);
+            List<X509Certificate> certificates = result.getSignerCertificates();
+            if (certificates != null && !certificates.isEmpty()) {
+                details.append(getCertificateInfo(mActivity, certificates));
+            }
+            checksumDescription.setText(verifierInfo);
+            signaturesView.setOnClickListener(v -> new MaterialAlertDialogBuilder(mActivity)
+                    .setTitle(R.string.app_signing_signature)
+                    .setMessage(details)
+                    .setPositiveButton(R.string.ok, null)
+                    .show());
+        });
+        // List all classes
+        mViewModel.allClassesLiveData().observe(getViewLifecycleOwner(), allClasses -> {
+            ((TextView) view.findViewById(R.id.classes_title)).setText(getResources().getQuantityString(R.plurals.classes,
+                    allClasses.size(), allClasses.size()));
+            classesView.setOnClickListener(v -> mActivity.loadNewFragment(new ClassListingFragment()));
+        });
+        // List tracker classes
+        mViewModel.trackerClassesLiveData().observe(getViewLifecycleOwner(), trackerClasses ->
+                setTrackerInfo(trackerClasses, view));
+        // List library classes
+        mViewModel.libraryClassesLiveData().observe(getViewLifecycleOwner(), libraryClasses -> {
+            setLibraryInfo(libraryClasses, view);
+            // Progress is dismissed here because this will take the largest time
+            mActivity.showProgress(false);
+        });
+        // List missing classes
+        mViewModel.missingClassesLiveData().observe(getViewLifecycleOwner(), missingClasses -> {
+            if (!missingClasses.isEmpty()) {
+                ((TextView) view.findViewById(R.id.missing_libs_title)).setText(getResources().getQuantityString(R.plurals.missing_signatures, missingClasses.size(), missingClasses.size()));
+                missingLibsView.setVisibility(View.VISIBLE);
+                missingLibsView.setOnClickListener(v2 -> new SearchableMultiChoiceDialogBuilder<>(mActivity, missingClasses,
+                        ArrayUtils.toCharSequence(missingClasses))
+                        .setTitle(R.string.signatures)
+                        .showSelectAll(false)
+                        .setNegativeButton(R.string.ok, null)
+                        .setNeutralButton(R.string.send_selected, (dialog, which, selectedItems) -> {
+                            String message = formatMissingSignaturesReport(mViewModel.getPackageName(),
+                                    selectedItems);
+                            startActivity(Intent.createChooser(buildMissingSignaturesEmailIntent(message),
+                                    getText(R.string.signatures)));
+                        })
+                        .show());
+            }
+        });
+        mViewModel.vtFileUploadLiveData().observe(getViewLifecycleOwner(), permalink -> {
+            if (!internetEnabled) {
+                return;
+            }
+            if (permalink == null) {
+                // Uploading
+                mVtTitleView.setText(R.string.vt_uploading);
+                if (Prefs.VirusTotal.promptBeforeUpload()) {
+                    new MaterialAlertDialogBuilder(mActivity)
+                            .setTitle(R.string.scan_in_vt)
+                            .setMessage(R.string.vt_confirm_uploading_file)
+                            .setCancelable(false)
+                            .setPositiveButton(R.string.vt_confirm_upload_and_scan, (dialog, which) -> mViewModel.enableUploading())
+                            .setNegativeButton(R.string.no, (dialog, which) -> mViewModel.disableUploading())
+                            .show();
+                } else mViewModel.enableUploading();
+            } else {
+                // Upload completed and queued
+                mVtTitleView.setText(R.string.vt_queued);
+                mVtDescriptionView.setText(permalink);
+            }
+        });
+        mViewModel.vtFileReportLiveData().observe(getViewLifecycleOwner(), vtFileReport -> {
+            if (!internetEnabled) {
+                return;
+            }
+            if (vtFileReport == null) {
+                // Failed
+                mVtTitleView.setText(R.string.vt_failed);
+                mVtDescriptionView.setText(null);
+                mVtContainerView.setOnClickListener(null);
+            } else {
+                // Successful
+                publishVirusTotalReport(vtFileReport);
+            }
+        });
+        // Load summary for the APK file
+        mViewModel.loadSummary();
+    }
+
+    private void setOnlineReportRequiresNetwork(@NonNull MaterialCardView containerView,
+                                                @NonNull TextView titleView,
+                                                @NonNull TextView descriptionView,
+                                                int titleRes) {
+        containerView.setVisibility(View.VISIBLE);
+        containerView.setEnabled(false);
+        containerView.setClickable(false);
+        containerView.setAlpha(0.62f);
+        titleView.setText(titleRes);
+        descriptionView.setText(R.string.scanner_requires_network);
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static String formatMissingSignaturesReport(@Nullable String packageName,
+                                                @NonNull Collection<? extends CharSequence> selectedItems) {
+        StringBuilder message = new StringBuilder()
+                .append("Package: ")
+                .append(ExportTextUtils.escapeTsvField(packageName))
+                .append('\n')
+                .append("Signatures:");
+        for (CharSequence selectedItem : selectedItems) {
+            message.append('\n')
+                    .append("- ")
+                    .append(ExportTextUtils.escapeTsvField(
+                            selectedItem != null ? selectedItem.toString() : ""));
+        }
+        return message.toString();
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static Intent buildMissingSignaturesEmailIntent(@NonNull String message) {
+        if (message.isEmpty()) {
+            throw new IllegalArgumentException("No missing-signature report to share");
+        }
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType("message/rfc822");
+        intent.putExtra(Intent.EXTRA_EMAIL, new String[]{"am4android@riseup.net"});
+        intent.putExtra(Intent.EXTRA_SUBJECT, "App Manager: Missing signatures");
+        intent.putExtra(Intent.EXTRA_TEXT, message);
+        return intent;
+    }
+
+    private void publishVirusTotalReport(@NonNull VtFileReport vtFileReport) {
+        int positives = Objects.requireNonNull(vtFileReport.getPositives());
+        CharSequence resultSummary = getString(R.string.vt_success, positives, vtFileReport.getTotal());
+        @ColorInt
+        int color;
+        if (positives <= 3) {
+            color = ColorCodes.getVirusTotalSafeIndicatorColor(mActivity);
+        } else if (positives <= 12) {
+            color = ColorCodes.getVirusTotalUnsafeIndicatorColor(mActivity);
+        } else color = ColorCodes.getVirusTotalExtremelyUnsafeIndicatorColor(mActivity);
+        CharSequence scanDate = getString(R.string.vt_scan_date, DateUtils.formatDateTime(mActivity, vtFileReport.scanDate));
+        String permalink = vtFileReport.permalink;
+        Spanned result;
+        List<VtAvEngineResult> vtFileReportScanItems = vtFileReport.results;
+        if (!vtFileReportScanItems.isEmpty()) {
+            int colorUnsafe = ColorCodes.getVirusTotalExtremelyUnsafeIndicatorColor(mActivity);
+            int colorSafe = ColorCodes.getVirusTotalSafeIndicatorColor(mActivity);
+            ArrayList<Spannable> detectedList = new ArrayList<>();
+            ArrayList<Spannable> suspiciousList = new ArrayList<>();
+            ArrayList<Spannable> undetectedList = new ArrayList<>();
+            ArrayList<Spannable> neutralList = new ArrayList<>();
+            for (VtAvEngineResult item : vtFileReportScanItems) {
+                SpannableStringBuilder sb = new SpannableStringBuilder();
+                Spannable title = getPrimaryText(mActivity, item.engineName);
+                if (item.category < VtAvEngineResult.CAT_UNDETECTED) {
+                    sb.append(title);
+                    neutralList.add(sb);
+                } else if (item.category < VtAvEngineResult.CAT_SUSPICIOUS) {
+                    sb.append(getColoredText(title, colorSafe));
+                    undetectedList.add(sb);
+                } else if (item.category == VtAvEngineResult.CAT_SUSPICIOUS) {
+                    sb.append(getColoredText(title, colorUnsafe));
+                    suspiciousList.add(sb);
+                } else { // malicious
+                    sb.append(getColoredText(title, colorUnsafe));
+                    detectedList.add(sb);
+                }
+                sb.append(getSmallerText(" (" + item.engineVersion + ")"));
+                if (item.result != null) {
+                    sb.append("\n").append(item.result);
+                }
+            }
+            detectedList.addAll(suspiciousList);
+            detectedList.addAll(undetectedList);
+            detectedList.addAll(neutralList);
+            result = UiUtils.getOrderedList(detectedList);
+        } else result = null;
+        mVtTitleView.setText(getColoredText(resultSummary, color));
+        if (result != null) {
+            mVtDescriptionView.setText(R.string.tap_to_see_details);
+            mVtContainerView.setOnClickListener(v -> {
+                VirusTotalDialog fragment = VirusTotalDialog.getInstance(resultSummary, scanDate, result, permalink);
+                fragment.show(getParentFragmentManager(), VirusTotalDialog.TAG);
+            });
+        }
+    }
+
+    @NonNull
+    private Map<String, SpannableStringBuilder> getNativeLibraryInfo(boolean trackerOnly) {
+        Collection<String> nativeLibsInApk = mViewModel.getNativeLibraries();
+        if (nativeLibsInApk == null || nativeLibsInApk.isEmpty()) return new HashMap<>();
+        String[] libNames = getResources().getStringArray(R.array.lib_native_names);
+        String[] libSignatures = getResources().getStringArray(R.array.lib_native_signatures);
+        int[] isTracker = getResources().getIntArray(R.array.lib_native_is_tracker);
+        // The following array is directly mapped to the arrays above
+        @SuppressWarnings("unchecked")
+        List<String>[] matchedLibs = new List[libSignatures.length];
+        Map<String, SpannableStringBuilder> foundNativeLibInfoMap = new ArrayMap<>();
+        for (int i = 0; i < libSignatures.length; ++i) {
+            if (trackerOnly && isTracker[i] == 0) continue;
+            Pattern pattern = Pattern.compile(libSignatures[i]);
+            for (String lib : nativeLibsInApk) {
+                if (pattern.matcher(lib).find()) {
+                    if (matchedLibs[i] == null) {
+                        matchedLibs[i] = new ArrayList<>();
+                    }
+                    matchedLibs[i].add(lib);
+                }
+            }
+            if (matchedLibs[i] == null) continue;
+            SpannableStringBuilder builder = foundNativeLibInfoMap.get(libNames[i]);
+            if (builder == null) {
+                builder = new SpannableStringBuilder(getPrimaryText(mActivity, libNames[i]));
+                foundNativeLibInfoMap.put(libNames[i], builder);
+            }
+            for (String lib : matchedLibs[i]) {
+                builder.append("\n").append(getMonospacedText(lib));
+            }
+        }
+        return foundNativeLibInfoMap;
+    }
+
+    private void setTrackerInfo(@NonNull List<SignatureInfo> trackerInfoList, @NonNull View view) {
+        Map<String, SpannableStringBuilder> nativeTrackerInfoMap = getNativeLibraryInfo(true);
+        List<ScannerTrackerSummary.Organization> trackerSummaries = ScannerTrackerSummary.summarize(trackerInfoList);
+        List<Spannable> foundTrackerInfo = new ArrayList<>(nativeTrackerInfoMap.values());
+        EnumMap<TrackerCategory, List<Spannable>> trackerRowsByCategory = new EnumMap<>(TrackerCategory.class);
+        TreeSet<String> foundTrackerNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        foundTrackerNames.addAll(nativeTrackerInfoMap.keySet());
+        boolean hasSecondDegree = false;
+
+        for (ScannerTrackerSummary.Organization trackerSummary : trackerSummaries) {
+            SpannableStringBuilder row = buildTrackerOrganizationRow(trackerSummary);
+            foundTrackerInfo.add(row);
+            List<Spannable> rows = trackerRowsByCategory.get(trackerSummary.category);
+            if (rows == null) {
+                rows = new ArrayList<>();
+                trackerRowsByCategory.put(trackerSummary.category, rows);
+            }
+            rows.add(row);
+            foundTrackerNames.add(trackerSummary.label);
+            for (SignatureInfo signatureInfo : trackerSummary.signatures) {
+                if (!hasSecondDegree && signatureInfo.label.startsWith("²")) {
+                    hasSecondDegree = true;
+                }
+            }
+        }
+
+        Collections.sort(foundTrackerInfo, (o1, o2) -> o1.toString().compareToIgnoreCase(o2.toString()));
+        SpannableStringBuilder trackerList = new SpannableStringBuilder(UiUtils.getOrderedList(foundTrackerInfo));
+        CharSequence[] filterLabels = buildTrackerFilterLabels(trackerRowsByCategory);
+        CharSequence[] filterMessages = buildTrackerFilterMessages(trackerList, trackerRowsByCategory);
+        SpannableStringBuilder categoryBreakdown = buildTrackerCategoryBreakdown(trackerRowsByCategory);
+
+        SpannableStringBuilder foundTrackerList = new SpannableStringBuilder();
+        int totalTrackersFound = foundTrackerNames.size();
+        if (totalTrackersFound > 0) {
+            foundTrackerList.append(getString(R.string.found_trackers)).append(" ").append(
+                    TextUtilsCompat.joinSpannable(", ", foundTrackerNames));
+            if (categoryBreakdown.length() > 0) {
+                foundTrackerList.append("\n").append(categoryBreakdown);
+            }
+        }
+        CharSequence databaseSummary = getTrackerDatabaseSummary(requireContext());
+        if (foundTrackerList.length() > 0) {
+            foundTrackerList.append("\n");
+        }
+        foundTrackerList.append(databaseSummary);
+        foundTrackerList.append("\n").append(getSmallerText(
+                getResultLimitation(requireContext(), totalTrackersFound)));
+
+        List<String> trackerClasses = mViewModel.getTrackerClasses();
+        int totalTrackerClasses = trackerClasses != null ? trackerClasses.size() : 0;
+        // Get summary
+        CharSequence summary;
+        if (totalTrackersFound == 0) {
+            summary = getString(R.string.no_tracker_found);
+        } else if (totalTrackersFound == 1) {
+            summary = getResources().getQuantityString(R.plurals.tracker_and_classes, totalTrackerClasses, totalTrackerClasses);
+        } else if (totalTrackersFound == 2) {
+            summary = getResources().getQuantityString(R.plurals.two_trackers_and_classes, totalTrackerClasses, totalTrackerClasses);
+        } else {
+            summary = getResources().getQuantityString(R.plurals.other_trackers_and_classes, totalTrackersFound, totalTrackersFound, totalTrackerClasses);
+        }
+        // Add colours
+        CharSequence coloredSummary;
+        if (totalTrackersFound == 0) {
+            coloredSummary = getColoredText(summary, ColorCodes.getScannerNoTrackerIndicatorColor(mActivity));
+        } else {
+            coloredSummary = getColoredText(summary, ColorCodes.getScannerTrackerIndicatorColor(mActivity));
+        }
+
+        TextView trackerInfoTitle = view.findViewById(R.id.tracker_title);
+        TextView trackerInfoDescription = view.findViewById(R.id.tracker_description);
+        trackerInfoTitle.setText(coloredSummary);
+        if (totalTrackersFound == 0) {
+            trackerInfoDescription.setVisibility(View.VISIBLE);
+            trackerInfoDescription.setText(foundTrackerList);
+            return;
+        }
+        trackerInfoDescription.setVisibility(View.VISIBLE);
+        trackerInfoDescription.setText(foundTrackerList);
+        MaterialCardView trackersView = view.findViewById(R.id.tracker);
+        boolean finalHasSecondDegree = hasSecondDegree;
+        trackersView.setOnClickListener(v -> {
+            TrackerInfoDialog fragment = TrackerInfoDialog.getInstance(coloredSummary, trackerList,
+                    finalHasSecondDegree, filterLabels, filterMessages);
+            fragment.show(getParentFragmentManager(), TrackerInfoDialog.TAG);
+        });
+    }
+
+    /**
+     * States what the result is evidence of, next to the result itself. Absence is the dangerous
+     * case: an unqualified "no trackers" reads as a clean bill of health, which one class-name
+     * detector cannot support.
+     */
+    @VisibleForTesting
+    @NonNull
+    static String getResultLimitation(@NonNull Context context, int totalTrackersFound) {
+        return context.getString(totalTrackersFound == 0
+                ? R.string.scanner_absence_limitation
+                : R.string.scanner_match_limitation);
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static CharSequence getTrackerDatabaseSummary(@NonNull Context context) {
+        int signatureCount = StaticDataset.getTrackerDatabaseSignatureCount();
+        SpannableStringBuilder summary = new SpannableStringBuilder(context.getResources().getQuantityString(
+                R.plurals.scanner_tracker_database_summary,
+                signatureCount,
+                StaticDataset.getTrackerDatabaseVersion(),
+                signatureCount));
+        String latestVersion = Prefs.Privacy.getLatestTrackerDatabaseVersion();
+        if (!TextUtils.isEmpty(latestVersion)
+                && !latestVersion.equals(StaticDataset.getTrackerDatabaseVersion())) {
+            summary.append("\n").append(context.getString(R.string.scanner_tracker_database_latest, latestVersion));
+        }
+        long lastCheck = Prefs.Privacy.getLastTrackerDatabaseCheckTime();
+        if (lastCheck > 0) {
+            summary.append("\n").append(context.getString(R.string.scanner_tracker_database_last_checked,
+                    DateUtils.formatLongDateTime(context, lastCheck)));
+        } else {
+            summary.append("\n").append(context.getString(R.string.scanner_tracker_database_not_checked));
+        }
+        return summary;
+    }
+
+    @NonNull
+    private SpannableStringBuilder buildTrackerOrganizationRow(
+            @NonNull ScannerTrackerSummary.Organization organization) {
+        SpannableStringBuilder builder = new SpannableStringBuilder(getPrimaryText(mActivity, organization.label));
+        builder.append("\n").append(getSmallerText(getTrackerOrganizationSummary(organization)));
+        for (SignatureInfo signatureInfo : organization.signatures) {
+            // Each rule carries its own standing: a second-degree signature is not the same
+            // evidence as a confirmed one, and collapsing them would overstate the result.
+            int matchCount = signatureInfo.getCount();
+            builder.append("\n")
+                    .append(getMonospacedText(signatureInfo.signature))
+                    .append("\n")
+                    .append(getSmallerText(getResources().getQuantityString(
+                            R.plurals.scanner_match_confidence_row, matchCount,
+                            getString(ScannerCertainty.confidenceOf(signatureInfo).labelRes),
+                            matchCount)));
+        }
+        builder.append("\n").append(getSmallerText(getString(R.string.scanner_detection_method)));
+        return builder;
+    }
+
+    @NonNull
+    private String getTrackerOrganizationSummary(@NonNull ScannerTrackerSummary.Organization organization) {
+        List<String> parts = new ArrayList<>(3);
+        parts.add(getString(organization.category.getLabelRes()));
+        parts.add(getResources().getQuantityString(R.plurals.scanner_signature_count,
+                organization.getSignatureCount(), organization.getSignatureCount()));
+        parts.add(getResources().getQuantityString(R.plurals.classes,
+                organization.classCount, organization.classCount));
+        return TextUtils.join(" - ", parts);
+    }
+
+    @Nullable
+    private CharSequence[] buildTrackerFilterLabels(@NonNull EnumMap<TrackerCategory, List<Spannable>> rowsByCategory) {
+        if (rowsByCategory.size() <= 1) {
+            return null;
+        }
+        List<CharSequence> labels = new ArrayList<>(rowsByCategory.size() + 1);
+        labels.add(getString(R.string.all));
+        for (TrackerCategory category : TrackerCategory.values()) {
+            List<Spannable> rows = rowsByCategory.get(category);
+            if (rows == null || rows.isEmpty()) {
+                continue;
+            }
+            labels.add(getString(R.string.scanner_category_chip,
+                    getString(category.getLabelRes()), rows.size()));
+        }
+        return labels.toArray(new CharSequence[0]);
+    }
+
+    @Nullable
+    private CharSequence[] buildTrackerFilterMessages(@NonNull CharSequence allRows,
+                                                      @NonNull EnumMap<TrackerCategory, List<Spannable>> rowsByCategory) {
+        if (rowsByCategory.size() <= 1) {
+            return null;
+        }
+        List<CharSequence> messages = new ArrayList<>(rowsByCategory.size() + 1);
+        messages.add(buildGroupedByCategory(rowsByCategory));
+        for (TrackerCategory category : TrackerCategory.values()) {
+            List<Spannable> rows = rowsByCategory.get(category);
+            if (rows == null || rows.isEmpty()) {
+                continue;
+            }
+            Collections.sort(rows, (o1, o2) -> o1.toString().compareToIgnoreCase(o2.toString()));
+            SpannableStringBuilder categoryMessage = new SpannableStringBuilder();
+            categoryMessage.append(getSmallerText(getString(category.getDescriptionRes())));
+            categoryMessage.append("\n\n");
+            categoryMessage.append(UiUtils.getOrderedList(rows));
+            messages.add(categoryMessage);
+        }
+        return messages.toArray(new CharSequence[0]);
+    }
+
+    @NonNull
+    private CharSequence buildGroupedByCategory(
+            @NonNull EnumMap<TrackerCategory, List<Spannable>> rowsByCategory) {
+        SpannableStringBuilder grouped = new SpannableStringBuilder();
+        boolean first = true;
+        for (TrackerCategory category : TrackerCategory.values()) {
+            List<Spannable> rows = rowsByCategory.get(category);
+            if (rows == null || rows.isEmpty()) {
+                continue;
+            }
+            if (!first) {
+                grouped.append("\n\n");
+            }
+            first = false;
+            List<Spannable> sorted = new ArrayList<>(rows);
+            Collections.sort(sorted, (o1, o2) -> o1.toString().compareToIgnoreCase(o2.toString()));
+            grouped.append(getPrimaryText(mActivity,
+                    getString(category.getLabelRes()) + " (" + rows.size() + ")"));
+            grouped.append("\n");
+            grouped.append(getSmallerText(getString(category.getDescriptionRes())));
+            grouped.append("\n");
+            grouped.append(UiUtils.getOrderedList(sorted));
+        }
+        return grouped;
+    }
+
+    @NonNull
+    private SpannableStringBuilder buildTrackerCategoryBreakdown(
+            @NonNull EnumMap<TrackerCategory, List<Spannable>> rowsByCategory) {
+        List<CharSequence> parts = new ArrayList<>();
+        for (TrackerCategory category : TrackerCategory.values()) {
+            List<Spannable> rows = rowsByCategory.get(category);
+            if (rows == null || rows.isEmpty()) {
+                continue;
+            }
+            parts.add(getString(R.string.scanner_category_summary,
+                    getString(category.getLabelRes()), rows.size()));
+        }
+        return new SpannableStringBuilder(TextUtilsCompat.joinSpannable(" - ", parts));
+    }
+
+    private void setLibraryInfo(@NonNull List<SignatureInfo> libraryInfoList, @NonNull View view) {
+        Map<String, SpannableStringBuilder> foundLibInfoMap = new ArrayMap<>();
+        foundLibInfoMap.putAll(getNativeLibraryInfo(false));
+        Map<String, String> libTypeByLabel = new HashMap<>();
+        // Iterate over signatures again but this time list only the found ones.
+        for (SignatureInfo libraryInfo : libraryInfoList) {
+            libTypeByLabel.put(libraryInfo.label, libraryInfo.type);
+            if (foundLibInfoMap.get(libraryInfo.label) == null) {
+                // Add the lib info since it isn't added already
+                foundLibInfoMap.put(libraryInfo.label, new SpannableStringBuilder()
+                        .append(getPrimaryText(mActivity, libraryInfo.label))
+                        .append(getSmallerText(" (" + libraryInfo.type + ")")));
+            }
+            //noinspection ConstantConditions Never null here
+            foundLibInfoMap.get(libraryInfo.label)
+                    .append("\n")
+                    .append(getMonospacedText(libraryInfo.signature))
+                    .append(getSmallerText(" (" + libraryInfo.getCount() + ")"));
+        }
+        List<Spannable> foundLibInfoList = new ArrayList<>(foundLibInfoMap.values());
+        int totalLibsFound = foundLibInfoList.size();
+        Collections.sort(foundLibInfoList, (o1, o2) -> o1.toString().compareToIgnoreCase(o2.toString()));
+        Spanned foundLibsInfo = UiUtils.getOrderedList(foundLibInfoList);
+        Map<String, List<Spannable>> libraryRowsByType = getLibraryRowsByType(foundLibInfoMap, libTypeByLabel);
+        CharSequence[] filterLabels = buildNamedFilterLabels(libraryRowsByType);
+        CharSequence[] filterMessages = buildNamedFilterMessages(foundLibsInfo, libraryRowsByType);
+        String summary;
+        if (totalLibsFound == 0) {
+            summary = getString(R.string.no_libs);
+        } else {
+            summary = getResources().getQuantityString(R.plurals.libraries, totalLibsFound, totalLibsFound);
+        }
+
+        ((TextView) view.findViewById(R.id.libs_title)).setText(summary);
+        TextView libraryDescription = view.findViewById(R.id.libs_description);
+        libraryDescription.setVisibility(totalLibsFound == 0 ? View.GONE : View.VISIBLE);
+        libraryDescription.setText(R.string.tap_to_see_details);
+        if (totalLibsFound == 0) return;
+        MaterialCardView libsView = view.findViewById(R.id.libs);
+        libsView.setOnClickListener(v -> {
+            LibraryInfoDialog fragment = LibraryInfoDialog.getInstance(summary, foundLibsInfo,
+                    filterLabels, filterMessages);
+            fragment.show(getParentFragmentManager(), LibraryInfoDialog.TAG);
+        });
+
+    }
+
+    @NonNull
+    private Map<String, List<Spannable>> getLibraryRowsByType(
+            @NonNull Map<String, SpannableStringBuilder> foundLibInfoMap,
+            @NonNull Map<String, String> libTypeByLabel) {
+        Map<String, List<Spannable>> rowsByType = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        for (Map.Entry<String, String> entry : libTypeByLabel.entrySet()) {
+            SpannableStringBuilder row = foundLibInfoMap.get(entry.getKey());
+            if (row == null) {
+                continue;
+            }
+            List<Spannable> rows = rowsByType.get(entry.getValue());
+            if (rows == null) {
+                rows = new ArrayList<>();
+                rowsByType.put(entry.getValue(), rows);
+            }
+            rows.add(row);
+        }
+        return rowsByType;
+    }
+
+    @Nullable
+    private CharSequence[] buildNamedFilterLabels(@NonNull Map<String, List<Spannable>> rowsByName) {
+        if (rowsByName.size() <= 1) {
+            return null;
+        }
+        List<CharSequence> labels = new ArrayList<>(rowsByName.size() + 1);
+        labels.add(getString(R.string.all));
+        for (Map.Entry<String, List<Spannable>> entry : rowsByName.entrySet()) {
+            labels.add(getString(R.string.scanner_category_chip, entry.getKey(), entry.getValue().size()));
+        }
+        return labels.toArray(new CharSequence[0]);
+    }
+
+    @Nullable
+    private CharSequence[] buildNamedFilterMessages(@NonNull CharSequence allRows,
+                                                    @NonNull Map<String, List<Spannable>> rowsByName) {
+        if (rowsByName.size() <= 1) {
+            return null;
+        }
+        List<CharSequence> messages = new ArrayList<>(rowsByName.size() + 1);
+        messages.add(allRows);
+        for (List<Spannable> rows : rowsByName.values()) {
+            Collections.sort(rows, (o1, o2) -> o1.toString().compareToIgnoreCase(o2.toString()));
+            messages.add(UiUtils.getOrderedList(rows));
+        }
+        return messages.toArray(new CharSequence[0]);
+    }
+
+    @NonNull
+    private static Spannable getCertificateInfo(@NonNull Context context, @NonNull List<X509Certificate> certificates) {
+        SpannableStringBuilder builder = new SpannableStringBuilder();
+        for (X509Certificate cert : certificates) {
+            try {
+                if (builder.length() > 0) builder.append("\n\n");
+                builder.append(getPrimaryText(context, context.getString(R.string.issuer) + LangUtils.getSeparatorString()))
+                        .append(cert.getIssuerX500Principal().getName()).append("\n")
+                        .append(getPrimaryText(context, context.getString(R.string.algorithm) + LangUtils.getSeparatorString()))
+                        .append(Utils.getCertificateSignatureAlgorithmName(cert)).append("\n");
+                // Checksums
+                builder.append(getPrimaryText(context, context.getString(R.string.checksums)));
+                Pair<String, String>[] digests = DigestUtils.getDigests(cert.getEncoded());
+                for (Pair<String, String> digest : digests) {
+                    builder.append("\n")
+                            .append(getPrimaryText(context, digest.first + LangUtils.getSeparatorString()))
+                            .append(getMonospacedText(digest.second));
+                }
+            } catch (CertificateEncodingException e) {
+                Log.w(TAG, e);
+            }
+        }
+        return builder;
+    }
+}

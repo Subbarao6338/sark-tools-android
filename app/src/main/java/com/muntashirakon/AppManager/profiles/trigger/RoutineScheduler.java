@@ -1,0 +1,447 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.profiles.trigger;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.text.format.DateUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.work.Constraints;
+import androidx.work.Data;
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.NetworkType;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.text.DateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.self.PackageEventSync;
+
+public final class RoutineScheduler {
+    public static final String WORK_TAG = "routine_trigger";
+    public static final long DAILY_INTERVAL_MILLIS = TimeUnit.DAYS.toMillis(1);
+    public static final long MIN_PERIODIC_INTERVAL_MILLIS = PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS;
+
+    private static final String UNIQUE_WORK_PREFIX = "routine_trigger_";
+    private static final String PREFS_NAME = "profile_trigger_runs";
+    private static final String KEY_LAST_RUN_PREFIX = "last_run_";
+    private static final String KEY_LAST_RESULT_PREFIX = "last_result_";
+    private static final String KEY_LAST_DIAGNOSTICS_PREFIX = "last_diagnostics_";
+    private static final String KEY_RUN_HISTORY_PREFIX = "run_history_";
+    @VisibleForTesting
+    static final int MAX_RUN_HISTORY = 10;
+
+    private RoutineScheduler() {
+    }
+
+    public static void applyAll(@NonNull Context context) {
+        ProfileTriggerStore store = new ProfileTriggerStore(context);
+        for (ProfileTrigger trigger : store.all()) {
+            scheduleOrCancel(context, trigger);
+        }
+    }
+
+    public static void scheduleOrCancel(@NonNull Context context, @NonNull ProfileTrigger trigger) {
+        if (trigger.type == ProfileTrigger.TYPE_ON_BOOT || isPackageEventTrigger(trigger.type)) {
+            // Boot/package-event triggers are scheduled as one-time work only when
+            // their matching broadcast arrives. applyAll() must not invent periodic
+            // jobs for enabled broadcast triggers; only tear down disabled ones.
+            if (!trigger.enabled) {
+                cancel(context, trigger);
+            }
+            if (isPackageEventTrigger(trigger.type)) {
+                // Android 8+ doesn't send these broadcasts to the manifest, so the app change sync has to run.
+                PackageEventSync.scheduleOrCancel(context);
+            }
+            return;
+        }
+        if (trigger.enabled) {
+            schedule(context, trigger);
+        } else {
+            cancel(context, trigger);
+        }
+    }
+
+    public static void schedule(@NonNull Context context, @NonNull ProfileTrigger trigger) {
+        if (trigger.type == ProfileTrigger.TYPE_ON_BOOT || isPackageEventTrigger(trigger.type)) {
+            return;
+        }
+        PeriodicWorkRequest request = new PeriodicWorkRequest.Builder(
+                RoutineWorker.class, getRepeatIntervalMillis(trigger), TimeUnit.MILLISECONDS)
+                .setInitialDelay(getInitialDelayMillis(trigger, System.currentTimeMillis()), TimeUnit.MILLISECONDS)
+                .setInputData(inputData(trigger.id))
+                .setConstraints(buildConstraints(trigger))
+                .addTag(WORK_TAG)
+                .addTag(workTagForTrigger(trigger.id))
+                .build();
+        WorkManager.getInstance(context.getApplicationContext()).enqueueUniquePeriodicWork(
+                uniqueWorkName(trigger.id), ExistingPeriodicWorkPolicy.UPDATE, request);
+    }
+
+    public static void enqueueBootTriggers(@NonNull Context context) {
+        ProfileTriggerStore store = new ProfileTriggerStore(context);
+        for (ProfileTrigger trigger : store.all()) {
+            if (trigger.enabled && trigger.type == ProfileTrigger.TYPE_ON_BOOT) {
+                enqueueOneTime(context, trigger);
+            }
+        }
+    }
+
+    public static void enqueuePackageEventTriggers(@NonNull Context context, @ProfileTrigger.Type int triggerType) {
+        enqueuePackageEventTriggers(context, triggerType, null);
+    }
+
+    public static void enqueuePackageEventTriggers(@NonNull Context context,
+                                                   @ProfileTrigger.Type int triggerType,
+                                                   @Nullable String changedPackage) {
+        if (!isPackageEventTrigger(triggerType)) {
+            return;
+        }
+        ProfileTriggerStore store = new ProfileTriggerStore(context);
+        for (ProfileTrigger trigger : matchingPackageEventTriggers(store, triggerType, changedPackage)) {
+            enqueueOneTime(context, trigger);
+        }
+    }
+
+    public static void enqueueOneTime(@NonNull Context context, @NonNull ProfileTrigger trigger) {
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(RoutineWorker.class)
+                .setInputData(inputData(trigger.id))
+                .addTag(WORK_TAG)
+                .addTag(workTagForTrigger(trigger.id))
+                .build();
+        WorkManager.getInstance(context.getApplicationContext()).enqueueUniqueWork(
+                uniqueWorkName(trigger.id), ExistingWorkPolicy.REPLACE, request);
+    }
+
+    public static void cancel(@NonNull Context context, @NonNull ProfileTrigger trigger) {
+        WorkManager.getInstance(context.getApplicationContext()).cancelUniqueWork(uniqueWorkName(trigger.id));
+    }
+
+    public static void recordRunResult(@NonNull Context context,
+                                       @NonNull String triggerId,
+                                       @NonNull String result) {
+        long now = System.currentTimeMillis();
+        SharedPreferences prefs = getRunPrefs(context);
+        prefs.edit()
+                .putLong(KEY_LAST_RUN_PREFIX + triggerId, now)
+                .putString(KEY_LAST_RESULT_PREFIX + triggerId, result)
+                .apply();
+        appendRunHistory(prefs, triggerId, now, result);
+    }
+
+    private static final Object sHistoryLock = new Object();
+
+    private static void appendRunHistory(@NonNull SharedPreferences prefs,
+                                         @NonNull String triggerId,
+                                         long runAtMs,
+                                         @NonNull String result) {
+        String key = KEY_RUN_HISTORY_PREFIX + triggerId;
+        synchronized (sHistoryLock) {
+            String existing = prefs.getString(key, "[]");
+            JSONArray history;
+            try {
+                history = new JSONArray(existing);
+            } catch (Exception e) {
+                history = new JSONArray();
+            }
+            try {
+                JSONObject entry = new JSONObject();
+                entry.put("t", runAtMs);
+                entry.put("r", result);
+                history.put(entry);
+                while (history.length() > MAX_RUN_HISTORY) {
+                    history.remove(0);
+                }
+                prefs.edit().putString(key, history.toString()).apply();
+            } catch (Exception ignore) {
+            }
+        }
+    }
+
+    @NonNull
+    public static List<RunHistoryEntry> getRunHistory(@NonNull Context context,
+                                                      @NonNull String triggerId) {
+        String key = KEY_RUN_HISTORY_PREFIX + triggerId;
+        String json = getRunPrefs(context).getString(key, "[]");
+        try {
+            JSONArray history = new JSONArray(json);
+            List<RunHistoryEntry> entries = new ArrayList<>(history.length());
+            for (int i = history.length() - 1; i >= 0; i--) {
+                JSONObject obj = history.getJSONObject(i);
+                entries.add(new RunHistoryEntry(obj.getLong("t"), obj.getString("r")));
+            }
+            return entries;
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
+
+    public static final class RunHistoryEntry {
+        public final long runAtMs;
+        @NonNull
+        public final String result;
+
+        public RunHistoryEntry(long runAtMs, @NonNull String result) {
+            this.runAtMs = runAtMs;
+            this.result = result;
+        }
+    }
+
+    public static void recordDiagnostics(@NonNull Context context,
+                                         @NonNull String triggerId,
+                                         @NonNull String diagnostics) {
+        getRunPrefs(context).edit()
+                .putString(KEY_LAST_DIAGNOSTICS_PREFIX + triggerId, diagnostics)
+                .apply();
+    }
+
+    public static void clearStoredState(@NonNull Context context, @NonNull String triggerId) {
+        getRunPrefs(context).edit()
+                .remove(KEY_LAST_RUN_PREFIX + triggerId)
+                .remove(KEY_LAST_RESULT_PREFIX + triggerId)
+                .remove(KEY_LAST_DIAGNOSTICS_PREFIX + triggerId)
+                .remove(KEY_RUN_HISTORY_PREFIX + triggerId)
+                .apply();
+    }
+
+    public static long getLastRunMillis(@NonNull Context context, @NonNull String triggerId) {
+        return getRunPrefs(context).getLong(KEY_LAST_RUN_PREFIX + triggerId, 0L);
+    }
+
+    @Nullable
+    public static String getLastResult(@NonNull Context context, @NonNull String triggerId) {
+        return getRunPrefs(context).getString(KEY_LAST_RESULT_PREFIX + triggerId, null);
+    }
+
+    @Nullable
+    public static String getLastDiagnostics(@NonNull Context context, @NonNull String triggerId) {
+        return getRunPrefs(context).getString(KEY_LAST_DIAGNOSTICS_PREFIX + triggerId, null);
+    }
+
+    @NonNull
+    public static String refreshDiagnostics(@NonNull Context context, @NonNull ProfileTrigger trigger) {
+        try {
+            String diagnostics = RoutineDiagnostics.collect(context, trigger);
+            recordDiagnostics(context, trigger.id, diagnostics);
+            return diagnostics;
+        } catch (Exception th) {
+            if (th instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            String diagnostics = context.getString(R.string.profile_trigger_diagnostics_unavailable);
+            recordDiagnostics(context, trigger.id, diagnostics);
+            return diagnostics;
+        }
+    }
+
+    @NonNull
+    public static String formatTriggerTitle(@NonNull Context context, @NonNull ProfileTrigger trigger) {
+        String base;
+        switch (trigger.type) {
+            case ProfileTrigger.TYPE_ON_CHARGING:
+                base = context.getString(R.string.profile_trigger_on_charging);
+                break;
+            case ProfileTrigger.TYPE_ON_NETWORK_WIFI:
+                base = context.getString(R.string.profile_trigger_on_network_wifi);
+                break;
+            case ProfileTrigger.TYPE_ON_NETWORK_ANY:
+                base = context.getString(R.string.profile_trigger_on_network_any);
+                break;
+            case ProfileTrigger.TYPE_ON_BOOT:
+                base = context.getString(R.string.profile_trigger_on_boot);
+                break;
+            case ProfileTrigger.TYPE_ON_APP_INSTALL:
+                base = context.getString(R.string.profile_trigger_on_app_install);
+                break;
+            case ProfileTrigger.TYPE_ON_APP_UPDATE:
+                base = context.getString(R.string.profile_trigger_on_app_update);
+                break;
+            case ProfileTrigger.TYPE_ON_APP_UNINSTALL:
+                base = context.getString(R.string.profile_trigger_on_app_uninstall);
+                break;
+            case ProfileTrigger.TYPE_TIME_OF_DAY:
+            default:
+                base = context.getString(R.string.profile_trigger_time_of_day,
+                        formatTriggerTime(trigger.hourOfDay, trigger.minuteOfHour));
+                break;
+        }
+        if (ProfileTrigger.isPackageEventType(trigger.type) && !trigger.packagePattern.isEmpty()) {
+            base = context.getString(R.string.profile_trigger_package_filter_suffix, base, trigger.packagePattern);
+        }
+        if (trigger.hasFilter()) {
+            base = context.getString(R.string.profile_trigger_filter_suffix, base);
+        }
+        return base;
+    }
+
+    @NonNull
+    public static String formatTriggerSummary(@NonNull Context context, @NonNull ProfileTrigger trigger) {
+        String state = context.getString(trigger.enabled ? R.string.enabled : R.string.disabled_app);
+        String last = formatLastRun(context, trigger.id);
+        String diagnostics = getLastDiagnostics(context, trigger.id);
+        if (diagnostics == null || diagnostics.isEmpty()) {
+            diagnostics = trigger.type == ProfileTrigger.TYPE_ON_BOOT
+                    ? context.getString(R.string.profile_trigger_diagnostics_boot)
+                    : isPackageEventTrigger(trigger.type)
+                    ? context.getString(R.string.profile_trigger_diagnostics_package_event)
+                    : context.getString(R.string.profile_trigger_diagnostics_unknown);
+        }
+        return context.getString(R.string.profile_trigger_summary, state, last,
+                context.getString(R.string.profile_trigger_diagnostics, diagnostics));
+    }
+
+    @NonNull
+    public static String formatLastRun(@NonNull Context context, @NonNull String triggerId) {
+        String lastResult = getLastResult(context, triggerId);
+        long lastRun = getLastRunMillis(context, triggerId);
+        if (lastRun <= 0 || lastResult == null) {
+            return context.getString(R.string.profile_trigger_last_run_never);
+        }
+        String time = DateUtils.formatDateTime(context, lastRun,
+                DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_SHOW_TIME | DateUtils.FORMAT_ABBREV_MONTH);
+        return context.getString(R.string.profile_trigger_last_run_format, time, lastResult);
+    }
+
+    @NonNull
+    public static String formatTriggerTime(int hourOfDay, int minuteOfHour) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, Math.max(0, Math.min(23, hourOfDay)));
+        calendar.set(Calendar.MINUTE, Math.max(0, Math.min(59, minuteOfHour)));
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        return DateFormat.getTimeInstance(DateFormat.SHORT).format(calendar.getTime());
+    }
+
+    @NonNull
+    public static Constraints buildConstraints(@NonNull ProfileTrigger trigger) {
+        Constraints.Builder builder = new Constraints.Builder();
+        switch (trigger.type) {
+            case ProfileTrigger.TYPE_ON_CHARGING:
+                builder.setRequiresCharging(true);
+                break;
+            case ProfileTrigger.TYPE_ON_NETWORK_WIFI:
+                builder.setRequiredNetworkType(NetworkType.UNMETERED);
+                break;
+            case ProfileTrigger.TYPE_ON_NETWORK_ANY:
+                builder.setRequiredNetworkType(NetworkType.CONNECTED);
+                break;
+            case ProfileTrigger.TYPE_TIME_OF_DAY:
+            case ProfileTrigger.TYPE_ON_BOOT:
+            case ProfileTrigger.TYPE_ON_APP_INSTALL:
+            case ProfileTrigger.TYPE_ON_APP_UPDATE:
+            case ProfileTrigger.TYPE_ON_APP_UNINSTALL:
+            default:
+                builder.setRequiredNetworkType(NetworkType.NOT_REQUIRED);
+        }
+        return builder.build();
+    }
+
+    @VisibleForTesting
+    static long getRepeatIntervalMillis(@NonNull ProfileTrigger trigger) {
+        return trigger.type == ProfileTrigger.TYPE_TIME_OF_DAY
+                ? DAILY_INTERVAL_MILLIS : MIN_PERIODIC_INTERVAL_MILLIS;
+    }
+
+    /** Whether an enabled routine waits for an app to be installed, updated or removed. */
+    public static boolean hasEnabledPackageEventTrigger(@NonNull Context context) {
+        for (ProfileTrigger trigger : new ProfileTriggerStore(context).all()) {
+            if (trigger.enabled && isPackageEventTrigger(trigger.type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @VisibleForTesting
+    static boolean isPackageEventTrigger(@ProfileTrigger.Type int triggerType) {
+        return triggerType == ProfileTrigger.TYPE_ON_APP_INSTALL
+                || triggerType == ProfileTrigger.TYPE_ON_APP_UPDATE
+                || triggerType == ProfileTrigger.TYPE_ON_APP_UNINSTALL;
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static java.util.List<ProfileTrigger> matchingPackageEventTriggers(@NonNull ProfileTriggerStore store,
+                                                                       @ProfileTrigger.Type int triggerType) {
+        return matchingPackageEventTriggers(store, triggerType, null);
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static java.util.List<ProfileTrigger> matchingPackageEventTriggers(@NonNull ProfileTriggerStore store,
+                                                                       @ProfileTrigger.Type int triggerType,
+                                                                       @Nullable String changedPackage) {
+        java.util.ArrayList<ProfileTrigger> triggers = new java.util.ArrayList<>();
+        if (!isPackageEventTrigger(triggerType)) {
+            return triggers;
+        }
+        for (ProfileTrigger trigger : store.all()) {
+            if (trigger.enabled && trigger.type == triggerType && trigger.matchesPackage(changedPackage)) {
+                triggers.add(trigger);
+            }
+        }
+        return triggers;
+    }
+
+    @VisibleForTesting
+    static long getInitialDelayMillis(@NonNull ProfileTrigger trigger, long nowMillis) {
+        return getInitialDelayMillis(trigger, nowMillis, TimeZone.getDefault());
+    }
+
+    @VisibleForTesting
+    static long getInitialDelayMillis(@NonNull ProfileTrigger trigger,
+                                      long nowMillis,
+                                      @NonNull TimeZone timeZone) {
+        if (trigger.type != ProfileTrigger.TYPE_TIME_OF_DAY) {
+            return 0L;
+        }
+        Calendar next = Calendar.getInstance(timeZone);
+        next.setTimeInMillis(nowMillis);
+        next.set(Calendar.HOUR_OF_DAY, trigger.hourOfDay);
+        next.set(Calendar.MINUTE, trigger.minuteOfHour);
+        next.set(Calendar.SECOND, 0);
+        next.set(Calendar.MILLISECOND, 0);
+        if (next.getTimeInMillis() <= nowMillis) {
+            next.add(Calendar.DAY_OF_YEAR, 1);
+        }
+        return next.getTimeInMillis() - nowMillis;
+    }
+
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+    @NonNull
+    static String uniqueWorkName(@NonNull String triggerId) {
+        return UNIQUE_WORK_PREFIX + triggerId;
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static Data inputData(@NonNull String triggerId) {
+        return new Data.Builder().putString(RoutineWorker.KEY_TRIGGER_ID, triggerId).build();
+    }
+
+    @NonNull
+    private static String workTagForTrigger(@NonNull String triggerId) {
+        return WORK_TAG + '_' + triggerId.toLowerCase(Locale.ROOT);
+    }
+
+    @NonNull
+    private static SharedPreferences getRunPrefs(@NonNull Context context) {
+        return context.getApplicationContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+    }
+}

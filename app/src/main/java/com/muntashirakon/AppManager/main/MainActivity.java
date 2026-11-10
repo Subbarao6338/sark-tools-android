@@ -1,0 +1,1440 @@
+// SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.main;
+
+import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.text.TextUtils;
+import android.view.Gravity;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+
+import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.ActionBar;
+import androidx.collection.ArrayMap;
+import androidx.core.content.ContextCompat;
+import androidx.core.os.BundleCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.ViewModelProvider;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+import com.google.android.material.snackbar.Snackbar;
+
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+
+import io.github.muntashirakon.AppManager.BaseActivity;
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.accessibility.toast.ToastHistoryActivity;
+import io.github.muntashirakon.AppManager.apk.behavior.FreezeUnfreeze;
+import io.github.muntashirakon.AppManager.apk.dexopt.DexOptDialog;
+import io.github.muntashirakon.AppManager.apk.installer.AppArchiveManager;
+import io.github.muntashirakon.AppManager.apk.list.ListExporter;
+import io.github.muntashirakon.AppManager.backup.dialog.BackupRestoreDialogFragment;
+import io.github.muntashirakon.AppManager.batchops.BatchKeepOpenHint;
+import io.github.muntashirakon.AppManager.batchops.BatchOpsManager;
+import io.github.muntashirakon.AppManager.changelog.ChangelogAutoDisplay;
+import io.github.muntashirakon.AppManager.history.ops.DestructiveActionConfirmation;
+import io.github.muntashirakon.AppManager.batchops.BatchOpsJournal;
+import io.github.muntashirakon.AppManager.batchops.BatchOpsService;
+import io.github.muntashirakon.AppManager.batchops.SnackbarDurationPolicy;
+import io.github.muntashirakon.AppManager.batchops.UndoableActionQueue;
+import io.github.muntashirakon.AppManager.batchops.BatchQueueItem;
+import io.github.muntashirakon.AppManager.batchops.struct.BatchFreezeOptions;
+import io.github.muntashirakon.AppManager.batchops.struct.BatchNetPolicyOptions;
+import io.github.muntashirakon.AppManager.batchops.struct.IBatchOpOptions;
+import io.github.muntashirakon.AppManager.compat.NetworkPolicyManagerCompat;
+import io.github.muntashirakon.AppManager.crypto.auth.ActionAuthGate;
+import io.github.muntashirakon.AppManager.debloat.DebloaterActivity;
+import io.github.muntashirakon.AppManager.filters.FinderActivity;
+import io.github.muntashirakon.AppManager.history.ops.OpHistoryActivity;
+import io.github.muntashirakon.AppManager.misc.AdvancedSearchView;
+import io.github.muntashirakon.AppManager.misc.HelpActivity;
+import io.github.muntashirakon.AppManager.misc.LabsActivity;
+import io.github.muntashirakon.AppManager.oneclickops.OneClickOpsActivity;
+import io.github.muntashirakon.AppManager.onboarding.OnboardingFragment;
+import io.github.muntashirakon.AppManager.profiles.AddToProfileDialogFragment;
+import io.github.muntashirakon.AppManager.profiles.ProfilesActivity;
+import io.github.muntashirakon.AppManager.revert.OsRevertCountTracker;
+import io.github.muntashirakon.AppManager.rules.RulesTypeSelectionDialogFragment;
+import io.github.muntashirakon.AppManager.runningapps.RunningAppsActivity;
+import io.github.muntashirakon.AppManager.settings.FeatureController;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.settings.SettingsActivity;
+import io.github.muntashirakon.AppManager.shizuku.ShizukuBridge;
+import io.github.muntashirakon.AppManager.usage.AppUsageActivity;
+import io.github.muntashirakon.AppManager.users.Users;
+import io.github.muntashirakon.AppManager.utils.AppPref;
+import io.github.muntashirakon.AppManager.utils.DateUtils;
+import io.github.muntashirakon.AppManager.utils.ExportFilenameUtils;
+import io.github.muntashirakon.AppManager.utils.NotificationUtils;
+import io.github.muntashirakon.AppManager.utils.StoragePermission;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.dialog.SearchableFlagsDialogBuilder;
+import io.github.muntashirakon.dialog.SearchableSingleChoiceDialogBuilder;
+import io.github.muntashirakon.io.Paths;
+import io.github.muntashirakon.multiselection.MultiSelectionActionsView;
+import io.github.muntashirakon.util.UiUtils;
+import io.github.muntashirakon.widget.MultiSelectionView;
+import io.github.muntashirakon.widget.RecyclerView;
+import io.github.muntashirakon.widget.SwipeRefreshLayout;
+
+public class MainActivity extends BaseActivity implements AdvancedSearchView.OnQueryTextListener,
+        SwipeRefreshLayout.OnRefreshListener, MultiSelectionActionsView.OnItemSelectedListener,
+        MultiSelectionView.OnSelectionModeChangeListener {
+    private static final String PACKAGE_NAME_APK_UPDATER = "com.apkupdater";
+    private static final String ACTIVITY_NAME_APK_UPDATER = "com.apkupdater.activity.MainActivity";
+
+    private static boolean SHOW_DISCLAIMER = true;
+
+    MainViewModel viewModel;
+
+    private MainRecyclerAdapter mAdapter;
+    private RecyclerView mRecyclerView;
+    private AdvancedSearchView mSearchView;
+    private LinearProgressIndicator mProgressIndicator;
+
+    /** Debounce window for live search filtering (ms) — see INIT-1. */
+    private static final long SEARCH_DEBOUNCE_MS = 300L;
+    private static final String STATE_LIST_LAYOUT = "main_list_layout_state";
+    @Nullable
+    private Runnable mPendingSearch;
+    /** Saved RecyclerView layout state to restore after the async list re-populates. */
+    @Nullable
+    private android.os.Parcelable mPendingListState;
+    private boolean mImeVisibleBeforeLeave;
+    private SwipeRefreshLayout mSwipeRefresh;
+    private MultiSelectionView mMultiSelectionView;
+    private View mEmptyState;
+    private TextView mEmptyStateTitle;
+    private TextView mEmptyStateSummary;
+    private MaterialButton mEmptyStateAction;
+    private TextView mListStatusView;
+    @Nullable
+    private String mListStatusActionHint;
+    @Nullable
+    private MainViewModel.AppListLoadStatus mLastApplicationListLoadStatus;
+    MainBatchOpsHandler mBatchOpsHandler;
+    private boolean mBatchOpsRecoveryShown;
+    private boolean mExportVisibleAppList;
+    private boolean mExportAppListExtended;
+
+    private MenuItem mAppUsageMenu;
+
+    private final StoragePermission mStoragePermission = StoragePermission.init(this);
+
+    private final ActivityResultLauncher<String> mBatchExportRules = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("text/tab-separated-values"),
+            uri -> {
+                if (uri == null) {
+                    // Back button pressed.
+                    return;
+                }
+                if (viewModel == null) {
+                    // Invalid state
+                    return;
+                }
+                RulesTypeSelectionDialogFragment dialogFragment = new RulesTypeSelectionDialogFragment();
+                Bundle args = new Bundle();
+                args.putInt(RulesTypeSelectionDialogFragment.ARG_MODE, RulesTypeSelectionDialogFragment.MODE_EXPORT);
+                args.putParcelable(RulesTypeSelectionDialogFragment.ARG_URI, uri);
+                args.putStringArrayList(RulesTypeSelectionDialogFragment.ARG_PKG, new ArrayList<>(viewModel.getSelectedPackages().keySet()));
+                args.putIntArray(RulesTypeSelectionDialogFragment.ARG_USERS, Users.getUsersIds());
+                dialogFragment.setArguments(args);
+                dialogFragment.show(getSupportFragmentManager(), RulesTypeSelectionDialogFragment.TAG);
+            });
+
+    private final ActivityResultLauncher<String> mExportAppListCsv = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("text/csv"),
+            uri -> {
+                if (uri == null) {
+                    // Back button pressed.
+                    return;
+                }
+                mProgressIndicator.show();
+                viewModel.saveExportedAppList(ListExporter.EXPORT_TYPE_CSV, Paths.get(uri),
+                        mExportVisibleAppList, mExportAppListExtended);
+            });
+    private final ActivityResultLauncher<String> mExportAppListJson = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("application/json"),
+            uri -> {
+                if (uri == null) {
+                    // Back button pressed.
+                    return;
+                }
+                mProgressIndicator.show();
+                viewModel.saveExportedAppList(ListExporter.EXPORT_TYPE_JSON, Paths.get(uri),
+                        mExportVisibleAppList, mExportAppListExtended);
+            });
+    private final ActivityResultLauncher<String> mExportAppListXml = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("text/xml"),
+            uri -> {
+                if (uri == null) {
+                    // Back button pressed.
+                    return;
+                }
+                mProgressIndicator.show();
+                viewModel.saveExportedAppList(ListExporter.EXPORT_TYPE_XML, Paths.get(uri),
+                        mExportVisibleAppList, mExportAppListExtended);
+            });
+    private final ActivityResultLauncher<String> mExportAppListMarkdown = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("text/markdown"),
+            uri -> {
+                if (uri == null) {
+                    // Back button pressed.
+                    return;
+                }
+                mProgressIndicator.show();
+                viewModel.saveExportedAppList(ListExporter.EXPORT_TYPE_MARKDOWN, Paths.get(uri),
+                        mExportVisibleAppList, mExportAppListExtended);
+            });
+    private final ActivityResultLauncher<String[]> mImportAppListJson = registerForActivityResult(
+            new ActivityResultContracts.OpenDocument(),
+            uri -> {
+                if (uri == null) {
+                    // Back button pressed.
+                    return;
+                }
+                mProgressIndicator.show();
+                viewModel.importAppListSelection(Paths.get(uri));
+            });
+
+    private final BroadcastReceiver mBatchOpsBroadCastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            showProgressIndicator(false);
+        }
+    };
+
+    private final OnBackPressedCallback mOnBackPressedCallback = new OnBackPressedCallback(false) {
+        @Override
+        public void handleOnBackPressed() {
+            if (mAdapter != null && mMultiSelectionView != null && mAdapter.isInSelectionMode()) {
+                mMultiSelectionView.cancel();
+                return;
+            }
+            setEnabled(false);
+            getOnBackPressedDispatcher().onBackPressed();
+        }
+    };
+
+    @SuppressLint("RestrictedApi")
+    @Override
+    protected void onAuthenticated(Bundle savedInstanceState) {
+        setContentView(R.layout.activity_main_v2);
+        if (savedInstanceState != null) {
+            // Restored after the async list re-populates (see the applicationItems observer).
+            mPendingListState = BundleCompat.getParcelable(savedInstanceState, STATE_LIST_LAYOUT,
+                    android.os.Parcelable.class);
+        }
+        setSupportActionBar(findViewById(R.id.toolbar));
+        getOnBackPressedDispatcher().addCallback(this, mOnBackPressedCallback);
+        viewModel = new ViewModelProvider(this).get(MainViewModel.class);
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayShowCustomEnabled(true);
+            actionBar.setDisplayOptions(0, ActionBar.DISPLAY_SHOW_TITLE);
+            AdvancedSearchView searchView = new AdvancedSearchView(actionBar.getThemedContext());
+            searchView.setId(R.id.action_search);
+            searchView.setOnQueryTextListener(this);
+            // Set layout params
+            ActionBar.LayoutParams layoutParams = new ActionBar.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            layoutParams.gravity = Gravity.CENTER;
+            actionBar.setCustomView(searchView, layoutParams);
+            mSearchView = searchView;
+            mSearchView.setIconifiedByDefault(false);
+            // Check for market://search/?q=<query>
+            Uri marketUri = getIntent().getData();
+            if (marketUri != null && "market".equals(marketUri.getScheme()) && "search".equals(marketUri.getHost())) {
+                String query = marketUri.getQueryParameter("q");
+                if (query != null) {
+                    mSearchView.setQuery(query, true);
+                }
+            }
+        }
+
+        mProgressIndicator = findViewById(R.id.progress_linear);
+        mProgressIndicator.setVisibilityAfterHide(View.GONE);
+        mListStatusView = findViewById(R.id.list_status);
+        mEmptyState = findViewById(android.R.id.empty);
+        mEmptyStateTitle = mEmptyState.findViewById(R.id.empty_state_title);
+        mEmptyStateSummary = mEmptyState.findViewById(R.id.empty_state_summary);
+        mEmptyStateAction = mEmptyState.findViewById(R.id.empty_state_action);
+        mEmptyStateAction.setOnClickListener(v -> handleEmptyStateAction());
+        RecyclerView recyclerView = findViewById(R.id.item_list);
+        mRecyclerView = recyclerView;
+        recyclerView.requestFocus(); // Initially (the view isn't actually focusable)
+        recyclerView.setEmptyView(mEmptyState);
+        mSwipeRefresh = findViewById(R.id.swipe_refresh);
+        mSwipeRefresh.setOnRefreshListener(this);
+        mSwipeRefresh.setOnChildScrollUpCallback((parent, child) -> recyclerView.canScrollVertically(-1));
+
+        mAdapter = new MainRecyclerAdapter(MainActivity.this);
+        mAdapter.setHasStableIds(true);
+        recyclerView.setLayoutManager(UIUtils.getGridLayoutAt450Dp(this));
+        // T21-I large-list rendering: the row layout never changes the
+        // RecyclerView's own bounds, so setHasFixedSize lets it skip a full
+        // requestLayout on every adapter update; a larger view cache keeps more
+        // off-screen rows hot for smoother flings on big installs. Both are
+        // behavior-preserving. See docs/audits/2026-05-28-large-list-rendering.md.
+        recyclerView.setHasFixedSize(true);
+        recyclerView.setItemViewCacheSize(15);
+        recyclerView.setAdapter(mAdapter);
+        mMultiSelectionView = findViewById(R.id.selection_view);
+        mMultiSelectionView.setOnItemSelectedListener(this);
+        mMultiSelectionView.setOnSelectionModeChangeListener(this);
+        mMultiSelectionView.setAdapter(mAdapter);
+        mMultiSelectionView.updateCounter(true);
+        mBatchOpsHandler = new MainBatchOpsHandler(mMultiSelectionView, viewModel);
+        mMultiSelectionView.setOnSelectionChangeListener(mBatchOpsHandler);
+
+        bindQuickFilterChips();
+
+        if (SHOW_DISCLAIMER && AppPref.getBoolean(AppPref.PrefKey.PREF_SHOW_DISCLAIMER_BOOL)) {
+            // Disclaimer will only be shown the first time it is loaded.
+            SHOW_DISCLAIMER = false;
+            View view = View.inflate(this, R.layout.dialog_disclaimer, null);
+            new MaterialAlertDialogBuilder(this)
+                    .setView(view)
+                    .setCancelable(false)
+                    .setPositiveButton(R.string.disclaimer_agree, (dialog, which) -> {
+                        if (((MaterialCheckBox) view.findViewById(R.id.agree_forever)).isChecked()) {
+                            AppPref.set(AppPref.PrefKey.PREF_SHOW_DISCLAIMER_BOOL, false);
+                        }
+                        maybeShowOnboarding();
+                    })
+                    .setNegativeButton(R.string.disclaimer_exit, (dialog, which) -> finishAndRemoveTask())
+                    .show();
+        } else {
+            // Disclaimer already accepted on a prior launch — still surface onboarding
+            // once for users who upgraded from a pre-onboarding build.
+            maybeShowOnboarding();
+        }
+
+        // Set observer
+        showProgressIndicator(true);
+        updateMainListState(0);
+        viewModel.getApplicationItems().observe(this, applicationItems -> {
+            if (mAdapter != null) mAdapter.setDefaultList(applicationItems);
+            showProgressIndicator(false);
+            // Restore the pre-rotation scroll position once the list is actually populated.
+            // Posting defers to after the adapter lays out, so the layout manager has rows to
+            // anchor against. One-shot: cleared so later list updates don't yank the user back.
+            if (mPendingListState != null && mRecyclerView != null && !applicationItems.isEmpty()) {
+                final android.os.Parcelable state = mPendingListState;
+                mPendingListState = null;
+                mRecyclerView.post(() -> {
+                    if (mRecyclerView != null && mRecyclerView.getLayoutManager() != null) {
+                        mRecyclerView.getLayoutManager().onRestoreInstanceState(state);
+                    }
+                });
+            }
+            updateMainListState(applicationItems.size());
+            if (mLastApplicationListLoadStatus != null) {
+                if (mLastApplicationListLoadStatus.isFailed()) {
+                    showApplicationListLoadFailure(mLastApplicationListLoadStatus);
+                } else if (mLastApplicationListLoadStatus.hasEnumerationWarning()) {
+                    showPackageEnumerationWarning(mLastApplicationListLoadStatus);
+                }
+            }
+            refreshSortChipLabel();
+            refreshQuickFilterChips();
+        });
+        viewModel.getApplicationListLoadStatus().observe(this, status -> {
+            mLastApplicationListLoadStatus = status;
+            if (status == null) {
+                return;
+            }
+            if (status.state == MainViewModel.AppListLoadState.LOADING) {
+                showProgressIndicator(true);
+            } else if (status.isFailed()) {
+                showApplicationListLoadFailure(status);
+            } else if (status.hasEnumerationWarning()) {
+                showPackageEnumerationWarning(status);
+            } else {
+                showProgressIndicator(false);
+                updateMainListState(mAdapter != null ? mAdapter.getItemCount() : 0);
+            }
+        });
+        viewModel.getOperationStatus().observe(this, status -> {
+            mProgressIndicator.hide();
+            if (status) {
+                UIUtils.displayShortToast(R.string.done);
+            } else {
+                UIUtils.displayLongToast(R.string.failed);
+            }
+        });
+        viewModel.getAppListImportStatus().observe(this, status -> {
+            mProgressIndicator.hide();
+            if (!status.success) {
+                UIUtils.displayLongToast(R.string.import_app_list_failed);
+                return;
+            }
+            if (mAdapter != null) {
+                mAdapter.notifyDataSetChanged();
+            }
+            if (mMultiSelectionView != null) {
+                mMultiSelectionView.updateCounter(status.selectedCount == 0);
+            }
+            if (status.selectedCount > 0) {
+                UIUtils.displayShortToast(getResources().getQuantityString(
+                        R.plurals.import_app_list_selected_count,
+                        status.selectedCount,
+                        status.selectedCount));
+            } else {
+                UIUtils.displayLongToast(R.string.import_app_list_no_matches);
+            }
+        });
+        maybeShowInterruptedBatchOpRecovery();
+        ChangelogAutoDisplay.showIfPending(this);
+    }
+
+    private void maybeShowInterruptedBatchOpRecovery() {
+        if (mBatchOpsRecoveryShown) {
+            return;
+        }
+        BatchOpsJournal.Entry entry = BatchOpsJournal.getInterruptedOperation(this, BatchOpsService.isServiceWorking());
+        if (entry == null) {
+            return;
+        }
+        mBatchOpsRecoveryShown = true;
+        BatchQueueItem queueItem = entry.getQueueItem();
+        String operation = BatchOpsService.getDesiredOpTitle(this, queueItem.getOp());
+        String targets = getResources().getQuantityString(
+                R.plurals.op_history_target_count, entry.getTargetCount(), entry.getTargetCount());
+        String startedAt = DateUtils.formatLongDateTime(this, entry.getCreatedAt());
+        String message = getString(R.string.batch_ops_journal_recovery_message,
+                operation, targets, entry.getModeLabel(), startedAt);
+        String reason = entry.getReason();
+        if (reason != null) {
+            message += "\n\n" + getString(R.string.batch_ops_journal_recovery_reason, reason);
+        }
+        if (entry.hasPartialOutcome()) {
+            message += "\n\n" + getString(R.string.batch_ops_journal_recovery_progress,
+                    entry.getCompletedTargetCount(), entry.getTargetCount(), entry.getRetryTargetCount());
+        }
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.batch_ops_journal_recovery_title)
+                .setMessage(message)
+                .setNegativeButton(R.string.not_now, null)
+                .setNeutralButton(R.string.clear, (dialog, which) -> BatchOpsJournal.dismissInterrupted(this));
+        BatchQueueItem retryQueueItem = entry.getRetryQueueItem();
+        if (!retryQueueItem.getPackages().isEmpty()) {
+            builder.setPositiveButton(R.string.batch_ops_journal_retry, (dialog, which) -> {
+                BatchOpsJournal.dismissInterrupted(this);
+                ContextCompat.startForegroundService(this, BatchOpsService.getServiceIntent(this, retryQueueItem));
+                UIUtils.displayShortToast(R.string.batch_results_retry_started);
+                BatchKeepOpenHint.show(this);
+            });
+        }
+        builder.show();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.activity_main_actions, menu);
+        mAppUsageMenu = menu.findItem(R.id.action_app_usage);
+        MenuItem apkUpdaterMenu = menu.findItem(R.id.action_apk_updater);
+        try {
+            if (!getPackageManager().getApplicationInfo(PACKAGE_NAME_APK_UPDATER, 0).enabled)
+                throw new PackageManager.NameNotFoundException();
+            apkUpdaterMenu.setVisible(true);
+        } catch (PackageManager.NameNotFoundException e) {
+            apkUpdaterMenu.setVisible(false);
+        }
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(@NonNull Menu menu) {
+        super.onPrepareOptionsMenu(menu);
+        mAppUsageMenu.setVisible(FeatureController.isUsageAccessEnabled());
+        return true;
+    }
+
+    @SuppressLint("InflateParams")
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_instructions) {
+            Intent helpIntent = new Intent(this, HelpActivity.class);
+            helpIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(helpIntent);
+        } else if (id == R.id.action_list_options) {
+            MainListOptions listOptions = new MainListOptions();
+            listOptions.setListOptionActions(viewModel);
+            listOptions.show(getSupportFragmentManager(), MainListOptions.TAG);
+        } else if (id == R.id.action_refresh) {
+            if (viewModel != null) {
+                showProgressIndicator(true);
+                viewModel.loadApplicationItems();
+            }
+        } else if (id == R.id.action_settings) {
+            Intent settingsIntent = SettingsActivity.getSettingsIntent(this);
+            startActivity(settingsIntent);
+        } else if (id == R.id.action_app_change_feed) {
+            Intent settingsIntent = SettingsActivity.getSettingsIntent(this, "privacy_prefs", "app_change_feed");
+            startActivity(settingsIntent);
+        } else if (id == R.id.action_toast_history) {
+            startActivity(new Intent(this, ToastHistoryActivity.class));
+        } else if (id == R.id.action_app_usage) {
+            Intent usageIntent = new Intent(this, AppUsageActivity.class);
+            startActivity(usageIntent);
+        } else if (id == R.id.action_one_click_ops) {
+            Intent onClickOpsIntent = new Intent(this, OneClickOpsActivity.class);
+            startActivity(onClickOpsIntent);
+        } else if (id == R.id.action_finder) {
+            Intent intent = new Intent(this, FinderActivity.class);
+            startActivity(intent);
+        } else if (id == R.id.action_apk_updater) {
+            try {
+                if (!getPackageManager().getApplicationInfo(PACKAGE_NAME_APK_UPDATER, 0).enabled)
+                    throw new PackageManager.NameNotFoundException();
+                Intent intent = new Intent();
+                intent.setClassName(PACKAGE_NAME_APK_UPDATER, ACTIVITY_NAME_APK_UPDATER);
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception ignored) {
+            }
+        } else if (id == R.id.action_running_apps) {
+            Intent runningAppsIntent = new Intent(this, RunningAppsActivity.class);
+            startActivity(runningAppsIntent);
+        } else if (id == R.id.action_profiles) {
+            Intent profilesIntent = new Intent(this, ProfilesActivity.class);
+            startActivity(profilesIntent);
+        } else if (id == R.id.action_export_visible_app_list) {
+            showAppListExportDialog(true);
+        } else if (id == R.id.action_import_app_list) {
+            mImportAppListJson.launch(new String[]{"application/json", "text/json", "text/plain", "application/octet-stream", "*/*"});
+        } else if (id == R.id.action_op_history) {
+            Intent opHistoryIntent = new Intent(this, OpHistoryActivity.class);
+            startActivity(opHistoryIntent);
+        } else if (id == R.id.action_labs) {
+            Intent intent = new Intent(getApplicationContext(), LabsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } else if (id == R.id.action_debloater) {
+            Intent intent = new Intent(getApplicationContext(), DebloaterActivity.class);
+            startActivity(intent);
+        } else if (id == R.id.action_permission_inspector) {
+            Intent intent = new Intent(getApplicationContext(),
+                    io.github.muntashirakon.AppManager.permissions.PermissionInspectorActivity.class);
+            startActivity(intent);
+        } else if (id == R.id.action_local_sync) {
+            Intent intent = new Intent(getApplicationContext(),
+                    io.github.muntashirakon.AppManager.sync.lan.LanSyncActivity.class);
+            startActivity(intent);
+        } else return super.onOptionsItemSelected(item);
+        return true;
+    }
+
+    @Override
+    public void onSelectionModeEnabled() {
+        mOnBackPressedCallback.setEnabled(true);
+    }
+
+    @Override
+    public void onSelectionModeDisabled() {
+        mOnBackPressedCallback.setEnabled(false);
+    }
+
+    /**
+     * Refuses a batch action while the app list is still being built for the first time, and says
+     * why. Acting on a list that is not there yet would silently target the wrong set.
+     */
+    private boolean isBlockedByListLoad() {
+        if (mLastApplicationListLoadStatus == null
+                || !mLastApplicationListLoadStatus.blocksBatchOperations()) {
+            return false;
+        }
+        UIUtils.displayLongToast(R.string.main_list_loading_batch_blocked);
+        return true;
+    }
+
+    @Override
+    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id != R.id.action_select_visible && isBlockedByListLoad()) {
+            return true;
+        }
+        if (id == R.id.action_select_visible) {
+            if (mAdapter != null && mMultiSelectionView != null) {
+                mAdapter.selectAll();
+                mMultiSelectionView.updateCounter(false);
+            }
+        } else if (id == R.id.action_backup) {
+            if (viewModel != null) {
+                BackupRestoreDialogFragment fragment = BackupRestoreDialogFragment.getInstance(viewModel.getSelectedPackagesWithUsers());
+                fragment.setOnActionBeginListener(mode -> showProgressIndicator(true));
+                fragment.setOnActionCompleteListener((mode, failedPackages) -> showProgressIndicator(false));
+                fragment.show(getSupportFragmentManager(), BackupRestoreDialogFragment.TAG);
+            }
+        } else if (id == R.id.action_save_apk) {
+            mStoragePermission.request(granted -> {
+                if (granted) handleBatchOp(BatchOpsManager.OP_BACKUP_APK);
+            });
+        } else if (id == R.id.action_block_unblock_trackers) {
+            showTrackerBatchDialog();
+        } else if (id == R.id.action_clear_data_cache) {
+            showClearDataCacheDialog();
+        } else if (id == R.id.action_freeze_unfreeze) {
+            showFreezeUnfreezeDialog(Prefs.Blocking.getDefaultFreezingMethod());
+        } else if (id == R.id.action_archive_unarchive) {
+            showArchiveBatchDialog();
+        } else if (id == R.id.action_disable_background) {
+            showDisableBackgroundDialog();
+        } else if (id == R.id.action_net_policy) {
+            ArrayMap<Integer, String> netPolicyMap = NetworkPolicyManagerCompat.getAllReadablePolicies(this);
+            Integer[] polices = new Integer[netPolicyMap.size()];
+            String[] policyStrings = new String[netPolicyMap.size()];
+            Collection<ApplicationItem> applicationItems = viewModel.getSelectedPackages().values();
+            Iterator<ApplicationItem> it = applicationItems.iterator();
+            int selectedPolicies = applicationItems.size() == 1 && it.hasNext() ?
+                    NetworkPolicyManagerCompat.getUidPolicy(it.next().uid) : 0;
+            for (int i = 0; i < netPolicyMap.size(); ++i) {
+                polices[i] = netPolicyMap.keyAt(i);
+                policyStrings[i] = netPolicyMap.valueAt(i);
+            }
+            new SearchableFlagsDialogBuilder<>(this, polices, policyStrings, selectedPolicies)
+                    .setTitle(R.string.net_policy)
+                    .showSelectAll(false)
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.apply, (dialog, which, selections) -> {
+                        int flags = 0;
+                        for (int flag : selections) {
+                            flags |= flag;
+                        }
+                        BatchNetPolicyOptions options = new BatchNetPolicyOptions(flags);
+                        handleBatchOp(BatchOpsManager.OP_NET_POLICY, options);
+                    })
+                    .show();
+        } else if (id == R.id.action_optimize) {
+            DexOptDialog dialog = DexOptDialog.getInstance(viewModel.getSelectedPackages().keySet().toArray(new String[0]));
+            dialog.show(getSupportFragmentManager(), DexOptDialog.TAG);
+        } else if (id == R.id.action_export_blocking_rules) {
+            final String fileName = ExportFilenameUtils.buildTimestampedFileName(this,
+                    "app_manager_rules_export-", ".am.tsv", System.currentTimeMillis());
+            mBatchExportRules.launch(fileName);
+        } else if (id == R.id.action_export_app_list) {
+            showAppListExportDialog(false);
+        } else if (id == R.id.action_force_stop) {
+            showForceStopDialog();
+        } else if (id == R.id.action_uninstall) {
+            showUninstallDialog();
+        } else if (id == R.id.action_add_to_profile) {
+            AddToProfileDialogFragment dialog = AddToProfileDialogFragment.getInstance(viewModel.getSelectedPackages()
+                    .keySet().toArray(new String[0]));
+            dialog.show(getSupportFragmentManager(), AddToProfileDialogFragment.TAG);
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    private void showAppListExportDialog(boolean visibleList) {
+        List<Integer> exportTypes = Arrays.asList(ListExporter.EXPORT_TYPE_CSV,
+                ListExporter.EXPORT_TYPE_JSON,
+                ListExporter.EXPORT_TYPE_XML,
+                ListExporter.EXPORT_TYPE_MARKDOWN);
+        new SearchableSingleChoiceDialogBuilder<>(this, exportTypes, R.array.export_app_list_options)
+                .setTitle(R.string.export_app_list_select_format)
+                .setOnSingleChoiceClickListener((dialog, which, item1, isChecked) -> {
+                    if (!isChecked) {
+                        return;
+                    }
+                    showAppListExportMetadataDialog(item1, visibleList);
+                })
+                .setNegativeButton(R.string.close, null)
+                .show();
+    }
+
+    private void showAppListExportMetadataDialog(@ListExporter.ExportType int exportType, boolean visibleList) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.export_app_list_select_metadata)
+                .setMessage(R.string.export_app_list_select_metadata_message)
+                .setPositiveButton(R.string.export_app_list_extended, (dialog, which) ->
+                        launchAppListExport(exportType, visibleList, true))
+                .setNegativeButton(R.string.export_app_list_basic, (dialog, which) ->
+                        launchAppListExport(exportType, visibleList, false))
+                .setNeutralButton(R.string.close, null)
+                .show();
+    }
+
+    private void launchAppListExport(@ListExporter.ExportType int exportType, boolean visibleList,
+                                     boolean includeExtendedMetadata) {
+        mExportVisibleAppList = visibleList;
+        mExportAppListExtended = includeExtendedMetadata;
+        long timestamp = System.currentTimeMillis();
+        switch (exportType) {
+            case ListExporter.EXPORT_TYPE_CSV:
+                mExportAppListCsv.launch(ExportFilenameUtils.buildTimestampedFileName(this,
+                        "app_manager_app_list-", ".am.csv", timestamp));
+                break;
+            case ListExporter.EXPORT_TYPE_JSON:
+                mExportAppListJson.launch(ExportFilenameUtils.buildTimestampedFileName(this,
+                        "app_manager_app_list-", ".am.json", timestamp));
+                break;
+            case ListExporter.EXPORT_TYPE_XML:
+                mExportAppListXml.launch(ExportFilenameUtils.buildTimestampedFileName(this,
+                        "app_manager_app_list-", ".am.xml", timestamp));
+                break;
+            case ListExporter.EXPORT_TYPE_MARKDOWN:
+                mExportAppListMarkdown.launch(ExportFilenameUtils.buildTimestampedFileName(this,
+                        "app_manager_app_list-", ".am.md", timestamp));
+                break;
+        }
+    }
+
+    @Override
+    public void onRefresh() {
+        showProgressIndicator(true);
+        if (viewModel != null) viewModel.loadApplicationItems();
+        mSwipeRefresh.setRefreshing(false);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        // Set filter
+        if (viewModel != null && mSearchView != null && !TextUtils.isEmpty(viewModel.getSearchQuery())) {
+            if (mSearchView.isIconified()) {
+                mSearchView.setIconified(false);
+            }
+            mSearchView.setQuery(viewModel.getSearchQuery(), false);
+        }
+        // Show/hide app usage menu
+        if (mAppUsageMenu != null) {
+            mAppUsageMenu.setVisible(FeatureController.isUsageAccessEnabled());
+        }
+        // Check for backup volume
+        if (!Prefs.BackupRestore.backupVolumeExists()) {
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.backup_volume)
+                    .setMessage(R.string.backup_volume_unavailable_warning)
+                    .setPositiveButton(R.string.close, null)
+                    .setNeutralButton(R.string.change_backup_volume, (dialog, which) -> {
+                        Intent intent = SettingsActivity.getSettingsIntent(this, "backup_restore_prefs", "backup_volume");
+                        startActivity(intent);
+                    })
+                    .show();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (viewModel != null) viewModel.onResume();
+        // T21-G: prune expired OS-revert events so the attention-badge tracker
+        // cannot grow unbounded across long-lived sessions.
+        OsRevertCountTracker.getInstance().evictExpired(System.currentTimeMillis(),
+                OsRevertCountTracker.DEFAULT_TTL_MILLIS);
+        if (mAdapter != null && mBatchOpsHandler != null && mAdapter.isInSelectionMode()) {
+            mBatchOpsHandler.updateConstraints();
+            mMultiSelectionView.updateCounter(false);
+        }
+        refreshGuidedControls();
+        refreshQuickFilterChips();
+        if (mSearchView != null) {
+            mSearchView.post(() -> {
+                if (mImeVisibleBeforeLeave && mSearchView != null) {
+                    mSearchView.requestFocus();
+                    UiUtils.showKeyboard(mSearchView);
+                }
+            });
+        }
+        ContextCompat.registerReceiver(this, mBatchOpsBroadCastReceiver,
+                new IntentFilter(BatchOpsService.ACTION_BATCH_OPS_COMPLETED), ContextCompat.RECEIVER_NOT_EXPORTED);
+    }
+
+    @Override
+    protected void onPause() {
+        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(getWindow().getDecorView());
+        mImeVisibleBeforeLeave = insets != null && insets.isVisible(WindowInsetsCompat.Type.ime());
+        if (mSearchView != null && mSearchView.hasFocus()) {
+            mSearchView.clearFocus();
+        }
+        super.onPause();
+        unregisterReceiver(mBatchOpsBroadCastReceiver);
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // Persist the list scroll position across rotation / process death.
+        if (mRecyclerView != null && mRecyclerView.getLayoutManager() != null) {
+            outState.putParcelable(STATE_LIST_LAYOUT,
+                    mRecyclerView.getLayoutManager().onSaveInstanceState());
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        // Drop any pending debounced search so it can't fire into a destroyed activity.
+        if (mSearchView != null && mPendingSearch != null) {
+            mSearchView.removeCallbacks(mPendingSearch);
+            mPendingSearch = null;
+        }
+        super.onDestroy();
+    }
+
+    private static final int[][] QUICK_FILTER_CHIPS = {
+            {R.id.chip_user, MainListOptions.FILTER_USER_APPS},
+            {R.id.chip_system, MainListOptions.FILTER_SYSTEM_APPS},
+            {R.id.chip_frozen, MainListOptions.FILTER_FROZEN_APPS},
+            {R.id.chip_running, MainListOptions.FILTER_RUNNING_APPS},
+            {R.id.chip_backups, MainListOptions.FILTER_APPS_WITH_BACKUPS},
+            {R.id.chip_stopped, MainListOptions.FILTER_STOPPED_APPS},
+            {R.id.chip_trackers, MainListOptions.FILTER_APPS_WITH_TRACKERS},
+            {R.id.chip_rules, MainListOptions.FILTER_APPS_WITH_RULES},
+            {R.id.chip_granted_perms, MainListOptions.FILTER_APPS_WITH_GRANTED_PERMS},
+    };
+
+    private void maybeShowOnboarding() {
+        if (AppPref.consumeDeviceLocalResetNotice()) {
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.device_local_credentials_reset_title)
+                    .setMessage(R.string.device_local_credentials_reset_message)
+                    .setCancelable(false)
+                    .setPositiveButton(R.string.got_it, (dialog, which) -> maybeShowOnboarding())
+                    .show();
+            return;
+        }
+        if (!OnboardingFragment.shouldShow()) {
+            // Onboarding already done — surface the main-list tour for users who
+            // haven't seen it yet (covers fresh installs after onboarding picks
+            // and upgraders from a pre-tour build).
+            maybeShowMainListTour();
+            return;
+        }
+        if (getSupportFragmentManager().findFragmentByTag(OnboardingFragment.TAG) != null) return;
+        OnboardingFragment fragment = new OnboardingFragment();
+        // After onboarding dismisses, the dialog-listener fires once on the
+        // activity context — chain the tour off it so users see it on the same
+        // first launch.
+        fragment.setOnDismissCallback(this::maybeShowMainListTour);
+        fragment.show(getSupportFragmentManager(), OnboardingFragment.TAG);
+    }
+
+    /**
+     * One-shot 'quick tour' alert listing the main-list features users might miss
+     * (chip row, badge tap, sort indicator, CTA card). Tracked via PREF_MAIN_TOUR
+     * _SHOWN_BOOL so it never re-prompts. Called after onboarding completes or
+     * directly on first launch for users who already had onboarding when this
+     * shipped. Cancellable; cancel still marks shown so dismiss-without-reading
+     * doesn't trap the user.
+     */
+    private void maybeShowMainListTour() {
+        if (isFinishing() || isDestroyed()
+                || getSupportFragmentManager().isStateSaved()) return;
+        if (!getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.STARTED)) {
+            getWindow().getDecorView().post(this::maybeShowMainListTour);
+            return;
+        }
+        if (!Prefs.Experience.isGuidedModeEnabled()) return;
+        if (AppPref.getBoolean(AppPref.PrefKey.PREF_MAIN_TOUR_SHOWN_BOOL)) return;
+        AppPref.set(AppPref.PrefKey.PREF_MAIN_TOUR_SHOWN_BOOL, true);
+        showMainListGuide();
+    }
+
+    private void showMainListGuide() {
+        if (isFinishing() || isDestroyed()
+                || getSupportFragmentManager().isStateSaved()
+                || !getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.STARTED)) return;
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.main_tour_title)
+                .setMessage(R.string.main_tour_message)
+                .setPositiveButton(R.string.got_it, null)
+                .show();
+    }
+
+    private void bindQuickFilterChips() {
+        Chip guideChip = findViewById(R.id.chip_guide);
+        if (guideChip != null) {
+            guideChip.setOnClickListener(v -> showMainListGuide());
+        }
+        refreshGuidedControls();
+        for (int[] entry : QUICK_FILTER_CHIPS) {
+            bindQuickFilterChip(entry[0], entry[1]);
+        }
+        Chip clearChip = findViewById(R.id.chip_clear_filters);
+        if (clearChip != null) {
+            View.OnClickListener clearListener = v -> {
+                if (viewModel != null) viewModel.clearFilters();
+                refreshQuickFilterChips();
+            };
+            clearChip.setOnClickListener(clearListener);
+            clearChip.setOnCloseIconClickListener(clearListener);
+        }
+        Chip installDateChip = findViewById(R.id.chip_install_date);
+        if (installDateChip != null) {
+            installDateChip.setOnClickListener(v -> {
+                if (viewModel == null) return;
+                MainListOptions.showInstallDateRangePicker(getSupportFragmentManager(), viewModel,
+                        this::refreshQuickFilterChips);
+            });
+            installDateChip.setOnCloseIconClickListener(v -> {
+                if (viewModel == null) return;
+                viewModel.clearInstallDateRange();
+                refreshQuickFilterChips();
+            });
+        }
+        Chip sortChip = findViewById(R.id.chip_sort);
+        if (sortChip != null) {
+            sortChip.setOnClickListener(v -> {
+                if (viewModel == null) return;
+                MainListOptions listOptions = new MainListOptions();
+                listOptions.setListOptionActions(viewModel);
+                listOptions.show(getSupportFragmentManager(), MainListOptions.TAG);
+            });
+        }
+        refreshQuickFilterChips();
+        refreshSortChipLabel();
+    }
+
+    private void refreshGuidedControls() {
+        Chip guideChip = findViewById(R.id.chip_guide);
+        if (guideChip != null) {
+            // The guide remains available from the overflow menu; keeping it out of the
+            // quick-filter row prevents a one-time learning aid from crowding daily controls.
+            guideChip.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * Resolve the human-readable name of the active sort order from MainListOptions'
+     * canonical sort id -> string-res map and display it on the sort chip with a
+     * downward arrow when the order is reversed. The chip stays in sync via the
+     * applicationItems observer, which fires whenever sortBy changes.
+     */
+    private void refreshSortChipLabel() {
+        Chip sortChip = findViewById(R.id.chip_sort);
+        if (sortChip == null || viewModel == null) return;
+        java.util.LinkedHashMap<Integer, Integer> sortMap = new MainListOptions().getSortIdLocaleMap();
+        if (sortMap == null) return;
+        Integer labelRes = sortMap.get(viewModel.getSortBy());
+        String label = labelRes != null ? getString(labelRes) : getString(R.string.sort);
+        sortChip.setText(viewModel.isReverseSort()
+                ? getString(R.string.main_sort_chip_label_reversed, label)
+                : getString(R.string.main_sort_chip_label, label));
+        sortChip.setVisibility(View.VISIBLE);
+    }
+
+    private void bindQuickFilterChip(int chipId, @MainListOptions.Filter int flag) {
+        Chip chip = findViewById(chipId);
+        if (chip == null || viewModel == null) return;
+        chip.setOnCheckedChangeListener(null);
+        chip.setChecked(viewModel.hasFilterFlag(flag));
+        chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (viewModel == null) return;
+            if (isChecked) viewModel.addFilterFlag(flag);
+            else viewModel.removeFilterFlag(flag);
+            refreshQuickFilterChips();
+        });
+    }
+
+    /**
+     * Build a comma-separated list of active filters so the filtered-empty-state can
+     * tell users <em>which</em> filters are hiding their apps, not just that "filters
+     * are active". Returns {@code null} when the active filters cannot be described.
+     */
+    @Nullable
+    private String describeActiveQuickFilters() {
+        if (viewModel == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (int[] entry : QUICK_FILTER_CHIPS) {
+            if (!viewModel.hasFilterFlag(entry[1])) continue;
+            Chip chip = findViewById(entry[0]);
+            if (chip == null) continue;
+            CharSequence label = chip.getText();
+            if (label == null || label.length() == 0) continue;
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(label);
+        }
+        if (viewModel.hasInstallDateFilter()) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(MainListOptions.getInstallDateRangeLabel(this, viewModel));
+        }
+        String profileName = viewModel.getFilterProfileName();
+        if (profileName != null) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(getString(viewModel.isFilterProfileInverse()
+                    ? R.string.main_filter_profile_exclude_label
+                    : R.string.main_filter_profile_include_label, profileName));
+        }
+        return sb.length() == 0 ? null : sb.toString();
+    }
+
+    private void refreshQuickFilterChips() {
+        if (viewModel == null) return;
+        for (int[] entry : QUICK_FILTER_CHIPS) {
+            Chip chip = findViewById(entry[0]);
+            if (chip == null) continue;
+            boolean active = viewModel.hasFilterFlag(entry[1]);
+            chip.setVisibility(active ? View.VISIBLE : View.GONE);
+            if (chip.isChecked() != active) {
+                chip.setOnCheckedChangeListener(null);
+                chip.setChecked(active);
+                final int flag = entry[1];
+                chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                    if (viewModel == null) return;
+                    if (isChecked) viewModel.addFilterFlag(flag);
+                    else viewModel.removeFilterFlag(flag);
+                    refreshQuickFilterChips();
+                });
+            }
+        }
+        Chip installDateChip = findViewById(R.id.chip_install_date);
+        if (installDateChip != null) {
+            boolean hasInstallDateFilter = viewModel.hasInstallDateFilter();
+            installDateChip.setText(hasInstallDateFilter
+                    ? MainListOptions.getInstallDateRangeLabel(this, viewModel)
+                    : getString(R.string.main_filter_install_date));
+            installDateChip.setCloseIconVisible(hasInstallDateFilter);
+            installDateChip.setVisibility(hasInstallDateFilter ? View.VISIBLE : View.GONE);
+        }
+        Chip clearChip = findViewById(R.id.chip_clear_filters);
+        if (clearChip != null) {
+            int activeFilterCount = viewModel.getActiveFilterCount();
+            clearChip.setText(getResources().getQuantityString(
+                    R.plurals.main_active_filters_clear, activeFilterCount, activeFilterCount));
+            clearChip.setVisibility(viewModel.hasActiveFilters() ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    private void showFreezeUnfreezeDialog(int freezeType) {
+        View view = View.inflate(this, R.layout.item_checkbox, null);
+        MaterialCheckBox checkBox = view.findViewById(R.id.checkbox);
+        checkBox.setText(R.string.freeze_prefer_per_app_option);
+        FreezeUnfreeze.getFreezeDialog(this, freezeType)
+                .setIcon(R.drawable.ic_snowflake)
+                .setTitle(R.string.freeze_unfreeze)
+                .setView(view)
+                .setPositiveButton(R.string.freeze, (dialog, which, selectedItem) -> {
+                    if (selectedItem == null) {
+                        return;
+                    }
+                    BatchFreezeOptions options = new BatchFreezeOptions(selectedItem, checkBox.isChecked());
+                    handleBatchOp(BatchOpsManager.OP_ADVANCED_FREEZE, options);
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .setNeutralButton(R.string.unfreeze, (dialog, which, selectedItem) ->
+                        handleBatchOp(BatchOpsManager.OP_UNFREEZE))
+                .show();
+    }
+
+    private void showTrackerBatchDialog() {
+        new MaterialAlertDialogBuilder(this)
+                .setIcon(R.drawable.ic_cctv_off)
+                .setTitle(R.string.block_unblock_trackers)
+                .setMessage(getString(R.string.batch_tracker_dialog_message, getSelectedAppCountLabel()))
+                .setPositiveButton(R.string.block, (dialog, which) ->
+                        handleBatchOp(BatchOpsManager.OP_BLOCK_TRACKERS))
+                .setNegativeButton(R.string.cancel, null)
+                .setNeutralButton(R.string.unblock, (dialog, which) ->
+                        handleBatchOp(BatchOpsManager.OP_UNBLOCK_TRACKERS))
+                .show();
+    }
+
+    private void showArchiveBatchDialog() {
+        if (!AppArchiveManager.isSupported(Build.VERSION.SDK_INT)) {
+            UIUtils.displayLongToast(R.string.app_archiving_not_supported);
+            return;
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setIcon(R.drawable.ic_archive)
+                .setTitle(R.string.batch_archive_dialog_title)
+                .setMessage(getString(R.string.batch_archive_dialog_message, getSelectedAppCountLabel()))
+                .setPositiveButton(R.string.archive_app, (dialog, which) ->
+                        handleBatchOp(BatchOpsManager.OP_ARCHIVE))
+                .setNegativeButton(R.string.cancel, null)
+                .setNeutralButton(R.string.unarchive_app, (dialog, which) ->
+                        handleBatchOp(BatchOpsManager.OP_UNARCHIVE))
+                .show();
+    }
+
+    private void showClearDataCacheDialog() {
+        new MaterialAlertDialogBuilder(this)
+                .setIcon(R.drawable.ic_brush)
+                .setTitle(R.string.batch_clear_dialog_title)
+                .setMessage(getBatchClearDataCacheMessage())
+                .setPositiveButton(R.string.clear_cache, (dialog, which) ->
+                        handleBatchOp(BatchOpsManager.OP_CLEAR_CACHE))
+                .setNegativeButton(R.string.cancel, null)
+                .setNeutralButton(R.string.clear_data, (dialog, which) ->
+                        handleBatchOp(BatchOpsManager.OP_CLEAR_DATA))
+                .show();
+    }
+
+    private void showDisableBackgroundDialog() {
+        DestructiveActionConfirmation.forBatchOp(this, BatchOpsManager.OP_DISABLE_BACKGROUND,
+                getSelectedAppCountLabel(), (dialog, which) ->
+                        handleBatchOp(BatchOpsManager.OP_DISABLE_BACKGROUND)).show();
+    }
+
+    private void showForceStopDialog() {
+        DestructiveActionConfirmation.forBatchOp(this, BatchOpsManager.OP_FORCE_STOP,
+                getSelectedAppCountLabel(), (dialog, which) ->
+                        handleBatchOp(BatchOpsManager.OP_FORCE_STOP)).show();
+    }
+
+    private void showUninstallDialog() {
+        DestructiveActionConfirmation.forBatchOp(this, BatchOpsManager.OP_UNINSTALL,
+                getSelectedAppCountLabel(), (dialog, which) ->
+                        handleBatchOp(BatchOpsManager.OP_UNINSTALL)).show();
+    }
+
+    @NonNull
+    private String getSelectedAppCountLabel() {
+        int count = viewModel == null ? 0 : viewModel.getSelectedPackages().size();
+        return getResources().getQuantityString(R.plurals.batch_selected_app_count, count, count);
+    }
+
+    @NonNull
+    private String getBatchClearDataCacheMessage() {
+        String message = getString(R.string.batch_clear_dialog_message, getSelectedAppCountLabel());
+        if (viewModel != null && ShizukuBridge.hasClearDataAuthorizationWarning(this,
+                viewModel.getSelectedPackages().keySet())) {
+            message += "\n\n" + getString(R.string.shizuku_clear_data_batch_warning);
+        }
+        return message;
+    }
+
+    private void handleBatchOp(@BatchOpsManager.OpType int op) {
+        handleBatchOp(op, null);
+    }
+
+    private void handleBatchOp(@BatchOpsManager.OpType int op, @Nullable IBatchOpOptions options) {
+        if (viewModel == null) return;
+        if (op == BatchOpsManager.OP_UNINSTALL || op == BatchOpsManager.OP_CLEAR_DATA) {
+            int titleRes = op == BatchOpsManager.OP_UNINSTALL
+                    ? R.string.authenticate_to_uninstall
+                    : R.string.authenticate_to_clear_data;
+            ActionAuthGate.authenticate(this, titleRes, () -> handleBatchOpAfterAuth(op, options));
+            return;
+        }
+        handleBatchOpAfterAuth(op, options);
+    }
+
+    private void handleBatchOpAfterAuth(@BatchOpsManager.OpType int op, @Nullable IBatchOpOptions options) {
+        if (viewModel == null) return;
+        BatchOpsManager.Result input = new BatchOpsManager.Result(viewModel.getSelectedPackagesWithUsers());
+        BatchQueueItem item = BatchQueueItem.getBatchOpQueue(op, input.getFailedPackages(), input.getAssociatedUsers(), options);
+        NotificationUtils.requestPostNotificationsForWorkflow(this,
+                R.string.batch_ops_notification_permission_title,
+                R.string.batch_ops_notification_permission_message,
+                () -> dispatchBatchOpOrUndo(op, item));
+    }
+
+    /**
+     * T21-F: for destructive batch ops, open a short "Undo" SnackBar window
+     * before the privileged dispatch actually fires. Tapping Undo cancels the
+     * dispatch entirely; letting the SnackBar time out (or navigating away)
+     * commits it. Non-destructive ops dispatch immediately as before.
+     *
+     * <p>op_history is still written by {@link BatchOpsService} on dispatch, so
+     * the undo gate only delays the commit — it does not double-record.
+     * Runtime timing of the SnackBar↔dispatch handoff needs on-device
+     * verification.
+     */
+    private void dispatchBatchOpOrUndo(@BatchOpsManager.OpType int op, @NonNull BatchQueueItem item) {
+        SnackbarDurationPolicy.Severity severity = undoSeverityFor(op);
+        if (severity == null) {
+            dispatchBatchService(item);
+            return;
+        }
+        CharSequence opTitle = BatchOpsService.getDesiredOpTitle(this, op);
+        long window = SnackbarDurationPolicy.windowFor(severity, currentAnimatorScale());
+        // A fresh per-op queue so a later op's SnackBar (which dismisses this
+        // one as CONSECUTIVE) cannot drain-and-commit this op prematurely.
+        final UndoableActionQueue queue = new UndoableActionQueue();
+        final int handle = queue.defer(String.valueOf(opTitle), () -> dispatchBatchService(item), window);
+        Snackbar snackbar = Snackbar.make(findViewById(R.id.coordinator_layout),
+                getString(R.string.batch_undo_pending, opTitle), (int) window);
+        snackbar.setAction(R.string.undo, v -> queue.cancel(handle));
+        snackbar.addCallback(new Snackbar.Callback() {
+            @Override
+            public void onDismissed(@NonNull Snackbar transientBottomBar, int event) {
+                if (event == DISMISS_EVENT_ACTION) {
+                    // Undo tapped — cancel() already removed the entry.
+                    return;
+                }
+                for (UndoableActionQueue.Entry entry : queue.drainAll()) {
+                    entry.commit.run();
+                }
+            }
+        });
+        snackbar.show();
+    }
+
+    private void dispatchBatchService(@NonNull BatchQueueItem item) {
+        showProgressIndicator(true);
+        Intent intent = BatchOpsService.getServiceIntent(this, item);
+        ContextCompat.startForegroundService(this, intent);
+    }
+
+    @Nullable
+    private static SnackbarDurationPolicy.Severity undoSeverityFor(@BatchOpsManager.OpType int op) {
+        switch (op) {
+            case BatchOpsManager.OP_UNINSTALL:
+            case BatchOpsManager.OP_CLEAR_DATA:
+                return SnackbarDurationPolicy.Severity.CRITICAL;
+            case BatchOpsManager.OP_FREEZE:
+            case BatchOpsManager.OP_BLOCK_COMPONENTS:
+                return SnackbarDurationPolicy.Severity.HIGH;
+            case BatchOpsManager.OP_FORCE_STOP:
+                return SnackbarDurationPolicy.Severity.NORMAL;
+            default:
+                return null;
+        }
+    }
+
+    private float currentAnimatorScale() {
+        try {
+            return Settings.Global.getFloat(getContentResolver(),
+                    Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
+        } catch (Exception e) {
+            return 1f;
+        }
+    }
+
+    void showProgressIndicator(boolean show) {
+        if (show) {
+            mProgressIndicator.show();
+            if (mEmptyState != null) {
+                mEmptyState.setVisibility(View.GONE);
+            }
+            if (mListStatusView != null) {
+                mListStatusView.setVisibility(View.VISIBLE);
+                mListStatusView.setText(R.string.main_status_loading);
+                mListStatusActionHint = null;
+                setListStatusContentDescription(getString(R.string.main_status_loading));
+                setListStatusActionable(false);
+                mListStatusView.setOnClickListener(null);
+                mListStatusView.setClickable(false);
+            }
+        } else mProgressIndicator.hide();
+    }
+
+    private void updateMainListState(int displayedItemCount) {
+        if (viewModel == null || mEmptyState == null) {
+            return;
+        }
+        int totalItemCount = viewModel.getApplicationItemCount();
+        boolean hasSearchQuery = !TextUtils.isEmpty(viewModel.getSearchQuery());
+        boolean hasFilters = viewModel.hasActiveFilters();
+        if (mListStatusView != null) {
+            mListStatusView.setVisibility(View.VISIBLE);
+            String base;
+            if (displayedItemCount == totalItemCount) {
+                base = getResources().getQuantityString(R.plurals.main_status_all_apps,
+                        displayedItemCount, displayedItemCount);
+            } else {
+                // Plurality on the *total* — "Showing 0 of 5 apps" / "Showing 0 of 1 app"
+                // reads naturally; the "showing" count is informational, the total is the
+                // count noun.
+                base = getResources().getQuantityString(R.plurals.main_status_showing_apps,
+                        totalItemCount, displayedItemCount, totalItemCount);
+            }
+            mListStatusView.setText(base);
+            mListStatusView.setOnClickListener(null);
+            mListStatusView.setClickable(false);
+            setListStatusActionable(false);
+            mListStatusActionHint = null;
+            setListStatusContentDescription(base);
+        }
+        if (displayedItemCount > 0) {
+            return;
+        }
+        if (hasSearchQuery) {
+            mEmptyStateTitle.setText(R.string.main_empty_title_no_matches);
+            mEmptyStateSummary.setText(R.string.main_empty_message_no_matches);
+            mEmptyStateAction.setText(R.string.main_empty_action_clear_search);
+            mEmptyStateAction.setIconResource(com.google.android.material.R.drawable.mtrl_ic_cancel);
+        } else if (hasFilters) {
+            mEmptyStateTitle.setText(R.string.main_empty_title_no_matches);
+            String activeLabels = describeActiveQuickFilters();
+            if (activeLabels != null) {
+                mEmptyStateSummary.setText(getString(R.string.main_empty_message_no_matches_with_filters, activeLabels));
+            } else {
+                mEmptyStateSummary.setText(R.string.main_empty_message_no_matches);
+            }
+            mEmptyStateAction.setText(R.string.main_empty_action_clear_filters);
+            mEmptyStateAction.setIconResource(R.drawable.ic_filter_list);
+        } else {
+            mEmptyStateTitle.setText(R.string.main_empty_title_no_apps);
+            mEmptyStateSummary.setText(R.string.main_empty_message_no_apps);
+            mEmptyStateAction.setText(R.string.refresh);
+            mEmptyStateAction.setIconResource(R.drawable.ic_refresh);
+        }
+    }
+
+    private void showApplicationListLoadFailure(@NonNull MainViewModel.AppListLoadStatus status) {
+        showProgressIndicator(false);
+        if (mSwipeRefresh != null) {
+            mSwipeRefresh.setRefreshing(false);
+        }
+        boolean hasStaleItems = status.hasStaleItems();
+        if (mListStatusView != null) {
+            mListStatusView.setVisibility(View.VISIBLE);
+            String statusText = hasStaleItems
+                    ? getResources().getQuantityString(R.plurals.main_status_load_failed_stale,
+                    status.staleItemCount, status.staleItemCount)
+                    : getString(R.string.main_status_load_failed_empty);
+            mListStatusView.setText(statusText);
+            mListStatusView.setClickable(true);
+            mListStatusView.setFocusable(true);
+            mListStatusActionHint = getString(R.string.main_status_retry_a11y);
+            setListStatusActionable(true, R.drawable.ic_refresh);
+            setListStatusContentDescription(statusText);
+            mListStatusView.setOnClickListener(v -> retryApplicationListLoad());
+        }
+        int displayedCount = mAdapter != null ? mAdapter.getItemCount() : 0;
+        if (displayedCount == 0 && mEmptyState != null) {
+            mEmptyStateTitle.setText(R.string.main_empty_title_load_failed);
+            mEmptyStateSummary.setText(getString(R.string.main_empty_message_load_failed,
+                    status.getErrorSummary()));
+            mEmptyStateAction.setText(R.string.main_empty_action_retry);
+            mEmptyStateAction.setIconResource(R.drawable.ic_refresh);
+            mEmptyState.setVisibility(View.VISIBLE);
+        } else if (hasStaleItems && mEmptyState != null) {
+            mEmptyState.setVisibility(View.GONE);
+        }
+    }
+
+    private void showPackageEnumerationWarning(@NonNull MainViewModel.AppListLoadStatus status) {
+        showProgressIndicator(false);
+        if (mSwipeRefresh != null) {
+            mSwipeRefresh.setRefreshing(false);
+        }
+        if (mListStatusView == null || status.privilegedMode == null) {
+            return;
+        }
+        String statusText = getResources().getQuantityString(
+                R.plurals.main_status_package_enumeration_shortfall,
+                status.unprivilegedPackageCount, status.privilegedMode,
+                status.privilegedPackageCount, status.unprivilegedPackageCount);
+        mListStatusView.setVisibility(View.VISIBLE);
+        mListStatusView.setText(statusText);
+        mListStatusView.setOnClickListener(null);
+        mListStatusView.setClickable(false);
+        mListStatusView.setFocusable(false);
+        mListStatusActionHint = null;
+        setListStatusActionable(false);
+        setListStatusContentDescription(statusText);
+    }
+
+    private boolean isApplicationListLoadFailed() {
+        return mLastApplicationListLoadStatus != null && mLastApplicationListLoadStatus.isFailed();
+    }
+
+    private void handleEmptyStateAction() {
+        if (viewModel == null) {
+            return;
+        }
+        if (isApplicationListLoadFailed()) {
+            retryApplicationListLoad();
+        } else if (!TextUtils.isEmpty(viewModel.getSearchQuery())) {
+            if (mSearchView != null) {
+                mSearchView.setQuery("", true);
+            } else {
+                viewModel.setSearchQuery("", AdvancedSearchView.SEARCH_TYPE_CONTAINS);
+            }
+        } else if (viewModel.hasActiveFilters()) {
+            showProgressIndicator(true);
+            viewModel.clearFilters();
+            refreshQuickFilterChips();
+        } else {
+            retryApplicationListLoad();
+        }
+    }
+
+    private void retryApplicationListLoad() {
+        if (viewModel == null) {
+            return;
+        }
+        showProgressIndicator(true);
+        viewModel.loadApplicationItems();
+    }
+
+    private void setListStatusActionable(boolean actionable) {
+        setListStatusActionable(actionable, R.drawable.ic_filter_list);
+    }
+
+    private void setListStatusActionable(boolean actionable, @DrawableRes int iconRes) {
+        if (mListStatusView == null) {
+            return;
+        }
+        mListStatusView.setCompoundDrawablesRelativeWithIntrinsicBounds(
+                actionable ? iconRes : 0, 0, 0, 0);
+    }
+
+    private void setListStatusContentDescription(@NonNull String statusText) {
+        if (mListStatusView == null) {
+            return;
+        }
+        if (mListStatusActionHint != null) {
+            mListStatusView.setContentDescription(statusText + ". " + mListStatusActionHint);
+        } else {
+            mListStatusView.setContentDescription(statusText);
+        }
+    }
+
+    @Override
+    public boolean onQueryTextChange(String searchQuery, @AdvancedSearchView.SearchType int type) {
+        if (viewModel == null || mSearchView == null) {
+            return true;
+        }
+        // Debounce live filtering: re-filtering on every keystroke is the main perceived-lag
+        // source on large installs. Coalesce rapid keystrokes into one filter pass after a short
+        // pause; submit (below) still filters immediately. The VM additionally skips a redundant
+        // pass when the normalized query is unchanged.
+        if (mPendingSearch != null) {
+            mSearchView.removeCallbacks(mPendingSearch);
+        }
+        mPendingSearch = () -> {
+            mPendingSearch = null;
+            if (viewModel != null) viewModel.setSearchQuery(searchQuery, type);
+        };
+        mSearchView.postDelayed(mPendingSearch, SEARCH_DEBOUNCE_MS);
+        return true;
+    }
+
+    @Override
+    public boolean onQueryTextSubmit(String query, int type) {
+        // Apply immediately on submit, cancelling any pending debounced pass.
+        if (mSearchView != null && mPendingSearch != null) {
+            mSearchView.removeCallbacks(mPendingSearch);
+            mPendingSearch = null;
+        }
+        if (viewModel != null) viewModel.setSearchQuery(query, type);
+        return true;
+    }
+}

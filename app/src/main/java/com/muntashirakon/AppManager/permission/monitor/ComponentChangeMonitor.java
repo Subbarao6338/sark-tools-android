@@ -1,0 +1,241 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.permission.monitor;
+
+import static io.github.muntashirakon.AppManager.compat.PackageManagerCompat.MATCH_DISABLED_COMPONENTS;
+import static io.github.muntashirakon.AppManager.compat.PackageManagerCompat.MATCH_UNINSTALLED_PACKAGES;
+
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.ComponentInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ProviderInfo;
+import android.content.pm.ServiceInfo;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.WorkerThread;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.PendingIntentCompat;
+import androidx.core.content.pm.PackageInfoCompat;
+
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.details.AppDetailsActivity;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.rules.compontents.ComponentUtils;
+import io.github.muntashirakon.AppManager.utils.NotificationUtils;
+import io.github.muntashirakon.AppManager.utils.PackageUtils;
+
+/**
+ * Engine for the App Change Auditor component/tracker snapshot diff.
+ */
+public final class ComponentChangeMonitor {
+    public static final String TAG = "ComponentChangeMonitor";
+
+    private static final int COMPONENT_FLAGS = PackageManager.GET_ACTIVITIES
+            | PackageManager.GET_RECEIVERS
+            | PackageManager.GET_PROVIDERS
+            | PackageManager.GET_SERVICES
+            | MATCH_DISABLED_COMPONENTS
+            | MATCH_UNINSTALLED_PACKAGES;
+    private static final AtomicInteger sRequestCode = new AtomicInteger(4000);
+
+    private ComponentChangeMonitor() {
+    }
+
+    @WorkerThread
+    @Nullable
+    public static ComponentChangeDiff.Result onPackageReplaced(@NonNull Context appContext,
+                                                               @NonNull String packageName) {
+        return onPackageReplaced(appContext, packageName, true);
+    }
+
+    /** Refreshes the component snapshot while optionally suppressing the notification. */
+    @WorkerThread
+    @Nullable
+    public static ComponentChangeDiff.Result onPackageReplaced(@NonNull Context appContext,
+                                                               @NonNull String packageName,
+                                                               boolean notify) {
+        if (appContext.getPackageName().equals(packageName)) return null;
+        ComponentSnapshotStore store = new ComponentSnapshotStore(appContext);
+        ComponentSnapshot before = store.get(packageName);
+        ComponentSnapshot after;
+        try {
+            after = computeCurrentSnapshot(appContext, packageName);
+        } catch (PackageManager.NameNotFoundException e) {
+            store.remove(packageName);
+            return null;
+        }
+        if (before == null) {
+            store.put(packageName, after);
+            return null;
+        }
+        ComponentChangeDiff.Result diff = ComponentChangeDiff.compute(packageName, before, after);
+        store.put(packageName, after);
+        if (diff.isInteresting()) {
+            String label = resolveLabel(appContext, packageName);
+            String title = appContext.getString(R.string.app_change_auditor_title, label);
+            String body = appContext.getString(R.string.app_change_auditor_body,
+                    diff.addedComponents.size(), diff.removedComponents.size(),
+                    diff.addedTrackers.size(), diff.removedTrackers.size(), summarize(diff));
+            new AppChangeFeedStore(appContext).append(AppChangeFeedEntry.now("components", packageName, title, body));
+            if (notify) {
+                try {
+                    postNotification(appContext, packageName, title, body);
+                } catch (Exception t) {
+                    Log.w(TAG, "Could not post component-change notification for " + packageName, t);
+                }
+            }
+        }
+        return diff;
+    }
+
+    @WorkerThread
+    public static int primeSnapshotsForAllPackages(@NonNull Context appContext) {
+        ComponentSnapshotStore store = new ComponentSnapshotStore(appContext);
+        int seen = 0;
+        try {
+            PackageManager pm = appContext.getPackageManager();
+            for (PackageInfo pi : pm.getInstalledPackages(COMPONENT_FLAGS)) {
+                if (pi == null || pi.packageName == null) continue;
+                if (appContext.getPackageName().equals(pi.packageName)) continue;
+                store.put(pi.packageName, computeSnapshotFromPackageInfo(pi));
+                ++seen;
+            }
+        } catch (Exception t) {
+            Log.w(TAG, "primeSnapshotsForAllPackages failed", t);
+        }
+        return seen;
+    }
+
+    @WorkerThread
+    @NonNull
+    private static ComponentSnapshot computeCurrentSnapshot(@NonNull Context appContext,
+                                                            @NonNull String packageName)
+            throws PackageManager.NameNotFoundException {
+        PackageInfo pi = appContext.getPackageManager().getPackageInfo(packageName, COMPONENT_FLAGS);
+        return computeSnapshotFromPackageInfo(pi);
+    }
+
+    @NonNull
+    private static ComponentSnapshot computeSnapshotFromPackageInfo(@NonNull PackageInfo pi) {
+        long versionCode = PackageInfoCompat.getLongVersionCode(pi);
+        Map<String, ComponentRecord> records = new TreeMap<>();
+        collect(records, pi.activities, ComponentRecord.TYPE_ACTIVITY);
+        collect(records, pi.services, ComponentRecord.TYPE_SERVICE);
+        collect(records, pi.receivers, ComponentRecord.TYPE_RECEIVER);
+        collectProviders(records, pi.providers);
+        // Anything the shared collector knows about but the typed arrays did not surface still
+        // belongs in the snapshot, just without manifest facts.
+        for (String componentName : PackageUtils.collectComponentClassNames(pi).keySet()) {
+            if (componentName != null && !componentName.isEmpty() && !records.containsKey(componentName)) {
+                records.put(componentName, ComponentRecord.unknown());
+            }
+        }
+        Set<String> trackers = new HashSet<>();
+        for (String componentName : records.keySet()) {
+            if (ComponentUtils.isTracker(componentName)) {
+                trackers.add(componentName);
+            }
+        }
+        return new ComponentSnapshot(versionCode, records, trackers);
+    }
+
+    private static void collect(@NonNull Map<String, ComponentRecord> out,
+                                @Nullable ComponentInfo[] components,
+                                @NonNull String type) {
+        if (components == null) return;
+        for (ComponentInfo info : components) {
+            if (info == null || info.name == null || info.name.isEmpty()) continue;
+            String permission = info instanceof ActivityInfo ? ((ActivityInfo) info).permission
+                    : info instanceof ServiceInfo ? ((ServiceInfo) info).permission
+                    : null;
+            out.put(info.name, new ComponentRecord(type, info.exported, info.enabled, permission));
+        }
+    }
+
+    private static void collectProviders(@NonNull Map<String, ComponentRecord> out,
+                                         @Nullable ProviderInfo[] providers) {
+        if (providers == null) return;
+        for (ProviderInfo info : providers) {
+            if (info == null || info.name == null || info.name.isEmpty()) continue;
+            // A provider is only as guarded as its weakest side; record the read guard, falling
+            // back to the write guard when reads are unguarded.
+            String permission = info.readPermission != null ? info.readPermission
+                    : info.writePermission;
+            out.put(info.name, new ComponentRecord(ComponentRecord.TYPE_PROVIDER, info.exported,
+                    info.enabled, permission));
+        }
+    }
+
+    @WorkerThread
+    private static void postNotification(@NonNull Context appContext, @NonNull String packageName,
+                                         @NonNull String title, @NonNull String body) {
+        Intent contentIntent = AppDetailsActivity.getIntent(appContext, packageName, 0, true);
+        PendingIntent pi = PendingIntentCompat.getActivity(appContext, sRequestCode.incrementAndGet(),
+                contentIntent, PendingIntent.FLAG_UPDATE_CURRENT, false);
+        NotificationCompat.Builder builder = NotificationUtils.getHighPriorityNotificationBuilder(appContext)
+                .setSmallIcon(R.drawable.ic_security)
+                .setAutoCancel(true)
+                .setWhen(System.currentTimeMillis())
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                .setContentIntent(pi);
+        NotificationUtils.displayHighPriorityNotification(appContext, builder.build());
+    }
+
+    @NonNull
+    private static String resolveLabel(@NonNull Context appContext, @NonNull String packageName) {
+        try {
+            ApplicationInfo info = appContext.getPackageManager().getApplicationInfo(packageName, 0);
+            CharSequence label = info.loadLabel(appContext.getPackageManager());
+            return label != null && label.length() > 0 ? label.toString() : packageName;
+        } catch (PackageManager.NameNotFoundException e) {
+            return packageName;
+        }
+    }
+
+    @NonNull
+    private static String summarize(@NonNull ComponentChangeDiff.Result diff) {
+        // Privilege expansion outranks the raw appeared/disappeared counts.
+        if (!diff.newlyExported.isEmpty()) return "newly exported: " + shortJoin(diff.newlyExported);
+        if (!diff.weakenedGuards.isEmpty()) return "guard changed: " + shortJoin(diff.weakenedGuards);
+        if (!diff.addedTrackers.isEmpty()) return "added trackers: " + shortJoin(diff.addedTrackers);
+        if (!diff.removedTrackers.isEmpty()) return "removed trackers: " + shortJoin(diff.removedTrackers);
+        if (!diff.addedComponents.isEmpty()) return "added components: " + shortJoin(diff.addedComponents);
+        if (!diff.removedComponents.isEmpty()) return "removed components: " + shortJoin(diff.removedComponents);
+        return "no component changes";
+    }
+
+    @NonNull
+    private static String shortJoin(@NonNull Set<String> values) {
+        StringBuilder sb = new StringBuilder();
+        Iterator<String> it = values.iterator();
+        int i = 0;
+        while (it.hasNext() && i < 3) {
+            String value = it.next();
+            String label = ComponentUtils.getTrackerLabel(value);
+            String display = label != null ? label : value;
+            int dot = display.lastIndexOf('.');
+            if (dot >= 0 && dot + 1 < display.length()) display = display.substring(dot + 1);
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(display);
+            ++i;
+        }
+        int rest = values.size() - i;
+        if (rest > 0) sb.append(" +").append(rest);
+        return sb.toString();
+    }
+}

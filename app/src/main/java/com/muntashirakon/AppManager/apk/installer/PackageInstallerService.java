@@ -1,0 +1,480 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.apk.installer;
+
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_ABORTED;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_BLOCKED;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_CONFLICT;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_INCOMPATIBLE;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_INCOMPATIBLE_ROM;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_INVALID;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_SECURITY;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_SESSION_ABANDON;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_SESSION_COMMIT;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_SESSION_CREATE;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_SESSION_WRITE;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_FAILURE_STORAGE;
+import static io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat.STATUS_SUCCESS;
+import static io.github.muntashirakon.AppManager.history.ops.OpHistoryManager.HISTORY_TYPE_INSTALLER;
+
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageInstaller;
+import android.os.Build;
+import android.os.PowerManager;
+import android.os.UserHandleHidden;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.annotation.UiThread;
+import androidx.annotation.VisibleForTesting;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.app.PendingIntentCompat;
+import androidx.core.app.ServiceCompat;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
+import io.github.muntashirakon.AppManager.BuildConfig;
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.apk.ApkFile;
+import io.github.muntashirakon.AppManager.apk.ApkSource;
+import io.github.muntashirakon.AppManager.apk.CachedApkSource;
+import io.github.muntashirakon.AppManager.apk.dexopt.DexOptimizer;
+import io.github.muntashirakon.AppManager.compat.PackageManagerCompat;
+import io.github.muntashirakon.AppManager.history.ops.OperationJournalMetadata;
+import io.github.muntashirakon.AppManager.history.ops.OpHistoryManager;
+import io.github.muntashirakon.AppManager.intercept.IntentCompat;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.main.MainActivity;
+import io.github.muntashirakon.AppManager.progress.NotificationProgressHandler;
+import io.github.muntashirakon.AppManager.progress.NotificationProgressHandler.NotificationInfo;
+import io.github.muntashirakon.AppManager.progress.ProgressHandler;
+import io.github.muntashirakon.AppManager.progress.QueuedProgressHandler;
+import io.github.muntashirakon.AppManager.rules.compontents.ComponentUtils;
+import io.github.muntashirakon.AppManager.types.ForegroundService;
+import io.github.muntashirakon.AppManager.types.UserPackagePair;
+import io.github.muntashirakon.AppManager.utils.CpuUtils;
+import io.github.muntashirakon.AppManager.utils.NotificationUtils;
+import io.github.muntashirakon.AppManager.utils.PackageUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+
+public class PackageInstallerService extends ForegroundService {
+    public static final String TAG = PackageInstallerService.class.getSimpleName();
+
+    public static final String EXTRA_QUEUE_ITEM = "queue_item";
+    public static final String CHANNEL_ID = BuildConfig.APPLICATION_ID + ".channel.INSTALL";
+    private static final long STALE_INSTALL_SESSION_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(30);
+
+    public interface OnInstallFinished {
+        @UiThread
+        void onFinished(String packageName, int status, @Nullable String blockingPackage,
+                        @Nullable String statusMessage);
+    }
+
+    public PackageInstallerService() {
+        super(TAG);
+    }
+
+    @Nullable
+    private OnInstallFinished mOnInstallFinished;
+    private QueuedProgressHandler mProgressHandler;
+    private NotificationInfo mNotificationInfo;
+    private PowerManager.WakeLock mWakeLock;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        mWakeLock = CpuUtils.getPartialWakeLock("installer");
+        CpuUtils.acquireWakeLock(mWakeLock);
+    }
+
+    public static int cleanupStaleInstallSessions(@NonNull Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return 0;
+        }
+        PackageInstaller packageInstaller = context.getPackageManager().getPackageInstaller();
+        int cleaned = 0;
+        List<PackageInstaller.SessionInfo> sessions;
+        try {
+            sessions = packageInstaller.getMySessions();
+        } catch (Exception e) {
+            Log.w(TAG, "Could not enumerate stale installer sessions.", e);
+            return 0;
+        }
+        long nowMillis = System.currentTimeMillis();
+        for (PackageInstaller.SessionInfo sessionInfo : sessions) {
+            if (!shouldAbandonInstallSession(sessionInfo, nowMillis, STALE_INSTALL_SESSION_TIMEOUT_MILLIS)) {
+                continue;
+            }
+            try {
+                packageInstaller.abandonSession(sessionInfo.getSessionId());
+                ++cleaned;
+            } catch (Exception e) {
+                Log.w(TAG, "Could not abandon stale installer session " + sessionInfo.getSessionId(), e);
+            }
+        }
+        if (cleaned > 0) {
+            Log.i(TAG, "Cleaned %d stale installer session(s).", cleaned);
+        }
+        return cleaned;
+    }
+
+    @VisibleForTesting
+    static boolean shouldAbandonInstallSession(@NonNull PackageInstaller.SessionInfo sessionInfo,
+                                               long nowMillis,
+                                               long staleAfterMillis) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || sessionInfo.isActive() || isCommitted(sessionInfo)) {
+            return false;
+        }
+        return isStaleInstallSession(getUpdatedMillis(sessionInfo), nowMillis, staleAfterMillis);
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private static boolean isCommitted(@NonNull PackageInstaller.SessionInfo sessionInfo) {
+        return sessionInfo.isCommitted();
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private static long getUpdatedMillis(@NonNull PackageInstaller.SessionInfo sessionInfo) {
+        return sessionInfo.getUpdatedMillis();
+    }
+
+    @VisibleForTesting
+    static boolean isStaleInstallSession(long updatedMillis, long nowMillis, long staleAfterMillis) {
+        return updatedMillis > 0 && nowMillis >= updatedMillis && nowMillis - updatedMillis >= staleAfterMillis;
+    }
+
+    @Override
+    public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        if (isWorking()) {
+            return super.onStartCommand(intent, flags, startId);
+        }
+        mProgressHandler = new NotificationProgressHandler(
+                this,
+                new NotificationProgressHandler.NotificationManagerInfo(CHANNEL_ID, "Install Progress", NotificationManagerCompat.IMPORTANCE_LOW),
+                NotificationUtils.HIGH_PRIORITY_NOTIFICATION_INFO,
+                NotificationUtils.HIGH_PRIORITY_NOTIFICATION_INFO
+        );
+        mProgressHandler.setProgressTextInterface(ProgressHandler.PROGRESS_PERCENT);
+        Intent notificationIntent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntentCompat.getActivity(this, 0, notificationIntent, 0, false);
+        mNotificationInfo = new NotificationInfo()
+                .setBody(getString(R.string.install_in_progress))
+                .setOperationName(getText(R.string.package_installer))
+                .setDefaultAction(pendingIntent);
+        mProgressHandler.onAttach(this, mNotificationInfo);
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    @Override
+    protected void onHandleIntent(@Nullable Intent intent) {
+        ApkQueueItem apkQueueItem = getQueueItem(intent);
+        if (apkQueueItem == null) {
+            return;
+        }
+        InstallerOptions options = apkQueueItem.getInstallerOptions() != null
+                ? apkQueueItem.getInstallerOptions()
+                : InstallerOptions.getDefault();
+        List<String> selectedSplitIds = Objects.requireNonNull(apkQueueItem.getSelectedSplits());
+        try (InstallerPrivilegeCascade.Activation ignored = options.isForceAdbInstall()
+                ? InstallerPrivilegeCascade.activateAdbForDeveloperVerification(this, mProgressHandler)
+                : InstallerPrivilegeCascade.activateBestAvailable(this, mProgressHandler)) {
+            // Install package
+            PackageInstallerCompat installer = PackageInstallerCompat.getNewInstance();
+            installer.setAppLabel(apkQueueItem.getAppLabel());
+            installer.setOnInstallListener(new PackageInstallerCompat.OnInstallListener() {
+                @Override
+                public void onStartInstall(int sessionId, String packageName) {
+                }
+
+                // MIUI-begin: MIUI 12.5+ workaround
+                @Override
+                public void onAnotherAttemptInMiui(@Nullable ApkFile apkFile) {
+                    if (apkFile != null) {
+                        installer.install(apkFile, selectedSplitIds, options, mProgressHandler);
+                    }
+                }
+                // MIUI-end
+
+                // HyperOS-begin: HyperOS 2.0+ workaround
+                @Override
+                public void onSecondAttemptInHyperOsWithoutInstaller(@Nullable ApkFile apkFile) {
+                    if (apkFile != null) {
+                        options.setInstallerName("com.android.shell");
+                        installer.install(apkFile, selectedSplitIds, options, mProgressHandler);
+                    }
+                }
+                // HyerOS-end
+
+                @Override
+                public void onFinishedInstall(int sessionId, String packageName, int result,
+                                              @Nullable String blockingPackage, @Nullable String statusMessage) {
+                    boolean success = result == STATUS_SUCCESS;
+                    OpHistoryManager.addHistoryItem(HISTORY_TYPE_INSTALLER, apkQueueItem, success,
+                            OperationJournalMetadata.forInstaller(PackageInstallerService.this, apkQueueItem,
+                                    result, blockingPackage, statusMessage));
+                    if (success) {
+                        // Block trackers if requested, honoring the configured intensity
+                        if (options.isBlockTrackers()) {
+                            ComponentUtils.blockTrackingComponents(
+                                    new UserPackagePair(packageName, options.getUserId()),
+                                    io.github.muntashirakon.AppManager.settings.Prefs.Privacy.getTrackerBlockingIntensity());
+                        }
+                        // Perform force dex optimization if requested
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && options.isForceDexOpt()) {
+                            // Ignore the result because it's irrelevant
+                            new DexOptimizer(PackageManagerCompat.getPackageManager(), packageName).forceDexOpt();
+                        }
+                    }
+                    finishInstallation(packageName, result, apkQueueItem.getAppLabel(), blockingPackage, statusMessage);
+                }
+            });
+            // Two possibilities: 1. Install-existing, 2. ApkFile/Uri
+            if (apkQueueItem.isInstallExisting()) {
+                // Install existing (need no progress)
+                String packageName = apkQueueItem.getPackageName();
+                if (packageName == null) {
+                    // No package name supplied, abort
+                    return;
+                }
+                installer.installExisting(packageName, options.getUserId());
+            } else {
+                // ApkFile/Uri
+                ApkSource apkSource = apkQueueItem.getApkSource();
+                if (apkSource == null) {
+                    // No apk file, abort
+                    return;
+                }
+                ApkFile apkFile;
+                try {
+                    try {
+                        apkFile = apkSource.resolve();
+                    } catch (Throwable th) { // ApkFileException extends Throwable, not Exception
+                        Log.w(TAG, "Could not get ApkFile", th);
+                        OpHistoryManager.addHistoryItem(HISTORY_TYPE_INSTALLER, apkQueueItem, false,
+                                OperationJournalMetadata.forInstaller(this, apkQueueItem,
+                                        STATUS_FAILURE_INVALID, null, th.getMessage()));
+                        String packageName = apkQueueItem.getPackageName();
+                        finishInstallation(packageName != null ? packageName : "Unknown Package", STATUS_FAILURE_INVALID, apkQueueItem.getAppLabel(), null, null);
+                        return;
+                    }
+                    installer.install(apkFile, selectedSplitIds, options, mProgressHandler);
+                } finally {
+                    // Delete the cached file
+                    if (apkSource instanceof CachedApkSource) {
+                        ((CachedApkSource) apkSource).cleanup();
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void onQueued(@Nullable Intent intent) {
+        ApkQueueItem apkQueueItem = getQueueItem(intent);
+        String appLabel = apkQueueItem != null ? apkQueueItem.getAppLabel() : null;
+        Object notificationInfo = new NotificationInfo()
+                .setAutoCancel(true)
+                .setOperationName(getString(R.string.package_installer))
+                .setTitle(appLabel)
+                .setBody(getString(R.string.added_to_queue))
+                .setTime(System.currentTimeMillis());
+        mProgressHandler.onQueue(notificationInfo);
+    }
+
+    @Override
+    protected void onStartIntent(@Nullable Intent intent) {
+        // Set app name in the ongoing notification
+        ApkQueueItem apkQueueItem = getQueueItem(intent);
+        String appName;
+        if (apkQueueItem != null) {
+            String appLabel = apkQueueItem.getAppLabel();
+            appName = appLabel != null ? appLabel : apkQueueItem.getPackageName();
+        } else appName = null;
+        CharSequence title;
+        if (appName != null) {
+            title = getString(R.string.installing_package, appName);
+        } else {
+            title = getString(R.string.install_in_progress);
+        }
+        mNotificationInfo.setTitle(title);
+        mProgressHandler.onProgressStart(-1, 0, mNotificationInfo);
+    }
+
+    @Override
+    public void onDestroy() {
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
+        if (mProgressHandler != null) {
+            mProgressHandler.onDetach(this);
+        }
+        CpuUtils.releaseWakeLock(mWakeLock);
+        super.onDestroy();
+    }
+
+    public void setOnInstallFinished(@Nullable OnInstallFinished onInstallFinished) {
+        this.mOnInstallFinished = onInstallFinished;
+    }
+
+    @Nullable
+    private ApkQueueItem getQueueItem(@Nullable Intent intent) {
+        if (intent == null) {
+            return null;
+        }
+        return IntentCompat.getUnwrappedParcelableExtra(intent, EXTRA_QUEUE_ITEM, ApkQueueItem.class);
+    }
+
+    private void finishInstallation(@NonNull String packageName, int status,
+                                    @Nullable String appLabel, @Nullable String blockingPackage,
+                                    @Nullable String statusMessage) {
+        if (mOnInstallFinished != null) {
+            ThreadUtils.postOnMainThread(() -> {
+                if (mOnInstallFinished != null) {
+                    mOnInstallFinished.onFinished(packageName, status, blockingPackage, statusMessage);
+                }
+            });
+        } else {
+            sendNotification(packageName, status, appLabel, blockingPackage, statusMessage);
+        }
+    }
+
+    private void sendNotification(@NonNull String packageName,
+                                  @PackageInstallerCompat.Status int status,
+                                  @Nullable String appLabel,
+                                  @Nullable String blockingPackage,
+                                  @Nullable String statusMessage) {
+        Intent intent = PackageManagerCompat.getLaunchIntentForPackage(packageName, UserHandleHidden.myUserId());
+        PendingIntent defaultAction = intent != null ? PendingIntentCompat.getActivity(this, 0, intent,
+                PendingIntent.FLAG_ONE_SHOT, false) : null;
+        String subject = getStringFromStatus(this, status, appLabel, blockingPackage);
+        String recoveryHint = status != STATUS_SUCCESS ? getRecoveryHintFromStatus(this, status) : null;
+        CharSequence title = appLabel != null ? appLabel : packageName;
+        NotificationCompat.Style finalStyle = createFinalNotificationStyle(subject, statusMessage, recoveryHint);
+        NotificationInfo notificationInfo = new NotificationInfo()
+                .setAutoCancel(true)
+                .setTime(System.currentTimeMillis())
+                .setOperationName(getText(R.string.package_installer))
+                .setTitle(title)
+                .setBody(subject)
+                .setStyle(finalStyle)
+                .setDefaultAction(defaultAction);
+        PendingIntent historyPendingIntent = PendingIntentCompat.getActivity(this, 1,
+                OpHistoryManager.getHistoryActivityIntent(this, OpHistoryManager.HISTORY_TYPE_INSTALLER,
+                        status == STATUS_SUCCESS
+                                ? OpHistoryManager.STATUS_SUCCESS
+                                : OpHistoryManager.STATUS_FAILURE),
+                PendingIntent.FLAG_UPDATE_CURRENT, false);
+        notificationInfo.addAction(0, getString(R.string.op_history), historyPendingIntent);
+        prepareFinalProgressNotification(mProgressHandler, title, subject, finalStyle);
+        ThreadUtils.postOnMainThread(() -> mProgressHandler.onResult(notificationInfo));
+    }
+
+    @VisibleForTesting
+    static void prepareFinalProgressNotification(@NonNull ProgressHandler progressHandler,
+                                                 @Nullable CharSequence title,
+                                                 @NonNull CharSequence body,
+                                                 @Nullable NotificationCompat.Style style) {
+        Object lastMessage = progressHandler.getLastMessage();
+        if (lastMessage instanceof NotificationInfo) {
+            NotificationInfo progressNotificationInfo = (NotificationInfo) lastMessage;
+            progressNotificationInfo.setTitle(title);
+            progressNotificationInfo.setBody(body);
+            progressNotificationInfo.setStyle(style);
+        }
+        progressHandler.setProgressTextInterface(null);
+    }
+
+    @Nullable
+    private static NotificationCompat.Style createFinalNotificationStyle(@NonNull CharSequence subject,
+                                                                         @Nullable String statusMessage,
+                                                                         @Nullable String recoveryHint) {
+        if (statusMessage == null && recoveryHint == null) {
+            return null;
+        }
+        StringBuilder details = new StringBuilder(subject);
+        if (recoveryHint != null) {
+            details.append("\n\n").append(recoveryHint);
+        }
+        if (statusMessage != null) {
+            details.append("\n\n").append(statusMessage);
+        }
+        return new NotificationCompat.BigTextStyle().bigText(details);
+    }
+
+    @NonNull
+    public static String getStringFromStatus(@NonNull Context context,
+                                             @PackageInstallerCompat.Status int status,
+                                             @Nullable CharSequence appLabel,
+                                             @Nullable String blockingPackage) {
+        switch (status) {
+            case STATUS_SUCCESS:
+                return context.getString(R.string.package_name_is_installed_successfully, appLabel);
+            case STATUS_FAILURE_ABORTED:
+                return context.getString(R.string.installer_error_aborted);
+            case STATUS_FAILURE_BLOCKED:
+                String blocker = context.getString(R.string.installer_error_blocked_device);
+                if (blockingPackage != null) {
+                    blocker = PackageUtils.getPackageLabel(context.getPackageManager(), blockingPackage);
+                }
+                return context.getString(R.string.installer_error_blocked, blocker);
+            case STATUS_FAILURE_CONFLICT:
+                return context.getString(R.string.installer_error_conflict);
+            case STATUS_FAILURE_INCOMPATIBLE:
+                return context.getString(R.string.installer_error_incompatible);
+            case STATUS_FAILURE_INVALID:
+                return context.getString(R.string.installer_error_bad_apks);
+            case STATUS_FAILURE_STORAGE:
+                return context.getString(R.string.installer_error_storage);
+            case STATUS_FAILURE_SECURITY:
+                return context.getString(R.string.installer_error_security);
+            case STATUS_FAILURE_SESSION_CREATE:
+                return context.getString(R.string.installer_error_session_create);
+            case STATUS_FAILURE_SESSION_WRITE:
+                return context.getString(R.string.installer_error_session_write);
+            case STATUS_FAILURE_SESSION_COMMIT:
+                return context.getString(R.string.installer_error_session_commit);
+            case STATUS_FAILURE_SESSION_ABANDON:
+                return context.getString(R.string.installer_error_session_abandon);
+            case STATUS_FAILURE_INCOMPATIBLE_ROM:
+                return context.getString(R.string.installer_error_lidl_rom);
+        }
+        return context.getString(R.string.installer_error_generic);
+    }
+
+    @NonNull
+    public static String getRecoveryHintFromStatus(@NonNull Context context,
+                                                   @PackageInstallerCompat.Status int status) {
+        switch (status) {
+            case STATUS_FAILURE_ABORTED:
+                return context.getString(R.string.installer_recovery_aborted);
+            case STATUS_FAILURE_BLOCKED:
+                return context.getString(R.string.installer_recovery_blocked);
+            case STATUS_FAILURE_CONFLICT:
+                return context.getString(R.string.installer_recovery_conflict);
+            case STATUS_FAILURE_INCOMPATIBLE:
+                return context.getString(R.string.installer_recovery_incompatible);
+            case STATUS_FAILURE_INVALID:
+                return context.getString(R.string.installer_recovery_invalid);
+            case STATUS_FAILURE_STORAGE:
+                return context.getString(R.string.installer_recovery_storage);
+            case STATUS_FAILURE_SECURITY:
+                return context.getString(R.string.installer_recovery_security);
+            case STATUS_FAILURE_SESSION_CREATE:
+                return context.getString(R.string.installer_recovery_session_create);
+            case STATUS_FAILURE_SESSION_WRITE:
+                return context.getString(R.string.installer_recovery_session_write);
+            case STATUS_FAILURE_SESSION_COMMIT:
+                return context.getString(R.string.installer_recovery_session_commit);
+            case STATUS_FAILURE_SESSION_ABANDON:
+                return context.getString(R.string.installer_recovery_session_abandon);
+            case STATUS_FAILURE_INCOMPATIBLE_ROM:
+                return context.getString(R.string.installer_recovery_incompatible_rom);
+            default:
+                return context.getString(R.string.installer_recovery_generic);
+        }
+    }
+}

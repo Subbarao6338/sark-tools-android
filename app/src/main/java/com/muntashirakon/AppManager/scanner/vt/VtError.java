@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.scanner.vt;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import io.github.muntashirakon.AppManager.logs.Log;
+
+public class VtError {
+    private static final String TAG = VtError.class.getSimpleName();
+
+    public final int httpErrorCode;
+    public final String code;
+    public final String message;
+
+    public VtError(int httpErrorCode, @Nullable String rawJson) {
+        this.httpErrorCode = httpErrorCode;
+        if (rawJson == null || rawJson.isEmpty()) {
+            code = null;
+            message = null;
+        } else {
+            String code = null;
+            String message = null;
+            try {
+                JSONObject errorObject = new JSONObject(rawJson).optJSONObject("error");
+                if (errorObject != null) {
+                    code = errorObject.getString("code");
+                    message = errorObject.getString("message");
+                }
+            } catch (JSONException e) {
+                Log.w(TAG, e);
+            }
+            this.code = code;
+            this.message = message;
+        }
+    }
+
+    @NonNull
+    @Override
+    public String toString() {
+        return "VtError{" +
+                "httpErrorCode=" + httpErrorCode +
+                ", code='" + code + '\'' +
+                ", message='" + message + '\'' +
+                '}';
+    }
+}

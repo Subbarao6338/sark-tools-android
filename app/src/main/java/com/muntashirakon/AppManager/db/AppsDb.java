@@ -1,0 +1,183 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.db;
+
+import androidx.annotation.NonNull;
+import androidx.room.Database;
+import androidx.room.Room;
+import androidx.room.RoomDatabase;
+import androidx.room.migration.Migration;
+import androidx.sqlite.db.SupportSQLiteDatabase;
+
+import io.github.muntashirakon.AppManager.db.dao.AppDao;
+import io.github.muntashirakon.AppManager.db.dao.AppNoteDao;
+import io.github.muntashirakon.AppManager.db.dao.BackupDao;
+import io.github.muntashirakon.AppManager.db.dao.CachedScanResultDao;
+import io.github.muntashirakon.AppManager.db.dao.FmFavoriteDao;
+import io.github.muntashirakon.AppManager.db.dao.FreezeTypeDao;
+import io.github.muntashirakon.AppManager.db.dao.LogFilterDao;
+import io.github.muntashirakon.AppManager.db.dao.OpHistoryDao;
+import io.github.muntashirakon.AppManager.db.dao.AppUpdateChangeReportDao;
+import io.github.muntashirakon.AppManager.db.entity.App;
+import io.github.muntashirakon.AppManager.db.entity.AppNote;
+import io.github.muntashirakon.AppManager.db.entity.AppUpdateChangeReport;
+import io.github.muntashirakon.AppManager.db.entity.Backup;
+import io.github.muntashirakon.AppManager.db.entity.CachedScanResult;
+import io.github.muntashirakon.AppManager.db.entity.FmFavorite;
+import io.github.muntashirakon.AppManager.db.entity.FreezeType;
+import io.github.muntashirakon.AppManager.db.entity.LogFilter;
+import io.github.muntashirakon.AppManager.db.entity.OpHistory;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
+import io.github.muntashirakon.AppManager.logs.Log;
+
+@Database(entities = {App.class, AppNote.class, LogFilter.class, Backup.class, OpHistory.class, FmFavorite.class, FreezeType.class, CachedScanResult.class, AppUpdateChangeReport.class}, version = 12)
+public abstract class AppsDb extends RoomDatabase {
+    private static final String TAG = AppsDb.class.getSimpleName();
+
+    private static AppsDb sAppsDb;
+
+    public static final Migration M_2_3 = new Migration(2, 3) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `op_history` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `type` TEXT NOT NULL, `time` INTEGER NOT NULL, `data` TEXT NOT NULL, `status` TEXT NOT NULL, `extra` TEXT)");
+        }
+    };
+    public static final Migration M_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `fm_favorite` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `uri` TEXT NOT NULL, `init_uri` TEXT, `options` INTEGER NOT NULL, `order` INTEGER NOT NULL, `type` INTEGER NOT NULL)");
+        }
+    };
+    public static final Migration M_4_5 = new Migration(4, 5) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `freeze_type` (`package_name` TEXT NOT NULL, `type` INTEGER NOT NULL, PRIMARY KEY(`package_name`))");
+        }
+    };
+    public static final Migration M_5_6 = new Migration(5, 6) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `app` ADD COLUMN `is_only_data_installed` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+    public static final Migration M_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("DROP TABLE IF EXISTS `file_hash`");
+        }
+    };
+    /**
+     * v8 adds {@code tracker_blocked_count} so the main list can render an
+     * "N/T" or "✓" badge once a user has applied tracker-blocking rules to
+     * an app. Populated alongside {@code rules_count} during the existing
+     * AppDb refresh pass (no extra ComponentsBlocker open required).
+     */
+    public static final Migration M_7_8 = new Migration(7, 8) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `app` ADD COLUMN `tracker_blocked_count` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+    /**
+     * v9 adds {@code dangerous_perm_total} and {@code dangerous_perm_granted}
+     * so the main list can render a per-app dangerous-permissions badge and the
+     * aggregate status line can total granted perms across the visible set.
+     * Populated alongside {@code rules_count} during the existing AppDb refresh
+     * pass. Both columns are bigints because some system apps (e.g. Settings,
+     * Phone) declare 50+ dangerous permissions; an INT default of 0 still fits
+     * easily but matching column width to the underlying counts is cleaner.
+     */
+    public static final Migration M_8_9 = new Migration(8, 9) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `app` ADD COLUMN `dangerous_perm_total` INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `app` ADD COLUMN `dangerous_perm_granted` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+    public static final Migration M_9_10 = new Migration(9, 10) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `cached_scan_result` ("
+                    + "`package_name` TEXT NOT NULL, "
+                    + "`version_code` INTEGER NOT NULL, "
+                    + "`scan_timestamp` INTEGER NOT NULL, "
+                    + "`tracker_count` INTEGER NOT NULL, "
+                    + "`library_count` INTEGER NOT NULL, "
+                    + "`trackers_json` TEXT, "
+                    + "`libraries_json` TEXT, "
+                    + "PRIMARY KEY(`package_name`, `version_code`))");
+        }
+    };
+    public static final Migration M_10_11 = new Migration(10, 11) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `app_update_change_report` ("
+                    + "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`package_name` TEXT NOT NULL, "
+                    + "`timestamp_millis` INTEGER NOT NULL, "
+                    + "`before_version_code` INTEGER NOT NULL, "
+                    + "`after_version_code` INTEGER NOT NULL, "
+                    + "`added_permissions` TEXT NOT NULL, "
+                    + "`removed_permissions` TEXT NOT NULL, "
+                    + "`added_trackers` TEXT NOT NULL, "
+                    + "`removed_trackers` TEXT NOT NULL, "
+                    + "`added_components` TEXT NOT NULL, "
+                    + "`removed_components` TEXT NOT NULL)");
+        }
+    };
+    public static final Migration M_11_12 = new Migration(11, 12) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `app_note` ("
+                    + "`package_name` TEXT NOT NULL, "
+                    + "`note` TEXT NOT NULL, "
+                    + "`updated_at` INTEGER NOT NULL DEFAULT 0, "
+                    + "PRIMARY KEY(`package_name`))");
+        }
+    };
+
+    public static synchronized AppsDb getInstance() {
+        // Synchronized: a concurrent first-caller could otherwise build a second
+        // RoomDatabase, run its migrations, and leak it when sAppsDb is overwritten.
+        if (sAppsDb == null) {
+            sAppsDb = Room.databaseBuilder(ContextUtils.getContext(), AppsDb.class, "apps.db")
+                    .addMigrations(M_2_3, M_3_4, M_4_5, M_5_6, M_6_7, M_7_8, M_8_9, M_9_10, M_10_11, M_11_12)
+                    // No M_1_2 migration is registered, so an on-disk v1 apps.db (or any
+                    // other unfound forward path) would otherwise throw an unrecoverable
+                    // IllegalStateException on first access. apps.db is a rebuildable
+                    // cache of installed-app metadata (repopulated by the AppDb refresh
+                    // pass), so recreating it on a missing migration is safe and far
+                    // better than a permanently-broken DB.
+                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigrationOnDowngrade()
+                    .build();
+            try {
+                sAppsDb.appDao().getAll();
+            } catch (Exception th) {
+                Log.w(TAG, th);
+            }
+        }
+        return sAppsDb;
+    }
+
+    public abstract AppDao appDao();
+
+    @NonNull
+    public abstract AppNoteDao appNoteDao();
+
+    public abstract BackupDao backupDao();
+
+    public abstract LogFilterDao logFilterDao();
+
+    public abstract OpHistoryDao opHistoryDao();
+
+    @NonNull
+    public abstract AppUpdateChangeReportDao appUpdateChangeReportDao();
+
+    public abstract FmFavoriteDao fmFavoriteDao();
+
+    public abstract FreezeTypeDao freezeTypeDao();
+
+    @NonNull
+    public abstract CachedScanResultDao cachedScanResultDao();
+}

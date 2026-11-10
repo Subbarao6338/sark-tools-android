@@ -1,0 +1,298 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.debloat;
+
+import static io.github.muntashirakon.AppManager.compat.PackageManagerCompat.MATCH_STATIC_SHARED_AND_SDK_LIBRARIES;
+import static io.github.muntashirakon.AppManager.compat.PackageManagerCompat.MATCH_UNINSTALLED_PACKAGES;
+
+import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
+import android.os.RemoteException;
+
+import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+
+import com.google.gson.annotations.SerializedName;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.util.List;
+
+import io.github.muntashirakon.AppManager.compat.ApplicationInfoCompat;
+import io.github.muntashirakon.AppManager.compat.PackageManagerCompat;
+import io.github.muntashirakon.AppManager.db.entity.App;
+import io.github.muntashirakon.AppManager.db.utils.AppDb;
+import io.github.muntashirakon.AppManager.utils.ArrayUtils;
+import io.github.muntashirakon.AppManager.utils.FreezeUtils;
+
+public class DebloatObject {
+    @IntDef({REMOVAL_SAFE, REMOVAL_REPLACE, REMOVAL_CAUTION, REMOVAL_UNSAFE})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Removal {
+    }
+
+    public static final int REMOVAL_SAFE = 1;
+    public static final int REMOVAL_REPLACE = 1 << 1;
+    public static final int REMOVAL_CAUTION = 1 << 2;
+    public static final int REMOVAL_UNSAFE = 1 << 3;
+
+    @SerializedName("id")
+    public String packageName;
+    @SerializedName("label")
+    @Nullable
+    private String mInternalLabel;
+    @SerializedName("tags")
+    @Nullable
+    private String[] mTags;
+    @SerializedName("dependencies")
+    @Nullable
+    private String[] mDependencies;
+    @SerializedName("required_by")
+    @Nullable
+    private String[] mRequiredBy;
+    @SerializedName("preinstalled_oems")
+    @Nullable
+    private String[] mKnownPreinstallOems;
+    // Possible values: aosp, carrier, google, misc, oem, pending
+    @SerializedName("type")
+    public String type;
+    @SerializedName("description")
+    private String mDescription;
+    @SerializedName("web")
+    @Nullable
+    private String[] mWebRefs;
+    @SerializedName("removal")
+    private String mRemoval;
+    @SerializedName("warning")
+    @Nullable
+    private String mWarning;
+    @SerializedName("suggestions")
+    @Nullable
+    private String mSuggestionId;
+
+    private int mId;
+
+    @Nullable
+    private Drawable mIcon;
+    @Nullable
+    private CharSequence mLabel;
+    @Nullable
+    private int[] mUsers;
+    private boolean mInstalled;
+    @Nullable
+    private Boolean mSystemApp = null;
+    @Nullable
+    private Boolean mUpdatedSystemApp = null;
+    @Nullable
+    private Boolean mFrozen = null;
+    @Nullable
+    private List<SuggestionObject> mSuggestions;
+
+    public void setId(int id) {
+        mId = id;
+    }
+
+    public int getId() {
+        return mId;
+    }
+
+    @NonNull
+    public String[] getDependencies() {
+        return ArrayUtils.defeatNullable(mDependencies);
+    }
+
+    @NonNull
+    public String[] getRequiredBy() {
+        return ArrayUtils.defeatNullable(mRequiredBy);
+    }
+
+    @NonNull
+    public String[] getKnownPreinstallOems() {
+        return PreinstalledOemResolver.resolve(mKnownPreinstallOems, packageName, type, mDescription);
+    }
+
+    @Removal
+    public int getRemoval() {
+        // mRemoval comes from a remote-fetched debloat.json whose validator does
+        // not constrain this field. Fail SAFE in the safety sense: a null or
+        // unrecognised value must rate as UNSAFE (the most cautious bucket, and
+        // >= REMOVAL_CAUTION so it still trips the "review first" confirmation),
+        // never silently downgrade an unknown rating to REMOVAL_SAFE and skip
+        // the high-risk guard, and never NPE the whole debloater list build.
+        if (mRemoval == null) {
+            return REMOVAL_UNSAFE;
+        }
+        switch (mRemoval) {
+            case "safe":
+            case "delete":
+                return REMOVAL_SAFE;
+            case "replace":
+                return REMOVAL_REPLACE;
+            case "caution":
+                return REMOVAL_CAUTION;
+            case "unsafe":
+            default:
+                return REMOVAL_UNSAFE;
+        }
+    }
+
+    @Nullable
+    public String getWarning() {
+        return mWarning;
+    }
+
+    public String getDescription() {
+        return mDescription;
+    }
+
+    @NonNull
+    public String[] getWebRefs() {
+        return ArrayUtils.defeatNullable(mWebRefs);
+    }
+
+    @Nullable
+    public String getSuggestionId() {
+        return mSuggestionId;
+    }
+
+    @Nullable
+    public List<SuggestionObject> getSuggestions() {
+        return mSuggestions;
+    }
+
+    public void setSuggestions(@Nullable List<SuggestionObject> suggestions) {
+        mSuggestions = suggestions;
+    }
+
+    @Nullable
+    public CharSequence getLabel() {
+        return mLabel != null ? mLabel : mInternalLabel;
+    }
+    @NonNull
+    public CharSequence getLabelOrPackageName() {
+        CharSequence label = mLabel != null ? mLabel : mInternalLabel;
+        return label != null ? label : packageName;
+    }
+
+    @Nullable
+    public Drawable getIcon() {
+        return mIcon;
+    }
+
+    @Nullable
+    public int[] getUsers() {
+        return mUsers;
+    }
+
+    private void addUser(int userId) {
+        if (mUsers == null) {
+            mUsers = new int[]{userId};
+        } else {
+            mUsers = ArrayUtils.appendInt(mUsers, userId);
+        }
+    }
+
+    public boolean isInstalled() {
+        return mInstalled;
+    }
+
+    @VisibleForTesting
+    void setInstalledForTesting(boolean installed) {
+        mInstalled = installed;
+    }
+
+    public boolean isSystemApp() {
+        return Boolean.TRUE.equals(mSystemApp);
+    }
+
+    public boolean isUserApp() {
+        return Boolean.FALSE.equals(mSystemApp);
+    }
+
+    public boolean isUpdatedSystemApp() {
+        return Boolean.TRUE.equals(mUpdatedSystemApp);
+    }
+
+    public boolean isFrozen() {
+        return Boolean.TRUE.equals(mFrozen);
+    }
+
+    public void fillInstallInfo(@NonNull Context context, @NonNull AppDb appDb) {
+        PackageManager pm = context.getPackageManager();
+        List<SuggestionObject> suggestionObjects = getSuggestions();
+        if (suggestionObjects != null) {
+            for (SuggestionObject suggestionObject : suggestionObjects) {
+                List<App> apps = appDb.getAllApplications(suggestionObject.packageName);
+                for (App app : apps) {
+                    if (app.isInstalled) {
+                        suggestionObject.addUser(app.userId);
+                    }
+                }
+            }
+        }
+        // Update application data. Flags are accumulated across every user record (a
+        // package can be installed for one user and not another, or frozen for only some),
+        // so a later user must never clobber an earlier user's state — in particular an
+        // accumulated installed=true must survive the per-user icon-load fallback below.
+        mUsers = null;
+        InstallFlags flags = new InstallFlags();
+        List<App> apps = appDb.getAllApplications(packageName);
+        for (App app : apps) {
+            addUser(app.userId);
+            boolean updatedSystem = (app.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
+            flags.accumulate(app.isInstalled, app.isSystemApp() || updatedSystem, updatedSystem,
+                    !app.isEnabled);
+            mLabel = app.packageLabel;
+            if (getIcon() == null) {
+                try {
+                    ApplicationInfo ai = PackageManagerCompat.getApplicationInfo(packageName,
+                            MATCH_UNINSTALLED_PACKAGES | MATCH_STATIC_SHARED_AND_SDK_LIBRARIES, app.userId);
+                    boolean aiUpdatedSystem = (ai.flags & ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
+                    flags.accumulate((ai.flags & ApplicationInfo.FLAG_INSTALLED) != 0,
+                            ApplicationInfoCompat.isSystemApp(ai) || aiUpdatedSystem, aiUpdatedSystem,
+                            FreezeUtils.isFrozen(ai));
+                    mLabel = ai.loadLabel(pm);
+                    mIcon = ai.loadIcon(pm);
+                } catch (RemoteException | PackageManager.NameNotFoundException ignore) {
+                }
+            }
+        }
+        mInstalled = flags.installed;
+        mSystemApp = flags.systemApp;
+        mUpdatedSystemApp = flags.updatedSystemApp;
+        mFrozen = flags.frozen;
+    }
+
+    /**
+     * Per-user install-state aggregate. {@code installed}/{@code systemApp}/
+     * {@code updatedSystemApp}/{@code frozen} are OR-accumulated across every user record
+     * so the package is reported installed/system/frozen if it is so for any user, rather
+     * than reflecting only the last user iterated.
+     */
+    @VisibleForTesting
+    static final class InstallFlags {
+        boolean installed;
+        @Nullable
+        Boolean systemApp;
+        @Nullable
+        Boolean updatedSystemApp;
+        @Nullable
+        Boolean frozen;
+
+        void accumulate(boolean installed, boolean systemApp, boolean updatedSystemApp, boolean frozen) {
+            this.installed |= installed;
+            this.systemApp = or(this.systemApp, systemApp);
+            this.updatedSystemApp = or(this.updatedSystemApp, updatedSystemApp);
+            this.frozen = or(this.frozen, frozen);
+        }
+
+        @NonNull
+        private static Boolean or(@Nullable Boolean accumulated, boolean value) {
+            return (accumulated != null && accumulated) || value;
+        }
+    }
+}

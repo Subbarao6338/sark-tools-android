@@ -1,0 +1,238 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.filters;
+
+import android.content.pm.ComponentInfo;
+import android.content.pm.FeatureInfo;
+import android.graphics.drawable.Drawable;
+import android.os.Build;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import io.github.muntashirakon.AppManager.apk.signing.SignerInfo;
+import io.github.muntashirakon.AppManager.compat.AppOpsManagerCompat;
+import io.github.muntashirakon.AppManager.compat.InstallSourceInfoCompat;
+import io.github.muntashirakon.AppManager.db.entity.Backup;
+import io.github.muntashirakon.AppManager.debloat.DebloatObject;
+import io.github.muntashirakon.AppManager.scanner.NativeLibReadiness;
+import io.github.muntashirakon.AppManager.details.info.DomainLinkConflictDetector;
+import io.github.muntashirakon.AppManager.usage.AppUsageStatsManager;
+
+public interface IFilterableAppInfo {
+    @NonNull
+    String getPackageName();
+
+    int getUserId();
+
+    int getUid();
+
+    @NonNull
+    String getAppLabel();
+
+    @NonNull
+    Drawable getAppIcon();
+
+    @Nullable
+    String getVersionName();
+
+    long getVersionCode();
+
+    long getFirstInstallTime();
+
+    long getLastUpdateTime();
+
+    int getTargetSdk();
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    int getCompileSdk();
+
+    @RequiresApi(Build.VERSION_CODES.N)
+    int getMinSdk();
+
+    @NonNull
+    Backup[] getBackups();
+
+    boolean isRunning();
+
+    @NonNull
+    Map<ComponentInfo, Integer> getTrackerComponents();
+
+    @NonNull
+    List<AppOpsManagerCompat.OpEntry> getAppOps();
+
+    @NonNull
+    Map<ComponentInfo, Integer> getAllComponents();
+
+    /**
+     * Readiness of the package's bundled native code. Defaults to
+     * {@link NativeLibReadiness#UNKNOWN} for models that do not read the APK, so a filter can
+     * distinguish "examined and fine" from "never looked at".
+     */
+    @NonNull
+    default NativeLibReadiness getNativeLibReadiness() {
+        return NativeLibReadiness.UNKNOWN;
+    }
+
+    @NonNull
+    default Map<String, Set<String>> getComponentIntentActions() {
+        return Collections.emptyMap();
+    }
+
+    @NonNull
+    default Map<String, Set<String>> getComponentIntentCategories() {
+        return Collections.emptyMap();
+    }
+
+    @NonNull
+    List<String> getAllPermissions();
+
+    @NonNull
+    default List<FilterablePermissionInfo> getAllPermissionDetails() {
+        return Collections.emptyList();
+    }
+
+    @NonNull
+    FeatureInfo[] getAllRequestedFeatures();
+
+    boolean isInstalled();
+
+    boolean isFrozen();
+
+    default boolean isArchived() {
+        return false;
+    }
+
+    int getFreezeFlags();
+
+    boolean isStopped();
+
+    boolean isTestOnly();
+
+    boolean isDebuggable();
+
+    boolean isSystemApp();
+
+    boolean hasCode();
+
+    boolean isPersistent();
+
+    boolean isUpdatedSystemApp();
+
+    boolean backupAllowed();
+
+    boolean installedInExternalStorage();
+
+    boolean requestedLargeHeap();
+
+    boolean supportsRTL();
+
+    boolean dataOnlyApp();
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    boolean usesHttp();
+
+    boolean isPrivileged();
+
+    /** Resource overlay (RRO) — declares an {@code <overlay>} manifest tag pointing at a target package. */
+    boolean isOverlay();
+
+    default boolean hasSplits() {
+        return false;
+    }
+
+    default boolean usesSaf() {
+        return false;
+    }
+
+    /** Uploaded to Play with Play App Signing — APK signed by Google rather than the developer's release key. */
+    boolean usesPlayAppSigning();
+
+    @RequiresApi(Build.VERSION_CODES.P)
+    boolean usesSensors();
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    boolean isBatteryOptEnabled();
+
+    boolean hasKeyStoreItems();
+
+    int getRuleCount();
+
+    @Nullable
+    String getSsaid();
+
+    boolean hasDomainUrls();
+
+    @NonNull
+    default Map<String, Integer> getDomainVerificationHosts() {
+        return Collections.emptyMap();
+    }
+
+    @NonNull
+    default Map<String, List<DomainLinkConflictDetector.Conflict>> getDomainLinkConflicts() {
+        return Collections.emptyMap();
+    }
+
+    boolean hasStaticSharedLibrary();
+
+    boolean isHidden();
+
+    boolean isSuspended();
+
+    boolean isEnabled();
+
+    @Nullable
+    String getSharedUserId();
+
+    long getTotalSize();
+
+    long getApkSize();
+
+    long getCacheSize();
+
+    long getDataSize();
+
+    @NonNull
+    AppUsageStatsManager.DataUsage getDataUsage();
+
+    /** Cellular-only data usage, or {@link AppUsageStatsManager.DataUsage#EMPTY} when unknown. */
+    @NonNull
+    AppUsageStatsManager.DataUsage getMobileDataUsage();
+
+    /** Wi-Fi-only data usage, or {@link AppUsageStatsManager.DataUsage#EMPTY} when unknown. */
+    @NonNull
+    AppUsageStatsManager.DataUsage getWifiDataUsage();
+
+    int getTimesOpened();
+
+    long getTotalScreenTime();
+
+    long getLastUsedTime();
+
+    @Nullable
+    SignerInfo fetchSignerInfo();
+
+    @NonNull
+    String[] getSignatureSubjectLines();
+
+    @NonNull
+    String[] getSignatureSha256Checksums();
+
+    @Nullable
+    InstallSourceInfoCompat getInstallerInfo();
+
+    @Nullable
+    DebloatObject getBloatwareInfo();
+
+    @NonNull
+    default String[] getKnownPreinstallOems() {
+        DebloatObject object = getBloatwareInfo();
+        return object != null ? object.getKnownPreinstallOems() : new String[0];
+    }
+}

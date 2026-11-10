@@ -1,0 +1,366 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.usage;
+
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBar;
+import androidx.core.app.ActivityCompat;
+import androidx.lifecycle.ViewModelProvider;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+
+import io.github.muntashirakon.AppManager.BaseActivity;
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.self.SelfPermissions;
+import io.github.muntashirakon.AppManager.settings.FeatureController;
+import io.github.muntashirakon.AppManager.utils.BetterActivityResult;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.adapters.SelectedArrayAdapter;
+import io.github.muntashirakon.util.AccessibilityUtils;
+import io.github.muntashirakon.util.UiUtils;
+import io.github.muntashirakon.view.ProgressIndicatorCompat;
+import io.github.muntashirakon.widget.MaterialSpinner;
+import io.github.muntashirakon.widget.RecyclerView;
+import io.github.muntashirakon.widget.SwipeRefreshLayout;
+import io.github.muntashirakon.AppManager.logs.Log;
+
+public class AppUsageActivity extends BaseActivity implements SwipeRefreshLayout.OnRefreshListener {
+    private static final String TAG = AppUsageActivity.class.getSimpleName();
+
+    private static final int[] sSortMenuItemIdsMap = {
+            R.id.action_sort_by_app_label, R.id.action_sort_by_last_used,
+            R.id.action_sort_by_mobile_data, R.id.action_sort_by_package_name,
+            R.id.action_sort_by_screen_time, R.id.action_sort_by_times_opened,
+            R.id.action_sort_by_wifi_data};
+
+    AppUsageViewModel viewModel;
+    MaterialSpinner spinner;
+    RecyclerView recyclerView;
+    LinearProgressIndicator progressIndicator;
+    private SwipeRefreshLayout mSwipeRefresh;
+    private AppUsageAdapter mAppUsageAdapter;
+    private View mEmptyView;
+    private ImageView mEmptyStateIcon;
+    private TextView mEmptyStateTitle;
+    private TextView mEmptyStateSummary;
+    private MaterialButton mEmptyStateAction;
+    private boolean mHasPromptedUsageAccess;
+    private boolean mWaitingForUsageAccess;
+    private final BetterActivityResult<String, Boolean> mRequestPerm = BetterActivityResult
+            .registerForActivityResult(this, new ActivityResultContracts.RequestPermission());
+    private final ActivityResultLauncher<String> mExportUsageCsv = registerForActivityResult(
+            new ActivityResultContracts.CreateDocument("text/csv"), uri -> {
+                if (uri != null) {
+                    exportUsageCsv(uri);
+                }
+            });
+
+    @SuppressLint("WrongConstant")
+    @Override
+    protected void onAuthenticated(Bundle savedInstanceState) {
+        if (!FeatureController.isUsageAccessEnabled()) {
+            finish();
+            return;
+        }
+        setContentView(R.layout.activity_app_usage);
+        setSupportActionBar(findViewById(R.id.toolbar));
+        viewModel = new ViewModelProvider(this).get(AppUsageViewModel.class);
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setTitle(getString(R.string.app_usage));
+        }
+
+        progressIndicator = findViewById(R.id.progress_linear);
+        progressIndicator.setVisibilityAfterHide(View.GONE);
+
+        // Interval
+        spinner = findViewById(R.id.spinner);
+        UiUtils.applyWindowInsetsAsMargin(spinner, false, false);
+        spinner.requestFocus();
+        ArrayAdapter<CharSequence> intervalSpinnerAdapter = SelectedArrayAdapter.createFromResource(this,
+                R.array.usage_interval_dropdown_list, io.github.muntashirakon.ui.R.layout.auto_complete_dropdown_item_small);
+        spinner.setAdapter(intervalSpinnerAdapter);
+        spinner.setSelection(viewModel.getCurrentInterval());
+        spinner.setOnItemClickListener((parent, view, position, id) -> {
+            ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+            viewModel.setCurrentInterval(position);
+        });
+
+        // Get usage stats
+        mAppUsageAdapter = new AppUsageAdapter(this);
+        recyclerView = findViewById(R.id.scrollView);
+        mEmptyView = findViewById(android.R.id.empty);
+        setupEmptyState(mEmptyView);
+        recyclerView.setEmptyView(mEmptyView);
+        recyclerView.setLayoutManager(UIUtils.getGridLayoutAt450Dp(this));
+        recyclerView.setAdapter(mAppUsageAdapter);
+        UiUtils.applyWindowInsetsAsPaddingNoTop(recyclerView);
+
+        mSwipeRefresh = findViewById(R.id.swipe_refresh);
+        mSwipeRefresh.setOnRefreshListener(this);
+        mSwipeRefresh.setOnChildScrollUpCallback((parent, child) -> recyclerView.canScrollVertically(-1));
+
+        viewModel.getPackageUsageInfoList().observe(this, packageUsageInfoList -> {
+            mAppUsageAdapter.setDefaultList(packageUsageInfoList);
+            // Focus on the first item
+            recyclerView.post(() -> {
+                if (recyclerView.getChildCount() > 0) {
+                    View firstChild = recyclerView.getChildAt(0);
+                    if (firstChild != null) {
+                        AccessibilityUtils.requestAccessibilityFocus(firstChild);
+                    }
+                }
+            });
+        });
+        viewModel.getUsageLoadStatus().observe(this, status -> {
+            switch (status.state) {
+                case LOADING:
+                    ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+                    break;
+                case LOADED:
+                    ProgressIndicatorCompat.setVisibility(progressIndicator, false);
+                    showUsageDataEmptyState();
+                    break;
+                case FAILED:
+                    ProgressIndicatorCompat.setVisibility(progressIndicator, false);
+                    mAppUsageAdapter.setDefaultList(Collections.emptyList());
+                    showUsageLoadErrorState();
+                    break;
+            }
+        });
+        viewModel.getPackageUsageInfo().observe(this, packageUsageInfo -> {
+            AppUsageDetailsDialog fragment = AppUsageDetailsDialog.getInstance(packageUsageInfo,
+                    viewModel.getCurrentInterval(), viewModel.getCurrentDate());
+            fragment.show(getSupportFragmentManager(), AppUsageDetailsDialog.TAG);
+        });
+        checkPermissions();
+    }
+
+    private void setupEmptyState(@NonNull View emptyView) {
+        mEmptyStateIcon = emptyView.findViewById(R.id.empty_state_icon);
+        mEmptyStateTitle = emptyView.findViewById(R.id.empty_state_title);
+        mEmptyStateSummary = emptyView.findViewById(R.id.empty_state_summary);
+        mEmptyStateAction = emptyView.findViewById(R.id.empty_state_action);
+        showUsageDataEmptyState();
+    }
+
+    @Override
+    public void onRefresh() {
+        mSwipeRefresh.setRefreshing(false);
+        checkPermissions();
+    }
+
+    private void checkPermissions() {
+        // The Usage Access screen changes only AppManagerNG's own grant, so that grant alone decides
+        // whether to prompt; with it, the app can always read its own user's usage (issue #16).
+        if (!SelfPermissions.hasAppUsageAccessGrant()) {
+            ProgressIndicatorCompat.setVisibility(progressIndicator, false);
+            mWaitingForUsageAccess = false;
+            viewModel.cancelUsageLoad();
+            if (mAppUsageAdapter != null) {
+                mAppUsageAdapter.setDefaultList(Collections.emptyList());
+            }
+            showUsagePermissionEmptyState();
+            if (!mHasPromptedUsageAccess) {
+                promptForUsageStatsPermission();
+            }
+        } else {
+            mWaitingForUsageAccess = false;
+            showUsageDataEmptyState();
+            ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+            viewModel.loadPackageUsageInfoList();
+        }
+        if (AppUsageStatsManager.requireReadPhoneStatePermission()) {
+            // Grant READ_PHONE_STATE permission
+            mRequestPerm.launch(Manifest.permission.READ_PHONE_STATE, granted -> {
+                if (granted) {
+                    ActivityCompat.recreate(this);
+                }
+            });
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mWaitingForUsageAccess) {
+            checkPermissions();
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.activity_app_usage_actions, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        if (viewModel != null) {
+            menu.findItem(sSortMenuItemIdsMap[viewModel.getSortOrder()]).setChecked(true);
+            menu.findItem(R.id.action_compare_previous_period).setChecked(viewModel.isCompareWithPrevious());
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == android.R.id.home) {
+            finish();
+        } else if (id == R.id.action_sort_by_app_label) {
+            setSortBy(SortOrder.SORT_BY_APP_LABEL);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_last_used) {
+            setSortBy(SortOrder.SORT_BY_LAST_USED);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_mobile_data) {
+            setSortBy(SortOrder.SORT_BY_MOBILE_DATA);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_package_name) {
+            setSortBy(SortOrder.SORT_BY_PACKAGE_NAME);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_screen_time) {
+            setSortBy(SortOrder.SORT_BY_SCREEN_TIME);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_times_opened) {
+            setSortBy(SortOrder.SORT_BY_TIMES_OPENED);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_wifi_data) {
+            setSortBy(SortOrder.SORT_BY_WIFI_DATA);
+            item.setChecked(true);
+        } else if (id == R.id.action_compare_previous_period) {
+            item.setChecked(!item.isChecked());
+            ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+            viewModel.setCompareWithPrevious(item.isChecked());
+        } else if (id == R.id.action_export_usage_csv) {
+            mExportUsageCsv.launch(viewModel.getDefaultCsvFileName());
+        } else return super.onOptionsItemSelected(item);
+        return true;
+    }
+
+    private void setSortBy(@SortOrder int sort) {
+        if (viewModel != null) {
+            viewModel.setSortOrder(sort);
+        }
+    }
+
+    private void showUsageDataEmptyState() {
+        if (mEmptyStateIcon == null || mEmptyStateTitle == null || mEmptyStateSummary == null
+                || mEmptyStateAction == null) {
+            return;
+        }
+        mEmptyStateIcon.setImageResource(R.drawable.ic_data_usage);
+        mEmptyStateTitle.setText(R.string.app_usage_empty_title);
+        mEmptyStateSummary.setText(R.string.app_usage_empty_message);
+        mEmptyStateAction.setText(R.string.refresh);
+        mEmptyStateAction.setIconResource(R.drawable.ic_refresh);
+        mEmptyStateAction.setVisibility(View.VISIBLE);
+        mEmptyStateAction.setOnClickListener(v -> onRefresh());
+    }
+
+    private void showUsagePermissionEmptyState() {
+        if (mEmptyStateIcon == null || mEmptyStateTitle == null || mEmptyStateSummary == null
+                || mEmptyStateAction == null) {
+            return;
+        }
+        mEmptyStateIcon.setImageResource(R.drawable.ic_information_circle);
+        mEmptyStateTitle.setText(R.string.grant_usage_access);
+        mEmptyStateSummary.setText(R.string.app_usage_permission_empty_message);
+        mEmptyStateAction.setText(R.string.app_usage_open_usage_settings);
+        mEmptyStateAction.setIconResource(R.drawable.ic_open_in_new);
+        mEmptyStateAction.setVisibility(View.VISIBLE);
+        mEmptyStateAction.setOnClickListener(v -> openUsageAccessSettings());
+    }
+
+    private void showUsageLoadErrorState() {
+        if (mEmptyStateIcon == null || mEmptyStateTitle == null || mEmptyStateSummary == null
+                || mEmptyStateAction == null) {
+            return;
+        }
+        mEmptyStateIcon.setImageResource(R.drawable.ic_information_circle);
+        mEmptyStateTitle.setText(R.string.app_usage_load_failed_title);
+        mEmptyStateSummary.setText(R.string.app_usage_load_failed_message);
+        mEmptyStateAction.setText(R.string.try_again);
+        mEmptyStateAction.setIconResource(R.drawable.ic_refresh);
+        mEmptyStateAction.setVisibility(View.VISIBLE);
+        mEmptyStateAction.setOnClickListener(v -> onRefresh());
+    }
+
+    private void openUsageAccessSettings() {
+        try {
+            mWaitingForUsageAccess = true;
+            startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+        } catch (ActivityNotFoundException e) {
+            mWaitingForUsageAccess = false;
+            showUsageAccessUnsupportedDialog();
+        }
+    }
+
+    private void promptForUsageStatsPermission() {
+        mHasPromptedUsageAccess = true;
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.grant_usage_access)
+                .setMessage(R.string.grant_usage_acess_message)
+                .setPositiveButton(R.string.go, (dialog, which) -> openUsageAccessSettings())
+                .setNegativeButton(getString(R.string.go_back), (dialog, which) -> finish())
+                .setCancelable(false)
+                .show();
+    }
+
+    private void showUsageAccessUnsupportedDialog() {
+        new MaterialAlertDialogBuilder(this)
+                .setCancelable(false)
+                .setTitle(R.string.grant_usage_access)
+                .setMessage(R.string.usage_access_not_supported)
+                .setPositiveButton(R.string.go_back, (dialog1, which1) -> {
+                    FeatureController.getInstance().modifyState(FeatureController
+                            .FEAT_USAGE_ACCESS, false);
+                    finish();
+                })
+                .show();
+    }
+
+    private void exportUsageCsv(@NonNull Uri uri) {
+        if (viewModel == null) {
+            UIUtils.displayShortToast(R.string.export_failed);
+            return;
+        }
+        ThreadUtils.postOnBackgroundThread(() -> {
+            try (OutputStream os = getContentResolver().openOutputStream(uri)) {
+                if (os == null) {
+                    throw new IOException("Cannot open export target.");
+                }
+                os.write(viewModel.buildUsageCsv().getBytes(StandardCharsets.UTF_8));
+                ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(R.string.app_usage_export_success));
+            } catch (Exception e) {
+                Log.w(TAG, e);
+                ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(R.string.export_failed));
+            }
+        });
+    }
+}

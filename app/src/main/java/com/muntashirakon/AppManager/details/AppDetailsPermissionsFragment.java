@@ -1,0 +1,1028 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.details;
+
+import static io.github.muntashirakon.AppManager.utils.PackageUtils.getAppOpModeNames;
+import static io.github.muntashirakon.AppManager.utils.PackageUtils.getAppOpNames;
+
+import android.annotation.SuppressLint;
+import android.app.AppOpsManager;
+import android.content.Context;
+import android.content.pm.PermissionInfo;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.text.SpannableStringBuilder;
+import android.text.TextUtils;
+import android.util.SparseArray;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.UiThread;
+import androidx.appcompat.widget.TooltipCompat;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.materialswitch.MaterialSwitch;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.compat.AppOpsManagerCompat;
+import io.github.muntashirakon.AppManager.compat.ManifestCompat;
+import io.github.muntashirakon.AppManager.compat.PermissionCompat;
+import io.github.muntashirakon.AppManager.details.struct.AppDetailsAppOpItem;
+import io.github.muntashirakon.AppManager.details.struct.AppDetailsDefinedPermissionItem;
+import io.github.muntashirakon.AppManager.details.struct.AppDetailsItem;
+import io.github.muntashirakon.AppManager.details.struct.AppDetailsPermissionItem;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.permission.watcher.PermissionWatcher;
+import io.github.muntashirakon.AppManager.permission.watcher.WatchRule;
+import io.github.muntashirakon.AppManager.permission.watcher.WatchRuleMenu;
+import io.github.muntashirakon.AppManager.safety.AppOpsUidGuard;
+import io.github.muntashirakon.AppManager.self.SelfPermissions;
+import io.github.muntashirakon.AppManager.self.imagecache.ImageLoader;
+import io.github.muntashirakon.AppManager.self.pref.TipsPrefs;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.utils.DateUtils;
+import io.github.muntashirakon.AppManager.utils.ExUtils;
+import io.github.muntashirakon.AppManager.utils.LangUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.AppManager.utils.Utils;
+import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
+import io.github.muntashirakon.dialog.SearchableItemsDialogBuilder;
+import io.github.muntashirakon.dialog.SearchableSingleChoiceDialogBuilder;
+import io.github.muntashirakon.dialog.TextInputDropdownDialogBuilder;
+import io.github.muntashirakon.util.AdapterUtils;
+import io.github.muntashirakon.view.ProgressIndicatorCompat;
+import io.github.muntashirakon.widget.MaterialAlertView;
+import io.github.muntashirakon.widget.RecyclerView;
+
+public class AppDetailsPermissionsFragment extends AppDetailsFragment {
+    private static final String TAG = AppDetailsPermissionsFragment.class.getSimpleName();
+
+    @IntDef(value = {
+            APP_OPS,
+            USES_PERMISSIONS,
+            PERMISSIONS,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface PermissionProperty {
+    }
+
+    private String mPackageName;
+    private AppDetailsRecyclerAdapter mAdapter;
+    private boolean mIsExternalApk;
+    @PermissionProperty
+    private int mNeededProperty;
+    private int mSortOrder;
+    private String mSearchQuery;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        mNeededProperty = requireArguments().getInt(ARG_TYPE);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        configureEmptyState();
+        mAdapter = new AppDetailsRecyclerAdapter();
+        recyclerView.setAdapter(mAdapter);
+        alertView.setEndIconOnClickListener(v -> {
+            alertView.hide();
+            // Check tips
+            if (mNeededProperty == APP_OPS) {
+                TipsPrefs.getInstance().setDisplayInAppOpsTab(false);
+            }
+            if (mNeededProperty == USES_PERMISSIONS) {
+                TipsPrefs.getInstance().setDisplayInUsesPermissionsTab(false);
+            }
+            if (mNeededProperty == PERMISSIONS) {
+                TipsPrefs.getInstance().setDisplayInPermissionsTab(false);
+            }
+        });
+        int helpStringRes = getHelpString(mNeededProperty);
+        if (helpStringRes != 0) alertView.setText(helpStringRes);
+        if (helpStringRes == 0) {
+            alertView.setVisibility(View.GONE);
+        } else {
+            alertView.postDelayed(() -> alertView.hide(), 15_000);
+        }
+        if (viewModel == null) return;
+        mSortOrder = viewModel.getSortOrder(mNeededProperty);
+        mSearchQuery = viewModel.getSearchQuery();
+        mPackageName = viewModel.getPackageName();
+        viewModel.get(mNeededProperty).observe(getViewLifecycleOwner(), appDetailsItems -> {
+            if (appDetailsItems != null && mAdapter != null && viewModel.isPackageExist()) {
+                mPackageName = viewModel.getPackageName();
+                mIsExternalApk = viewModel.isExternalApk();
+                configureEmptyState();
+                mAdapter.setDefaultList(appDetailsItems);
+            } else ProgressIndicatorCompat.setVisibility(progressIndicator, false);
+        });
+        viewModel.getRuleApplicationStatus().observe(getViewLifecycleOwner(), status -> {
+            alertView.setAlertType(MaterialAlertView.ALERT_TYPE_WARN);
+            if (status == AppDetailsViewModel.RULE_NOT_APPLIED) {
+                alertView.show();
+            } else alertView.hide();
+        });
+        viewModel.getPermOpResult().observe(getViewLifecycleOwner(), result -> {
+            // Three permission tabs observe this shared LiveData; only the tab that
+            // initiated the operation may consume (and clear) the result, otherwise a
+            // sibling tab swallows the event and the initiating tab's progress
+            // indicator never clears.
+            if (result == null || result.property != mNeededProperty) return;
+            viewModel.clearPermOpResult();
+            ProgressIndicatorCompat.setVisibility(progressIndicator, false);
+            if (result.success) {
+                if (result.changedItem != null) {
+                    AppDetailsAdapterUtils.notifyItemChangedIfPresent(mAdapter, mAdapter.mAdapterList,
+                            (AppDetailsItem<?>) result.changedItem);
+                } else if (isAdded()) {
+                    refreshDetails();
+                }
+            } else if (result.uidImpact != null) {
+                alertView.setAlertType(MaterialAlertView.ALERT_TYPE_WARN);
+                alertView.setText(formatUidImpact(result.uidImpact));
+                alertView.show();
+            } else if (result.failureMessageRes != 0) {
+                UIUtils.displayShortToast(result.failureMessageRes);
+            }
+        });
+    }
+
+    @NonNull
+    private CharSequence formatUidImpact(@NonNull AppOpsUidGuard.Impact impact) {
+        List<String> operationNames = new ArrayList<>(impact.getOperations().size());
+        for (int operation : impact.getOperations()) {
+            operationNames.add(operation == AppOpsManagerCompat.OP_NONE
+                    ? getString(R.string.reset_to_default)
+                    : AppOpsManagerCompat.getKnownOpName(operation));
+        }
+        return getString(R.string.app_ops_uid_interlock_message,
+                TextUtils.join(", ", impact.getAffectedPackages()),
+                TextUtils.join(", ", operationNames));
+    }
+
+    @Override
+    public void onRefresh() {
+        refreshDetails();
+        swipeRefresh.setRefreshing(false);
+    }
+
+    @Override
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+        switch (mNeededProperty) {
+            case APP_OPS:
+                inflater.inflate(R.menu.fragment_app_details_app_ops_actions, menu);
+                break;
+            case USES_PERMISSIONS:
+                if (viewModel != null && !viewModel.isExternalApk()) {
+                    inflater.inflate(R.menu.fragment_app_details_permissions_actions, menu);
+                    break;
+                } // else fallthrough
+            case PERMISSIONS:
+                inflater.inflate(R.menu.fragment_app_details_refresh_actions, menu);
+                break;
+        }
+    }
+
+    @Override
+    public void onPrepareMenu(@NonNull Menu menu) {
+        if (viewModel == null || viewModel.isExternalApk()) {
+            return;
+        }
+        MenuItem sortItem = menu.findItem(sSortMenuItemIdsMap[viewModel.getSortOrder(mNeededProperty)]);
+        if (sortItem != null) {
+            sortItem.setChecked(true);
+        }
+    }
+
+    @Override
+    public boolean onMenuItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_refresh_details) {
+            refreshDetails();
+        } else if (id == R.id.action_reset_to_default) {  // App ops
+            if (viewModel == null) return true;
+            ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+            viewModel.resetAppOpsAsync(mNeededProperty);
+        } else if (id == R.id.action_deny_dangerous_app_ops) {  // App ops
+            if (viewModel == null) return true;
+            ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+            viewModel.ignoreDangerousAppOpsAsync(mNeededProperty);
+        } else if (id == R.id.action_toggle_default_app_ops) {  // App ops
+            ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+            // Turn filter on/off
+            boolean curr = Prefs.AppDetailsPage.displayDefaultAppOps();
+            Prefs.AppDetailsPage.setDisplayDefaultAppOps(!curr);
+            refreshDetails();
+        } else if (id == R.id.action_custom_app_op) {
+            List<Integer> modes = AppOpsManagerCompat.getModeConstants();
+            List<Integer> appOps = AppOpsManagerCompat.getAllOps();
+            List<CharSequence> modeNames = Arrays.asList(getAppOpModeNames(modes));
+            List<CharSequence> appOpNames = Arrays.asList(getAppOpNames(appOps));
+            TextInputDropdownDialogBuilder builder = new TextInputDropdownDialogBuilder(activity, R.string.set_custom_app_op);
+            builder.setTitle(R.string.set_custom_app_op)
+                    .setDropdownItems(appOpNames, -1, true)
+                    .setAuxiliaryInput(R.string.mode, null, null, modeNames, true)
+                    .setPositiveButton(R.string.apply, (dialog, which, inputText, isChecked) -> {
+                        // Get mode
+                        int mode;
+                        try {
+                            mode = Utils.getIntegerFromString(builder.getAuxiliaryInput(), modeNames, modes);
+                        } catch (IllegalArgumentException e) {
+                            return;
+                        }
+                        // Get op
+                        int op;
+                        try {
+                            op = Utils.getIntegerFromString(inputText, appOpNames, appOps);
+                        } catch (IllegalArgumentException e) {
+                            return;
+                        }
+                        if (viewModel != null) viewModel.setAppOpAsync(mNeededProperty, op, mode);
+                    })
+                    .setNegativeButton(R.string.cancel, null)
+                    .show();
+        } else if (id == R.id.action_audio_volume_app_ops) {
+            int[] audioVolumeOps = AppOpsManagerCompat.getAudioVolumeOps();
+            if (audioVolumeOps.length == 0) {
+                UIUtils.displayShortToast(R.string.no_audio_volume_app_ops);
+                return true;
+            }
+            List<Integer> modes = AppOpsManagerCompat.getModeConstants();
+            new SearchableSingleChoiceDialogBuilder<>(activity, modes, getAppOpModeNames(modes))
+                    .setTitle(R.string.set_audio_volume_app_ops)
+                    .setSelection(AppOpsManager.MODE_ALLOWED)
+                    .setOnSingleChoiceClickListener((dialog, which, item1, isChecked) -> {
+                        int opMode = modes.get(which);
+                        if (viewModel != null) {
+                            viewModel.setAudioVolumeAppOpsAsync(mNeededProperty, audioVolumeOps, opMode);
+                        }
+                        dialog.dismiss();
+                    })
+                    .show();
+        } else if (id == R.id.action_deny_dangerous_permissions) {  // permissions
+            if (viewModel == null) return true;
+            ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+            viewModel.revokeDangerousPermissionsAsync(mNeededProperty);
+        } else if (id == R.id.action_open_privacy_dashboard) {
+            openPrivacyDashboardForInspectedPackage();
+            // Sorting
+        } else if (id == R.id.action_sort_by_name) {  // All
+            setSortBy(SORT_BY_NAME);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_app_ops_values) {  // App ops
+            setSortBy(SORT_BY_APP_OP_VALUES);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_denied_app_ops) {  // App ops
+            setSortBy(SORT_BY_DENIED_APP_OPS);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_dangerous_permissions) {  // App ops
+            setSortBy(SORT_BY_DANGEROUS_PERMS);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_denied_permissions) {
+            setSortBy(SORT_BY_DENIED_PERMS);
+            item.setChecked(true);
+        } else return false;
+        return true;
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (viewModel != null) {
+            mSortOrder = viewModel.getSortOrder(mNeededProperty);
+            mSearchQuery = viewModel.getSearchQuery();
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (activity.searchView != null) {
+            if (!activity.searchView.isShown()) {
+                activity.searchView.setVisibility(View.VISIBLE);
+            }
+            activity.searchView.setOnQueryTextListener(this);
+            if (viewModel != null) {
+                int sortOrder = viewModel.getSortOrder(mNeededProperty);
+                String searchQuery = viewModel.getSearchQuery();
+                if (sortOrder != mSortOrder || !Objects.equals(searchQuery, mSearchQuery)) {
+                    viewModel.filterAndSortItems(mNeededProperty);
+                }
+            }
+        }
+    }
+
+    @Override
+    public boolean onQueryTextChange(String searchQuery, int type) {
+        if (viewModel != null) {
+            viewModel.setSearchQuery(searchQuery, type, mNeededProperty);
+            updateEmptyState();
+        }
+        return true;
+    }
+
+    @Override
+    protected int getProperty() {
+        return mNeededProperty;
+    }
+
+    private int getNotFoundString(@PermissionProperty int index) {
+        switch (index) {
+            case APP_OPS:
+                if (mIsExternalApk) {
+                    return R.string.external_apk_no_app_op;
+                } else if (SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.GET_APP_OPS_STATS)) {
+                    return R.string.no_app_ops;
+                } else return R.string.no_app_ops_permission;
+            case USES_PERMISSIONS:
+                return R.string.app_details_no_requested_permissions;
+            case PERMISSIONS:
+            default:
+                return R.string.app_details_no_defined_permissions;
+        }
+    }
+
+    private void configureEmptyState() {
+        boolean refreshEnabled = !mIsExternalApk;
+        if (mNeededProperty == APP_OPS) {
+            refreshEnabled = !mIsExternalApk
+                    && SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.GET_APP_OPS_STATS);
+        }
+        setEmptyState(getNotFoundString(mNeededProperty), getEmptySummaryString(mNeededProperty), refreshEnabled);
+    }
+
+    private int getEmptySummaryString(@PermissionProperty int index) {
+        switch (index) {
+            case APP_OPS:
+                if (mIsExternalApk) {
+                    return R.string.app_details_empty_message_external_apk_app_ops;
+                } else if (!SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.GET_APP_OPS_STATS)) {
+                    return R.string.app_details_empty_message_app_ops_permission;
+                }
+                return R.string.app_details_empty_message_no_app_ops;
+            case USES_PERMISSIONS:
+                return R.string.app_details_empty_message_no_requested_permissions;
+            case PERMISSIONS:
+            default:
+                return R.string.app_details_empty_message_no_defined_permissions;
+        }
+    }
+
+    private int getHelpString(@PermissionProperty int index) {
+        switch (index) {
+            default:
+                return 0;
+            case APP_OPS:
+                if (!TipsPrefs.getInstance().displayInAppOpsTab()) {
+                    return 0;
+                }
+                if (SelfPermissions.canModifyAppOpMode()) {
+                    return R.string.help_app_ops_tab;
+                } else return 0;
+            case USES_PERMISSIONS:
+                if (!TipsPrefs.getInstance().displayInUsesPermissionsTab()) {
+                    return 0;
+                }
+                if (SelfPermissions.canModifyPermissions()) {
+                    return R.string.help_uses_permissions_tab;
+                } else return 0;
+            case PERMISSIONS:
+                if (!TipsPrefs.getInstance().displayInPermissionsTab()) {
+                    return 0;
+                }
+                return R.string.help_permissions_tab;
+        }
+    }
+
+    private void setSortBy(@SortOrder int sortBy) {
+        ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+        if (viewModel == null) return;
+        viewModel.setSortOrder(sortBy, mNeededProperty);
+    }
+
+    private void refreshDetails() {
+        if (viewModel == null || mIsExternalApk) return;
+        ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+        viewModel.triggerPackageChange();
+    }
+
+    /**
+     * NF-12 — deep-link to the system Privacy Dashboard per-app permission
+     * usage screen on Android 12+ (API 31+). The dedicated action
+     * {@code ACTION_REVIEW_PERMISSION_USAGE} doesn't exist on older releases;
+     * fall back to {@code ACTION_APPLICATION_DETAILS_SETTINGS} so the user can
+     * still review permissions inline, and surface a toast explaining the
+     * timeline is unavailable.
+     */
+    private void openPrivacyDashboardForInspectedPackage() {
+        if (viewModel == null || viewModel.getPackageName() == null) {
+            return;
+        }
+        String packageName = viewModel.getPackageName();
+        android.content.Context context = getContext();
+        if (context == null) return;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            // ACTION_REVIEW_PERMISSION_USAGE — Android 12+ per-app timeline view.
+            android.content.Intent intent = new android.content.Intent(
+                    "android.intent.action.REVIEW_PERMISSION_USAGE");
+            intent.setData(android.net.Uri.parse("package:" + packageName));
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            try {
+                startActivity(intent);
+                return;
+            } catch (Exception ignored) {
+                // Some OEM ROMs strip the action; fall through to app-details intent.
+            }
+        }
+        android.content.Intent fallback = new android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        fallback.setData(android.net.Uri.parse("package:" + packageName));
+        fallback.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(fallback);
+            UIUtils.displayShortToast(R.string.privacy_dashboard_fallback_hint);
+        } catch (Exception ignored) {
+            UIUtils.displayShortToast(R.string.privacy_dashboard_unavailable);
+        }
+    }
+
+    @UiThread
+    private class AppDetailsRecyclerAdapter extends RecyclerView.Adapter<AppDetailsRecyclerAdapter.ViewHolder> {
+        @NonNull
+        private final List<AppDetailsItem<?>> mAdapterList;
+        @PermissionProperty
+        private int mRequestedProperty;
+        @Nullable
+        private String mConstraint;
+        private boolean mCanModifyAppOpMode;
+
+        AppDetailsRecyclerAdapter() {
+            mAdapterList = new ArrayList<>();
+        }
+
+        @UiThread
+        void setDefaultList(@NonNull List<AppDetailsItem<?>> list) {
+            ThreadUtils.postOnBackgroundThread(() -> {
+                mRequestedProperty = mNeededProperty;
+                mConstraint = viewModel == null ? null : viewModel.getSearchQuery();
+                mCanModifyAppOpMode = SelfPermissions.canModifyAppOpMode();
+                ThreadUtils.postOnMainThread(() -> {
+                    if (!isAdded()) return;
+                    ProgressIndicatorCompat.setVisibility(progressIndicator, false);
+                    synchronized (mAdapterList) {
+                        AdapterUtils.notifyDataSetChanged(this, mAdapterList, list);
+                    }
+                });
+            });
+        }
+
+        /**
+         * ViewHolder to use recycled views efficiently. Fields names are not expressive because we use
+         * the same holder for any kind of view, and view are not all sames.
+         */
+        class ViewHolder extends RecyclerView.ViewHolder {
+            MaterialCardView itemView;
+            TextView textView1;
+            TextView textView2;
+            TextView textView3;
+            TextView textView4;
+            TextView textView5;
+            TextView textView6;
+            TextView textView7;
+            TextView textView8;
+            ImageView imageView;
+            MaterialSwitch toggleSwitch;
+            MaterialButton settingButton;
+            MaterialButton referenceButton;
+            Chip chipType;
+
+            public ViewHolder(@NonNull View itemView) {
+                super(itemView);
+                this.itemView = (MaterialCardView) itemView;
+                switch (mRequestedProperty) {
+                    case PERMISSIONS:
+                        imageView = itemView.findViewById(R.id.icon);
+                        imageView.setContentDescription(itemView.getContext().getString(R.string.icon));
+                        textView1 = itemView.findViewById(R.id.label);
+                        textView2 = itemView.findViewById(R.id.name);
+                        textView3 = itemView.findViewById(R.id.taskAffinity);
+                        textView4 = itemView.findViewById(R.id.orientation);
+                        textView5 = itemView.findViewById(R.id.launchMode);
+                        chipType = itemView.findViewById(R.id.type);
+                        itemView.findViewById(R.id.softInput).setVisibility(View.GONE);
+                        itemView.findViewById(R.id.launch).setVisibility(View.GONE);
+                        itemView.findViewById(R.id.edit_shortcut_btn).setVisibility(View.GONE);
+                        itemView.findViewById(R.id.toggle_button).setVisibility(View.GONE);
+                        break;
+                    case APP_OPS:
+                        textView1 = itemView.findViewById(R.id.op_name);
+                        textView2 = itemView.findViewById(R.id.perm_description);
+                        textView3 = itemView.findViewById(R.id.perm_protection_level);
+                        textView4 = itemView.findViewById(R.id.perm_package_name);
+                        textView5 = itemView.findViewById(R.id.perm_group);
+                        textView6 = itemView.findViewById(R.id.perm_name);
+                        textView7 = itemView.findViewById(R.id.op_mode_running_duration);
+                        textView8 = itemView.findViewById(R.id.op_accept_reject_time);
+                        toggleSwitch = itemView.findViewById(R.id.perm_toggle_btn);
+                        referenceButton = itemView.findViewById(R.id.action_reference);
+                        break;
+                    case USES_PERMISSIONS:
+                        textView1 = itemView.findViewById(R.id.perm_name);
+                        textView2 = itemView.findViewById(R.id.perm_description);
+                        textView3 = itemView.findViewById(R.id.perm_protection_level);
+                        textView4 = itemView.findViewById(R.id.perm_package_name);
+                        textView5 = itemView.findViewById(R.id.perm_group);
+                        toggleSwitch = itemView.findViewById(R.id.perm_toggle_btn);
+                        settingButton = itemView.findViewById(R.id.action_settings);
+                        referenceButton = itemView.findViewById(R.id.action_reference);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        @NonNull
+        @Override
+        public AppDetailsRecyclerAdapter.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            @SuppressLint("InflateParams") final View view;
+            switch (mRequestedProperty) {
+                case PERMISSIONS:
+                default:
+                    view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_app_details_primary, parent, false);
+                    break;
+                case APP_OPS:
+                    view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_app_details_appop, parent, false);
+                    break;
+                case USES_PERMISSIONS:
+                    view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_app_details_perm, parent, false);
+                    break;
+            }
+            return new AppDetailsRecyclerAdapter.ViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull AppDetailsRecyclerAdapter.ViewHolder holder, int position) {
+            Context context = holder.itemView.getContext();
+            switch (mRequestedProperty) {
+                case APP_OPS:
+                    getAppOpsView(context, holder, position);
+                    break;
+                case USES_PERMISSIONS:
+                    getUsesPermissionsView(context, holder, position);
+                    break;
+                case PERMISSIONS:
+                    getPermissionsView(context, holder, position);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public int getItemCount() {
+            synchronized (mAdapterList) {
+                return mAdapterList.size();
+            }
+        }
+
+        /**
+         * Cycle ALLOWED → IGNORED → ERRORED → ALLOWED for the row-tap toggle. Any
+         * other current mode (FOREGROUND, DEFAULT, etc.) re-enters the cycle at
+         * ALLOWED so the user always lands on a known three-state ladder.
+         *
+         * <p>Non-static because Java 8 source compatibility forbids static
+         * members inside inner classes. No instance state is touched.
+         */
+        @AppOpsManagerCompat.Mode
+        private int nextAppOpModeInCycle(@AppOpsManagerCompat.Mode int currentMode) {
+            switch (currentMode) {
+                case android.app.AppOpsManager.MODE_ALLOWED:
+                    return android.app.AppOpsManager.MODE_IGNORED;
+                case android.app.AppOpsManager.MODE_IGNORED:
+                    return android.app.AppOpsManager.MODE_ERRORED;
+                default:
+                    return android.app.AppOpsManager.MODE_ALLOWED;
+            }
+        }
+
+        private void getAppOpsView(@NonNull Context context, @NonNull ViewHolder holder, int index) {
+            AppDetailsAppOpItem item;
+            synchronized (mAdapterList) {
+                item = (AppDetailsAppOpItem) mAdapterList.get(index);
+            }
+            final String opStr = item.name;
+            PermissionInfo permissionInfo = item.permissionInfo;
+            // Set op name
+            SpannableStringBuilder opName = new SpannableStringBuilder(item.getOp() + " - ");
+            if (item.name.equals(String.valueOf(item.getOp()))) {
+                opName.append(getString(R.string.unknown_op));
+            } else if (mConstraint != null && opStr.toLowerCase(Locale.ROOT).contains(mConstraint)) {
+                // Highlight searched query
+                opName.append(UIUtils.getHighlightedText(opStr, mConstraint, colorQueryStringHighlight));
+            } else opName.append(opStr);
+            holder.textView1.setText(opName);
+            // Set op mode, running and duration
+            StringBuilder opRunningInfo = new StringBuilder()
+                    .append(context.getString(R.string.mode))
+                    .append(LangUtils.getSeparatorString())
+                    .append(AppOpsManagerCompat.modeToName(item.getMode()));
+            if (item.isRunning()) {
+                opRunningInfo.append(", ").append(context.getString(R.string.running));
+            }
+            if (item.getDuration() != 0) {
+                opRunningInfo.append(", ").append(context.getString(R.string.duration))
+                        .append(LangUtils.getSeparatorString())
+                        .append(DateUtils.getFormattedDuration(context, item.getDuration(), true));
+            }
+            if (item.hasReference) {
+                opRunningInfo.append(", ").append(context.getString(item.isReferenceDrifted()
+                        ? R.string.permission_reference_drift
+                        : R.string.permission_reference_status_pinned));
+            }
+            holder.textView7.setText(opRunningInfo);
+            // Set accept-time and/or reject-time
+            long currentTime = System.currentTimeMillis();
+            boolean hasAcceptTime = item.getTime() != 0 && item.getTime() != -1;
+            boolean hasRejectTime = item.getRejectTime() != 0 && item.getRejectTime() != -1;
+            if (hasAcceptTime || hasRejectTime) {
+                StringBuilder opTime = new StringBuilder();
+                if (hasAcceptTime) {
+                    opTime.append(context.getString(R.string.accept_time))
+                            .append(LangUtils.getSeparatorString())
+                            .append(DateUtils.getFormattedDuration(context, currentTime - item.getTime()))
+                            .append(" ").append(context.getString(R.string.ago));
+                }
+                if (hasRejectTime) {
+                    opTime.append(opTime.length() == 0 ? "" : "\n")
+                            .append(context.getString(R.string.reject_time))
+                            .append(LangUtils.getSeparatorString())
+                            .append(DateUtils.getFormattedDuration(context, currentTime - item.getRejectTime()))
+                            .append(" ").append(context.getString(R.string.ago));
+                }
+                holder.textView8.setVisibility(View.VISIBLE);
+                holder.textView8.setText(opTime);
+            } else holder.textView8.setVisibility(View.GONE);
+            // Set others
+            if (permissionInfo != null) {
+                // Set permission name
+                holder.textView6.setVisibility(View.VISIBLE);
+                holder.textView6.setText(String.format(Locale.ROOT, "%s%s%s",
+                        context.getString(R.string.permission_name),
+                        LangUtils.getSeparatorString(),
+                        permissionInfo.name));
+                // Description
+                CharSequence description = permissionInfo.loadDescription(packageManager);
+                if (description != null) {
+                    holder.textView2.setVisibility(View.VISIBLE);
+                    holder.textView2.setText(description);
+                } else holder.textView2.setVisibility(View.GONE);
+                // Protection level
+                String protectionLevel = Utils.getProtectionLevelString(permissionInfo);
+                protectionLevel += '|' + (Objects.requireNonNull(item.permission).isGranted() ? "granted" : "revoked");
+                if (item.hasReference) {
+                    protectionLevel += '|' + getString(item.isReferenceDrifted()
+                            ? R.string.permission_reference_drift
+                            : R.string.permission_reference_status_pinned);
+                }
+                holder.textView3.setVisibility(View.VISIBLE);
+                holder.textView3.setText(String.format(Locale.ROOT, "⚑ %s", protectionLevel));
+                // Set package name
+                if (permissionInfo.packageName != null) {
+                    holder.textView4.setVisibility(View.VISIBLE);
+                    holder.textView4.setText(String.format(Locale.ROOT, "%s%s%s",
+                            context.getString(R.string.package_name), LangUtils.getSeparatorString(),
+                            permissionInfo.packageName));
+                } else holder.textView4.setVisibility(View.GONE);
+                // Set group name
+                if (permissionInfo.group != null) {
+                    holder.textView5.setVisibility(View.VISIBLE);
+                    holder.textView5.setText(String.format(Locale.ROOT, "%s%s%s",
+                            context.getString(R.string.group), LangUtils.getSeparatorString(), permissionInfo.group));
+                } else {
+                    holder.textView5.setVisibility(View.GONE);
+                }
+            } else {
+                holder.textView2.setVisibility(View.GONE);
+                holder.textView3.setVisibility(View.GONE);
+                holder.textView4.setVisibility(View.GONE);
+                holder.textView5.setVisibility(View.GONE);
+                holder.textView6.setVisibility(View.GONE);
+            }
+            // Set background
+            if (item.isDangerous) {
+                holder.itemView.setStrokeColor(ColorCodes.getPermissionDangerousIndicatorColor(context));
+            } else {
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
+            }
+            // Op Switch
+            holder.toggleSwitch.setVisibility(mCanModifyAppOpMode ? View.VISIBLE : View.GONE);
+            // op granted
+            holder.toggleSwitch.setChecked(item.isAllowed());
+            bindReferenceButton(holder.referenceButton, item.isReferenceDrifted(),
+                    !item.isReferenceDrifted() || mCanModifyAppOpMode, () ->
+                            handleAppOpReferenceAction(item));
+            holder.itemView.setOnClickListener(v -> {
+                // Three-state cycle ALLOWED → IGNORED → ERRORED → ALLOWED, matching Inure's
+                // AppOps editor model. The IGNORE state is the correct option for ops that
+                // misbehaving apps would otherwise crash on if DENY (ERRORED) is set, since
+                // IGNORE silently no-ops the op without throwing SecurityException. Long-press
+                // still opens the full single-choice mode picker (FOREGROUND/DEFAULT/etc.).
+                int nextMode = nextAppOpModeInCycle(item.getMode());
+                if (viewModel != null) {
+                    ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+                    viewModel.setAppOpModeAsync(mNeededProperty, item, nextMode);
+                }
+            });
+            // Long-press: the full mode picker, plus the watcher rules for this op.
+            List<WatchRuleMenu.Extra> extras = Collections.singletonList(
+                    new WatchRuleMenu.Extra(R.string.set_app_op_mode, () -> showAppOpModePicker(item)));
+            holder.itemView.setOnLongClickListener(v -> {
+                showWatchMenu(v, WatchRule.TYPE_APP_OP, item.name, item.getOp(), extras, true, rule -> {
+                    if (rule == null || !mCanModifyAppOpMode || viewModel == null
+                            || PermissionWatcher.evaluate(rule.state, item.isAllowed()) == PermissionWatcher.ACTION_NONE) {
+                        return;
+                    }
+                    // The rule disagrees with the op right now, so it takes effect at once.
+                    ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+                    viewModel.setAppOpModeAsync(mNeededProperty, item, rule.state == WatchRule.STATE_ALLOW
+                            ? AppOpsManager.MODE_ALLOWED : AppOpsManager.MODE_IGNORED);
+                });
+                return true;
+            });
+            AppDetailsAdapterUtils.passLongPressToRow(holder.itemView, true);
+        }
+
+        private void showAppOpModePicker(@NonNull AppDetailsAppOpItem item) {
+            List<Integer> modes = AppOpsManagerCompat.getModeConstants();
+            new SearchableSingleChoiceDialogBuilder<>(activity, modes, getAppOpModeNames(modes))
+                    .setTitle(R.string.set_app_op_mode)
+                    .setSelection(item.getMode())
+                    .setOnSingleChoiceClickListener((dialog, which, item1, isChecked) -> {
+                        int opMode = modes.get(which);
+                        if (viewModel != null) viewModel.setAppOpModeAsync(mNeededProperty, item, opMode);
+                        dialog.dismiss();
+                    })
+                    .show();
+        }
+
+        private void showPermissionFlags(int flags) {
+            SparseArray<String> permissionFlags = PermissionCompat.getPermissionFlagsWithString(flags);
+            String[] flagStrings = new String[permissionFlags.size()];
+            for (int i = 0; i < flagStrings.length; ++i) {
+                flagStrings[i] = permissionFlags.valueAt(i);
+            }
+            new SearchableItemsDialogBuilder<>(activity, flagStrings)
+                    .setTitle(R.string.permission_flags)
+                    .setNegativeButton(R.string.close, null)
+                    .show();
+        }
+
+        /**
+         * Shows the row's long-press menu. Without an installed app behind the screen, only the row's own items
+         * are offered, since a rule needs a package and a user to apply to.
+         */
+        private void showWatchMenu(@NonNull View anchor, @WatchRule.Type int type, @NonNull String name, int op,
+                                   @NonNull List<WatchRuleMenu.Extra> extras, boolean watchable,
+                                   @NonNull WatchRuleMenu.OnRuleChanged listener) {
+            String packageName = viewModel != null ? viewModel.getPackageName() : null;
+            int userId = viewModel != null ? viewModel.getUserId() : 0;
+            boolean canWatch = watchable && !mIsExternalApk && packageName != null;
+            WatchRuleMenu.show(anchor, packageName != null ? packageName : "", userId, type, name, op, extras,
+                    canWatch, listener);
+        }
+
+        private void getUsesPermissionsView(@NonNull Context context, @NonNull ViewHolder holder, int index) {
+            AppDetailsPermissionItem permissionItem;
+            synchronized (mAdapterList) {
+                permissionItem = (AppDetailsPermissionItem) mAdapterList.get(index);
+            }
+            @NonNull PermissionInfo permissionInfo = permissionItem.item;
+            final String permName = permissionInfo.name;
+            // Set permission name
+            if (mConstraint != null && permName.toLowerCase(Locale.ROOT).contains(mConstraint)) {
+                // Highlight searched query
+                holder.textView1.setText(UIUtils.getHighlightedText(permName, mConstraint, colorQueryStringHighlight));
+            } else holder.textView1.setText(permName);
+            // Set others
+            // Description
+            CharSequence description = permissionInfo.loadDescription(packageManager);
+            if (description != null) {
+                holder.textView2.setVisibility(View.VISIBLE);
+                holder.textView2.setText(description);
+            } else holder.textView2.setVisibility(View.GONE);
+            // Protection level
+            String protectionLevel = Utils.getProtectionLevelString(permissionInfo);
+            protectionLevel += '|' + (permissionItem.permission.isGranted() ? "granted" : "revoked");
+            if (permissionItem.hasReference) {
+                protectionLevel += '|' + getString(permissionItem.isReferenceDrifted()
+                        ? R.string.permission_reference_drift
+                        : R.string.permission_reference_status_pinned);
+            }
+            holder.textView3.setText(String.format(Locale.ROOT, "⚑ %s", protectionLevel));
+            // Set background color
+            if (permissionItem.isDangerous) {
+                holder.itemView.setStrokeColor(ColorCodes.getPermissionDangerousIndicatorColor(context));
+            } else {
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
+            }
+            // Set package name
+            if (permissionInfo.packageName != null) {
+                holder.textView4.setVisibility(View.VISIBLE);
+                holder.textView4.setText(String.format("%s%s%s", context.getString(R.string.package_name),
+                        LangUtils.getSeparatorString(), permissionInfo.packageName));
+            } else holder.textView4.setVisibility(View.GONE);
+            // Set group name
+            if (permissionInfo.group != null) {
+                holder.textView5.setVisibility(View.VISIBLE);
+                holder.textView5.setText(String.format("%s%s%s", context.getString(R.string.group),
+                        LangUtils.getSeparatorString(), permissionInfo.group));
+            } else holder.textView5.setVisibility(View.GONE);
+            // Permission Switch
+            boolean canGrantOrRevokePermission = permissionItem.modifiable && !mIsExternalApk;
+            bindReferenceButton(holder.referenceButton, permissionItem.isReferenceDrifted(),
+                    !mIsExternalApk && (!permissionItem.isReferenceDrifted() || canGrantOrRevokePermission), () ->
+                            handlePermissionReferenceAction(permissionItem));
+            if (canGrantOrRevokePermission) {
+                holder.toggleSwitch.setVisibility(View.VISIBLE);
+                holder.toggleSwitch.setChecked(permissionItem.isGranted());
+                holder.itemView.setOnClickListener(v -> {
+                    if (viewModel != null) viewModel.togglePermissionAsync(mNeededProperty, permissionItem);
+                });
+            } else {
+                holder.toggleSwitch.setVisibility(View.GONE);
+                holder.itemView.setOnClickListener(null);
+                holder.itemView.setClickable(false);
+                if (permissionItem.settingItem != null) {
+                    holder.settingButton.setVisibility(View.VISIBLE);
+                    holder.settingButton.setOnClickListener(v -> {
+                        try {
+                            String packageName = Objects.requireNonNull(viewModel).getPackageName();
+                            startActivity(permissionItem.settingItem.toIntent(Objects.requireNonNull(packageName)));
+                        } catch (Exception e) {
+                            Log.e(TAG, "Could not open permission settings for %s.", e, permissionItem.name);
+                            UIUtils.displayLongToast(R.string.permission_settings_unavailable);
+                        }
+                    });
+                } else {
+                    holder.settingButton.setVisibility(View.GONE);
+                }
+            }
+            // Long-press: the permission flags, plus the watcher rules when the permission can change at all.
+            int flags = permissionItem.permission.getFlags();
+            List<WatchRuleMenu.Extra> extras = flags == 0 ? Collections.emptyList()
+                    : Collections.singletonList(new WatchRuleMenu.Extra(R.string.permission_flags,
+                    () -> showPermissionFlags(flags)));
+            boolean watchable = !mIsExternalApk && (!permissionItem.permission.isReadOnly()
+                    || permissionItem.permission.affectsAppOp());
+            boolean longPressable = watchable || !extras.isEmpty();
+            holder.itemView.setOnLongClickListener(!longPressable ? null : v -> {
+                showWatchMenu(v, WatchRule.TYPE_PERMISSION, permName, AppOpsManagerCompat.OP_NONE, extras, watchable,
+                        rule -> {
+                            if (rule == null || !canGrantOrRevokePermission || viewModel == null
+                                    || PermissionWatcher.evaluate(rule.state, permissionItem.isGranted())
+                                    == PermissionWatcher.ACTION_NONE) {
+                                return;
+                            }
+                            // The rule disagrees with the permission right now, so it takes effect at once.
+                            viewModel.togglePermissionAsync(mNeededProperty, permissionItem);
+                        });
+                return true;
+            });
+            holder.itemView.setLongClickable(longPressable);
+            AppDetailsAdapterUtils.passLongPressToRow(holder.itemView, longPressable);
+        }
+
+        private void bindReferenceButton(@NonNull MaterialButton button, boolean drifted, boolean enabled,
+                                         @NonNull Runnable action) {
+            button.setVisibility(mIsExternalApk ? View.GONE : View.VISIBLE);
+            int label = drifted ? R.string.permission_reference_restore : R.string.permission_reference_pin;
+            button.setContentDescription(getString(label));
+            TooltipCompat.setTooltipText(button, getString(label));
+            button.setIconResource(drifted ? R.drawable.ic_restore : R.drawable.ic_flag);
+            button.setEnabled(!mIsExternalApk && enabled);
+            button.setOnClickListener(!mIsExternalApk && enabled ? v -> action.run() : null);
+        }
+
+        private void handlePermissionReferenceAction(@NonNull AppDetailsPermissionItem item) {
+            ThreadUtils.postOnBackgroundThread(() -> {
+                boolean restore = item.isReferenceDrifted();
+                boolean ok = false;
+                if (viewModel != null) {
+                    ok = restore ? viewModel.restorePermissionReference(item)
+                            : viewModel.pinPermissionReference(item);
+                }
+                boolean finalOk = ok;
+                ThreadUtils.postOnMainThread(() -> {
+                    if (finalOk) {
+                        AppDetailsAdapterUtils.notifyItemChangedIfPresent(this, mAdapterList, item);
+                        UIUtils.displayShortToast(restore
+                                ? R.string.permission_reference_restored
+                                : R.string.permission_reference_pinned);
+                    } else UIUtils.displayShortToast(restore
+                            ? R.string.permission_reference_restore_failed
+                            : R.string.permission_reference_pin_failed);
+                });
+            });
+        }
+
+        private void handleAppOpReferenceAction(@NonNull AppDetailsAppOpItem item) {
+            ThreadUtils.postOnBackgroundThread(() -> {
+                boolean restore = item.isReferenceDrifted();
+                boolean ok = false;
+                if (viewModel != null) {
+                    ok = restore ? viewModel.restoreAppOpReference(item) : viewModel.pinAppOpReference(item);
+                }
+                boolean finalOk = ok;
+                ThreadUtils.postOnMainThread(() -> {
+                    if (finalOk) {
+                        AppDetailsAdapterUtils.notifyItemChangedIfPresent(this, mAdapterList, item);
+                        UIUtils.displayShortToast(restore
+                                ? R.string.permission_reference_restored
+                                : R.string.permission_reference_pinned);
+                    } else UIUtils.displayShortToast(restore
+                            ? R.string.permission_reference_restore_failed
+                            : R.string.permission_reference_pin_failed);
+                });
+            });
+        }
+
+        private void getPermissionsView(@NonNull Context context, @NonNull ViewHolder holder, int index) {
+            AppDetailsDefinedPermissionItem permissionItem;
+            synchronized (mAdapterList) {
+                permissionItem = (AppDetailsDefinedPermissionItem) mAdapterList.get(index);
+            }
+            PermissionInfo permissionInfo = permissionItem.item;
+            // Internal or external
+            holder.chipType.setText(permissionItem.isExternal ? R.string.external : R.string.internal);
+            // Label
+            holder.textView1.setText(permissionInfo.loadLabel(packageManager));
+            // Name
+            if (mConstraint != null && permissionInfo.name.toLowerCase(Locale.ROOT).contains(mConstraint)) {
+                // Highlight searched query
+                holder.textView2.setText(UIUtils.getHighlightedText(permissionInfo.name, mConstraint, colorQueryStringHighlight));
+            } else {
+                holder.textView2.setText(permissionInfo.name.startsWith(mPackageName) ?
+                        permissionInfo.name.replaceFirst(mPackageName, "") : permissionInfo.name);
+            }
+            // Icon
+            String tag = mPackageName + "_" + permissionInfo.name;
+            holder.imageView.setTag(tag);
+            ImageLoader.getInstance().displayImage(tag, permissionInfo, holder.imageView);
+            // Description
+            CharSequence description = permissionInfo.loadDescription(packageManager);
+            if (description != null) {
+                holder.textView3.setVisibility(View.VISIBLE);
+                holder.textView3.setText(description);
+            } else {
+                holder.textView3.setVisibility(View.GONE);
+            }
+            // LaunchMode
+            holder.textView4.setText(String.format(Locale.ROOT, "%s: %s",
+                    getString(R.string.group), permissionInfo.group + permAppOp(permissionInfo.name)));
+            // Protection level
+            String protectionLevel = Utils.getProtectionLevelString(permissionInfo);
+            holder.textView5.setText(String.format(Locale.ROOT, "⚑ %s", protectionLevel));
+            // Set border color
+            if (protectionLevel.contains("dangerous")) {
+                holder.itemView.setStrokeColor(ColorCodes.getPermissionDangerousIndicatorColor(context));
+            } else {
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
+            }
+        }
+
+        @NonNull
+        private String permAppOp(String s) {
+            String opStr = AppOpsManagerCompat.permissionToOp(s);
+            return opStr != null ? "\nAppOp: " + opStr : "";
+        }
+    }
+}

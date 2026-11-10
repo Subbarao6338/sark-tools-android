@@ -1,0 +1,271 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.backup;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
+import io.github.muntashirakon.AppManager.backup.struct.BackupMetadataV5;
+import io.github.muntashirakon.AppManager.backup.struct.BackupOpOptions;
+import io.github.muntashirakon.AppManager.backup.struct.DeleteOpOptions;
+import io.github.muntashirakon.AppManager.backup.struct.RestoreOpOptions;
+import io.github.muntashirakon.AppManager.db.entity.Backup;
+import io.github.muntashirakon.AppManager.progress.ProgressHandler;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
+import io.github.muntashirakon.AppManager.utils.ExUtils;
+import io.github.muntashirakon.AppManager.utils.TarUtils;
+
+/**
+ * Manage backups for individual package belong to individual user.
+ */
+public class BackupManager {
+    public static final String TAG = BackupManager.class.getSimpleName();
+
+    /* language=regexp */
+    static final String[] CACHE_DIRS = new String[]{"cache/.*", "code_cache/.*", "no_backup/.*"};
+    /* language=regexp */
+    static final String[] LIB_DIR = new String[]{"lib/"};
+    public static final String SOURCE_PREFIX = "source";
+    public static final String DATA_PREFIX = "data";
+    static final String KEYSTORE_PREFIX = "keystore";
+    static final int KEYSTORE_PLACEHOLDER = -1000;
+    static final String DATA_BACKUP_SPECIAL_PREFIX = "special:";
+    static final String DATA_BACKUP_SPECIAL_ADB = DATA_BACKUP_SPECIAL_PREFIX + "adb";
+    static final String DATA_BACKUP_SPECIAL_SYSTEM_PREFIX = DATA_BACKUP_SPECIAL_PREFIX + "system:";
+
+    public static final String CERT_PREFIX = "cert_";
+    static final String MASTER_KEY = ".masterkey";
+
+    @NonNull
+    public static String getExt(@TarUtils.TarType String tarType) {
+        if (TarUtils.TAR_BZIP2.equals(tarType)) {
+            return ".tar.bz2";
+        } else if (TarUtils.TAR_ZSTD.equals(tarType)) {
+            return ".tar.zst";
+        } else return ".tar.gz";
+    }
+
+    private boolean mRequiresRestart;
+    @NonNull
+    private final ArrayList<DefaultAppRoleBackupHelper.RoleRebindRequest> mPendingDefaultRoleRebindRequests = new ArrayList<>();
+    @NonNull
+    private final ArrayList<String> mRestoreExtraWarnings = new ArrayList<>();
+
+    public BackupManager() {
+        ExUtils.exceptionAsIgnored(BackupItems::createNoMediaIfNotExists);
+    }
+
+    public boolean requiresRestart() {
+        return mRequiresRestart;
+    }
+
+    @NonNull
+    public List<DefaultAppRoleBackupHelper.RoleRebindRequest> getPendingDefaultRoleRebindRequests() {
+        return new ArrayList<>(mPendingDefaultRoleRebindRequests);
+    }
+
+    @NonNull
+    public List<String> getRestoreExtraWarnings() {
+        return new ArrayList<>(mRestoreExtraWarnings);
+    }
+
+    public void backup(@NonNull BackupOpOptions options, @Nullable ProgressHandler progressHandler)
+            throws BackupException {
+        if (SystemDataBackup.ANDROID_PACKAGE_NAME.equals(options.packageName)) {
+            if (!options.flags.backupSystemData()) {
+                throw new BackupException("Android System (android) can only be backed up with System data.");
+            }
+            SystemDataBackup.retainOnlySystemData(options.flags);
+        } else {
+            options.flags.removeFlag(BackupFlags.BACKUP_SYSTEM_DATA);
+        }
+        if (options.flags.backupSystemData() && !SystemDataBackup.canBackUpSystemData()) {
+            throw new BackupException("System data backup requires root or system mode.");
+        }
+        if (options.flags.isEmpty()) {
+            throw new BackupException("Backup is requested without any flags.");
+        }
+        BackupItems.BackupItem backupItem;
+        try {
+            if (options.override) {
+                backupItem = BackupItems.findOrCreateBackupItem(options.userId, options.backupName,
+                        options.packageName, options.destination);
+            } else {
+                backupItem = BackupItems.createBackupItemGracefully(options.userId, options.backupName,
+                        options.packageName, options.destination);
+            }
+        } catch (IOException e) {
+            throw new BackupException("Could not create BackupItem.", e);
+        }
+        if (progressHandler != null) {
+            int max = calculateMaxProgress(options.flags);
+            progressHandler.setProgressTextInterface(ProgressHandler.PROGRESS_PERCENT);
+            progressHandler.postUpdate(max, 0f);
+        }
+        // Pre-backup storage check (Neo Backup v8.3.15 model). Refuse to start a
+        // backup that would almost certainly fail mid-way for lack of disk space.
+        // Returns OK on any classification it can't make (missing PACKAGE_USAGE_STATS
+        // grant, SAF volume, etc.) so it never gates on unreliable input.
+        BackupStorageCheck.Result storageStatus = BackupStorageCheck.evaluate(options.packageName, options.destination);
+        if (storageStatus.status == BackupStorageCheck.Status.INSUFFICIENT) {
+            throw new BackupException("Insufficient free space on the backup volume: "
+                    + "estimated " + storageStatus.estimatedBytes + " bytes required, "
+                    + storageStatus.freeBytes + " bytes free.");
+        }
+        try (BackupOp backupOp = new BackupOp(options.packageName, options.flags, backupItem, options.userId,
+                options.exclusionGlobs, options.protectFromPrune, options.backupNote, options.cryptoMode)) {
+            backupOp.runBackup(progressHandler);
+            BackupUtils.putBackupToDbAndBroadcast(ContextUtils.getContext(), backupOp.getMetadata());
+        }
+        // Apply user-configured retention policy after a successful backup so the
+        // count / age caps are enforced incrementally rather than only on app launch.
+        // No-op when both caps are 0 (unlimited).
+        BackupRetentionPolicy.pruneForPackage(options.packageName, options.retentionMaxCount,
+                options.retentionMaxAgeDays, backupItem.getRelativeDir());
+    }
+
+    /**
+     * Restore a single backup for a given package belonging to the given package
+     */
+    public void restore(@NonNull RestoreOpOptions options, @Nullable ProgressHandler progressHandler)
+            throws BackupException {
+        if (SystemDataBackup.ANDROID_PACKAGE_NAME.equals(options.packageName)) {
+            if (!options.flags.backupSystemData()) {
+                throw new BackupException("Android System (android) can only be restored with System data.");
+            }
+            SystemDataBackup.retainOnlySystemData(options.flags);
+        } else {
+            options.flags.removeFlag(BackupFlags.BACKUP_SYSTEM_DATA);
+        }
+        if (options.flags.backupSystemData() && !SystemDataBackup.canBackUpSystemData()) {
+            throw new BackupException("System data restore requires root or system mode.");
+        }
+        if (options.flags.isEmpty()) {
+            throw new BackupException("Restore is requested without any flags.");
+        }
+        mPendingDefaultRoleRebindRequests.clear();
+        mRestoreExtraWarnings.clear();
+        BackupItems.BackupItem backupItem;
+        try {
+            if (options.relativeDir != null) {
+                backupItem = BackupItems.findBackupItem(options.relativeDir);
+            } else {
+                // Use base backup
+                Backup baseBackup = BackupUtils.retrieveBaseBackupFromDb(options.userId, options.packageName);
+                if (baseBackup != null) {
+                    backupItem = baseBackup.getItem();
+                } else {
+                    throw new BackupException("No base backup found.");
+                }
+            }
+        } catch (IOException e) {
+            throw new BackupException("Could not get backup files.", e);
+        }
+        if (progressHandler != null) {
+            int max = calculateMaxProgress(options.flags);
+            progressHandler.setProgressTextInterface(ProgressHandler.PROGRESS_PERCENT);
+            progressHandler.postUpdate(max, 0f);
+        }
+        try (RestoreOp restoreOp = new RestoreOp(options.packageName, options.flags, backupItem, options.userId)) {
+            restoreOp.runRestore(progressHandler);
+            mRequiresRestart |= restoreOp.requiresRestart();
+            mPendingDefaultRoleRebindRequests.addAll(restoreOp.getPendingDefaultRoleRebindRequests());
+            mRestoreExtraWarnings.addAll(restoreOp.getRestoreExtraWarnings());
+        }
+    }
+
+    public void deleteBackup(@NonNull DeleteOpOptions options) throws BackupException {
+        List<BackupItems.BackupItem> backupItemList;
+        switch (options.deleteScope) {
+            case DeleteOpOptions.DELETE_SCOPE_BASE_ONLY: {
+                Backup baseBackup = BackupUtils.retrieveBaseBackupFromDb(options.userId, options.packageName);
+                if (baseBackup != null) {
+                    try {
+                        backupItemList = Collections.singletonList(baseBackup.getItem());
+                    } catch (IOException e) {
+                        throw new BackupException("Could not get backup files.", e);
+                    }
+                } else {
+                    backupItemList = Collections.emptyList();
+                }
+                break;
+            }
+            case DeleteOpOptions.DELETE_SCOPE_ALL_VERSIONS: {
+                List<Backup> backups = BackupUtils.getBackupMetadataFromDbNoLockValidate(options.packageName);
+                backupItemList = new ArrayList<>(backups.size());
+                for (Backup backup : backups) {
+                    if (backup.userId != options.userId) {
+                        continue;
+                    }
+                    try {
+                        backupItemList.add(backup.getItem());
+                    } catch (IOException e) {
+                        throw new BackupException("Could not get backup files.", e);
+                    }
+                }
+                break;
+            }
+            case DeleteOpOptions.DELETE_SCOPE_SELECTED: {
+                String[] relativeDirs = Objects.requireNonNull(options.relativeDirs);
+                backupItemList = new ArrayList<>(relativeDirs.length);
+                for (String relativeDir : relativeDirs) {
+                    try {
+                        backupItemList.add(BackupItems.findBackupItem(relativeDir));
+                    } catch (IOException e) {
+                        throw new BackupException("Could not get backup files.", e);
+                    }
+                }
+                break;
+            }
+            default:
+                throw new BackupException("Unknown backup delete scope: " + options.deleteScope);
+        }
+        for (BackupItems.BackupItem backupItem : backupItemList) {
+            // try-with-resources releases the temp metadata copy + key material getMetadata() opens.
+            try (BackupItems.BackupItem item = backupItem) {
+                BackupMetadataV5 metadata;
+                try {
+                    metadata = item.getMetadata();
+                } catch (IOException e) {
+                    throw new BackupException("Could not retrieve metadata from backup.", e);
+                }
+                if (item.isFrozen() || metadata.metadata.protectedFromPrune) {
+                    // Frozen/protected backups are user-protected: leave files AND DB row intact.
+                    // Removing only the DB row (the previous behaviour) orphaned the on-disk backup.
+                    continue;
+                }
+                if (!item.delete()) {
+                    throw new BackupException("Could not delete the selected backups");
+                }
+                BackupUtils.deleteBackupToDbAndBroadcast(ContextUtils.getContext(), metadata);
+            }
+        }
+    }
+
+    public void verify(@NonNull String relativeDir) throws BackupException {
+        BackupItems.BackupItem backupItem;
+        try {
+            backupItem = BackupItems.findBackupItem(relativeDir);
+        } catch (IOException e) {
+            throw new BackupException("Could not get backup files.", e);
+        }
+        try (VerifyOp restoreOp = new VerifyOp(backupItem)) {
+            restoreOp.verify();
+        }
+    }
+
+    private static int calculateMaxProgress(@NonNull BackupFlags backupFlags) {
+        int tasks = 1;
+        if (backupFlags.backupApkFiles()) ++tasks;
+        if (backupFlags.backupData()) ++tasks;
+        if (backupFlags.backupExtras()) ++tasks;
+        if (backupFlags.backupRules()) ++tasks;
+        return tasks;
+    }
+}

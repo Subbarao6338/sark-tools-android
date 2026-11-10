@@ -1,0 +1,381 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.debloat;
+
+import android.app.Application;
+import android.content.Intent;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Bundle;
+import android.text.SpannableStringBuilder;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.annotation.ColorInt;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
+import androidx.appcompat.widget.LinearLayoutCompat;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textview.MaterialTextView;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.StaticDataset;
+import io.github.muntashirakon.AppManager.db.utils.AppDb;
+import io.github.muntashirakon.AppManager.details.AppDetailsActivity;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.util.AdapterUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
+import io.github.muntashirakon.dialog.CapsuleBottomSheetDialogFragment;
+import io.github.muntashirakon.util.UiUtils;
+import io.github.muntashirakon.widget.FlowLayout;
+import io.github.muntashirakon.widget.MaterialAlertView;
+import io.github.muntashirakon.widget.RecyclerView;
+
+
+public class BloatwareDetailsDialog extends CapsuleBottomSheetDialogFragment {
+    public static final String TAG = BloatwareDetailsDialog.class.getSimpleName();
+
+    public static final String ARG_PACKAGE_NAME = "pkg";
+
+    @NonNull
+    public static BloatwareDetailsDialog getInstance(@NonNull String packageName) {
+        BloatwareDetailsDialog fragment = new BloatwareDetailsDialog();
+        Bundle args = new Bundle();
+        args.putString(ARG_PACKAGE_NAME, packageName);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    private ImageView mAppIconView;
+    private MaterialButton mOpenAppInfoButton;
+    private TextView mAppLabelView;
+    private TextView mPackageNameView;
+    private FlowLayout mFlowLayout;
+    private MaterialAlertView mWarningView;
+    private MaterialTextView mDescriptionView;
+    private LinearLayoutCompat mSuggestionContainer;
+    private RecyclerView mSuggestionView;
+    private SuggestionsAdapter mAdapter;
+
+    @Override
+    public boolean displayLoaderByDefault() {
+        return true;
+    }
+
+    @NonNull
+    @Override
+    public View initRootView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.dialog_bloatware_details, container, false);
+        mAppIconView = view.findViewById(R.id.icon);
+        mOpenAppInfoButton = view.findViewById(R.id.info);
+        mAppLabelView = view.findViewById(R.id.name);
+        mPackageNameView = view.findViewById(R.id.package_name);
+        mFlowLayout = view.findViewById(R.id.tag_cloud);
+        mWarningView = view.findViewById(R.id.alert_text);
+        mDescriptionView = view.findViewById(R.id.apk_description);
+        mSuggestionContainer = view.findViewById(R.id.container);
+        mSuggestionView = view.findViewById(R.id.recycler_view);
+        mSuggestionView.setLayoutManager(new LinearLayoutManager(requireContext()));
+        mAdapter = new SuggestionsAdapter();
+        mSuggestionView.setAdapter(mAdapter);
+        return view;
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        String packageName = requireArguments().getString(ARG_PACKAGE_NAME);
+        if (packageName == null) {
+            dismiss();
+            return;
+        }
+        BloatwareDetailsViewModel viewModel = new ViewModelProvider(requireActivity()).get(BloatwareDetailsViewModel.class);
+        viewModel.debloatObjectLiveData.observe(getViewLifecycleOwner(), debloatObject -> {
+            if (debloatObject == null) {
+                dismiss();
+                return;
+            }
+            finishLoading();
+            updateDialog(debloatObject);
+            updateDialog(debloatObject.getSuggestions());
+        });
+        viewModel.findDebloatObject(packageName);
+    }
+
+    private void updateDialog(@NonNull DebloatObject debloatObject) {
+        Drawable icon = debloatObject.getIcon();
+        mAppIconView.setImageDrawable(icon != null ? icon : requireActivity().getPackageManager().getDefaultActivityIcon());
+        int[] users = debloatObject.getUsers();
+        if (users != null && users.length > 0) {
+            mOpenAppInfoButton.setVisibility(View.VISIBLE);
+            mOpenAppInfoButton.setOnClickListener(v -> {
+                Intent appDetailsIntent = AppDetailsActivity.getIntent(requireContext(), debloatObject.packageName,
+                        users[0]);
+                startActivity(appDetailsIntent);
+                dismiss();
+            });
+        } else {
+            mOpenAppInfoButton.setVisibility(View.GONE);
+        }
+        mAppLabelView.setText(debloatObject.getLabelOrPackageName());
+        mPackageNameView.setText(debloatObject.packageName);
+        // Compose the warning ribbon: vendor-aware known-bad rules win over the
+        // upstream debloat-list copy because they're keyed off (package,
+        // Build.MANUFACTURER, vendor-OS-version) and reflect verified field
+        // reports of system-surface crash loops on specific OEM/version combos.
+        CharSequence oemWarning = OemBloatRiskTable.getKnownBadWarning(requireContext(), debloatObject.packageName);
+        if (oemWarning == null) {
+            oemWarning = OemBloatRiskTable.getUninstallFallbackWarning(requireContext(), debloatObject.packageName);
+        }
+        String upstreamWarning = debloatObject.getWarning();
+        CharSequence composedWarning = composeWarning(oemWarning, upstreamWarning);
+        if (composedWarning != null) {
+            mWarningView.setVisibility(View.VISIBLE);
+            mWarningView.setText(composedWarning);
+            // Vendor-known-bad rules always escalate to WARN regardless of upstream
+            // removal rating; a Settings → Mobile-Networks crash-loop is not "info".
+            if (oemWarning != null) {
+                mWarningView.setAlertType(MaterialAlertView.ALERT_TYPE_WARN);
+            } else if (debloatObject.getRemoval() >= DebloatObject.REMOVAL_CAUTION) {
+                mWarningView.setAlertType(MaterialAlertView.ALERT_TYPE_INFO);
+            } else mWarningView.setAlertType(MaterialAlertView.ALERT_TYPE_WARN);
+        } else mWarningView.setVisibility(View.GONE);
+        mDescriptionView.setText(getDescription(debloatObject));
+        // Add tags
+        int removalColor;
+        @StringRes
+        int removalRes;
+        switch (debloatObject.getRemoval()) {
+            case DebloatObject.REMOVAL_SAFE:
+                removalColor = ColorCodes.getRemovalSafeIndicatorColor(requireContext());
+                removalRes = R.string.debloat_removal_safe_short_description;
+                break;
+            default:
+            case DebloatObject.REMOVAL_CAUTION:
+                removalColor = ColorCodes.getRemovalCautionIndicatorColor(requireContext());
+                removalRes = R.string.debloat_removal_caution_short_description;
+                break;
+            case DebloatObject.REMOVAL_REPLACE:
+                removalColor = ColorCodes.getRemovalReplaceIndicatorColor(requireContext());
+                removalRes = R.string.debloat_removal_replace_short_description;
+                break;
+            case DebloatObject.REMOVAL_UNSAFE:
+                removalColor = ColorCodes.getRemovalUnsafeIndicatorColor(requireContext());
+                removalRes = R.string.debloat_removal_unsafe;
+                break;
+        }
+        mFlowLayout.removeAllViews();
+        addTag(mFlowLayout, debloatObject.type);
+        addTag(mFlowLayout, removalRes, removalColor);
+        for (String knownPreinstallOem : debloatObject.getKnownPreinstallOems()) {
+            addTag(mFlowLayout, requireContext().getString(R.string.debloat_known_preinstall_oem, knownPreinstallOem));
+        }
+    }
+
+    /**
+     * Stitch the OEM-aware known-bad warning on top of the upstream
+     * debloat-list warning. The OEM warning leads (it's the more specific
+     * signal); the upstream warning trails as additional context. Returns
+     * {@code null} when both are empty so the ribbon can be hidden.
+     */
+    @Nullable
+    private static CharSequence composeWarning(@Nullable CharSequence oem, @Nullable String upstream) {
+        boolean hasOem = oem != null && oem.length() > 0;
+        boolean hasUpstream = upstream != null && !upstream.isEmpty();
+        if (hasOem && hasUpstream) {
+            return new SpannableStringBuilder().append(oem).append("\n\n").append(upstream);
+        }
+        if (hasOem) return oem;
+        if (hasUpstream) return upstream;
+        return null;
+    }
+
+    private void updateDialog(@Nullable List<SuggestionObject> suggestionObjects) {
+        if (suggestionObjects == null || suggestionObjects.isEmpty()) {
+            mSuggestionContainer.setVisibility(View.GONE);
+            return;
+        }
+        mSuggestionContainer.setVisibility(View.VISIBLE);
+        mAdapter.setList(suggestionObjects);
+    }
+
+    @NonNull
+    private CharSequence getDescription(@NonNull DebloatObject debloatObject) {
+        String description = debloatObject.getDescription();
+        String[] refSites = debloatObject.getWebRefs();
+        String[] dependencies = debloatObject.getDependencies();
+        String[] requiredBy = debloatObject.getRequiredBy();
+        SpannableStringBuilder sb = new SpannableStringBuilder();
+        if (description != null) {
+            sb.append(description.trim());
+        }
+        if (dependencies.length > 0) {
+            // Add dependencies
+            if (dependencies.length == 1) {
+                sb.append(UIUtils.getBoldString("\n\nDependency: ")).append(dependencies[0]);
+            } else {
+                sb.append(UIUtils.getBoldString("\n\nDependencies\n"))
+                        .append(UiUtils.getOrderedList(Arrays.asList(dependencies)));
+            }
+        }
+        if (requiredBy.length > 0) {
+            // Add dependencies
+            if (requiredBy.length == 1) {
+                sb.append(UIUtils.getBoldString("\n\nRequired by: ")).append(requiredBy[0]);
+            } else {
+                sb.append(UIUtils.getBoldString("\n\nRequired by\n"))
+                        .append(UiUtils.getOrderedList(Arrays.asList(requiredBy)));
+            }
+        }
+        if (refSites.length > 0) {
+            sb.append(UIUtils.getBoldString("\n\nReferences\n"))
+                    .append(UiUtils.getOrderedList(Arrays.asList(refSites)));
+        }
+        String definitionsVersion = Prefs.Privacy.getDebloatDefinitionsVersion();
+        if (definitionsVersion != null && !definitionsVersion.isEmpty()) {
+            sb.append(UIUtils.getBoldString("\n\nSource: "))
+                    .append(getString(R.string.debloat_source_provenance, definitionsVersion));
+        }
+        return sb;
+    }
+
+    private void addTag(@NonNull ViewGroup parent, @StringRes int titleRes, @ColorInt int background) {
+        MaterialTextView fact = (MaterialTextView) LayoutInflater.from(requireContext())
+                .inflate(R.layout.item_inline_fact, parent, false);
+        fact.setText(titleRes);
+        GradientDrawable indicator = new GradientDrawable();
+        indicator.setShape(GradientDrawable.OVAL);
+        indicator.setColor(background);
+        int size = getResources().getDimensionPixelSize(R.dimen.premium_status_dot_size);
+        indicator.setSize(size, size);
+        fact.setCompoundDrawablesRelativeWithIntrinsicBounds(indicator, null, null, null);
+        fact.setCompoundDrawablePadding(getResources().getDimensionPixelSize(R.dimen.premium_space_8));
+        parent.addView(fact);
+    }
+
+    private void addTag(@NonNull ViewGroup parent, @NonNull CharSequence title) {
+        MaterialTextView fact = (MaterialTextView) LayoutInflater.from(requireContext())
+                .inflate(R.layout.item_inline_fact, parent, false);
+        fact.setText(title);
+        parent.addView(fact);
+    }
+
+    public static class BloatwareDetailsViewModel extends AndroidViewModel {
+        public final MutableLiveData<DebloatObject> debloatObjectLiveData = new MutableLiveData<>();
+
+        public BloatwareDetailsViewModel(@NonNull Application application) {
+            super(application);
+        }
+
+        public void findDebloatObject(@NonNull String packageName) {
+            ThreadUtils.postOnBackgroundThread(() -> {
+                List<DebloatObject> debloatObjects = StaticDataset.getDebloatObjects();
+                for (DebloatObject debloatObject : debloatObjects) {
+                    if (packageName.equals(debloatObject.packageName)) {
+                        debloatObject.fillInstallInfo(getApplication(), new AppDb());
+                        debloatObjectLiveData.postValue(debloatObject);
+                        return;
+                    }
+                }
+                debloatObjectLiveData.postValue(null);
+            });
+        }
+    }
+
+    private class SuggestionsAdapter extends RecyclerView.Adapter<SuggestionsAdapter.SuggestionViewHolder> {
+        private final List<SuggestionObject> mSuggestions = Collections.synchronizedList(new ArrayList<>());
+
+        public SuggestionsAdapter() {
+        }
+
+        public void setList(@NonNull List<SuggestionObject> suggestions) {
+            AdapterUtils.notifyDataSetChanged(this, mSuggestions, suggestions);
+        }
+
+        @NonNull
+        @Override
+        public SuggestionViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_bloatware_details, parent, false);
+            return new SuggestionViewHolder(v);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull SuggestionViewHolder holder, int position) {
+            SuggestionObject suggestion = mSuggestions.get(position);
+            holder.labelView.setText(suggestion.getLabel());
+            holder.packageNameView.setText(suggestion.packageName);
+            int[] users = suggestion.getUsers();
+            if (users != null && users.length > 0) {
+                MaterialButton appInfoButton = holder.marketOrAppInfoButton;
+                appInfoButton.setIconResource(io.github.muntashirakon.ui.R.drawable.ic_information);
+                appInfoButton.setContentDescription(holder.itemView.getContext().getString(R.string.app_info));
+                appInfoButton.setOnClickListener(v -> {
+                    Intent appDetailsIntent = AppDetailsActivity.getIntent(requireContext(), suggestion.packageName,
+                            users[0]);
+                    startActivity(appDetailsIntent);
+                });
+            } else {
+                MaterialButton marketButton = holder.marketOrAppInfoButton;
+                marketButton.setIconResource(suggestion.isInFDroidMarket() ? R.drawable.ic_frost_fdroid : R.drawable.ic_frost_aurorastore);
+                marketButton.setContentDescription(holder.itemView.getContext().getString(R.string.open_in_app_store));
+                marketButton.setOnClickListener(v -> {
+                    Intent appDetailsIntent = suggestion.getMarketLink();
+                    appDetailsIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        startActivity(appDetailsIntent);
+                    } catch (Exception th) {
+                        Log.e(TAG, "Could not open app store for %s.", th, suggestion.packageName);
+                        UIUtils.displayLongToast(R.string.debloat_app_store_unavailable);
+                    }
+                });
+            }
+            String reason = suggestion.getReason();
+            StringBuilder sb = new StringBuilder();
+            if (reason != null) sb.append(reason).append("\n");
+            sb.append(suggestion.getRepo());
+            holder.repoView.setText(sb);
+        }
+
+        @Override
+        public int getItemCount() {
+            return mSuggestions.size();
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return mSuggestions.get(position).hashCode();
+        }
+
+        private class SuggestionViewHolder extends RecyclerView.ViewHolder {
+            final TextView labelView;
+            final TextView packageNameView;
+            final TextView repoView;
+            final MaterialButton marketOrAppInfoButton;
+
+            public SuggestionViewHolder(@NonNull View itemView) {
+                super(itemView);
+                labelView = itemView.findViewById(R.id.name);
+                packageNameView = itemView.findViewById(R.id.package_name);
+                repoView = itemView.findViewById(R.id.message);
+                marketOrAppInfoButton = itemView.findViewById(R.id.info);
+            }
+        }
+    }
+}

@@ -1,0 +1,342 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.apk.installer;
+
+import static io.github.muntashirakon.AppManager.compat.PackageManagerCompat.GET_SIGNING_CERTIFICATES;
+import static io.github.muntashirakon.AppManager.compat.PackageManagerCompat.GET_SIGNING_CERTIFICATES_APK;
+import static io.github.muntashirakon.AppManager.compat.PackageManagerCompat.MATCH_DISABLED_COMPONENTS;
+import static io.github.muntashirakon.AppManager.compat.PackageManagerCompat.MATCH_UNINSTALLED_PACKAGES;
+
+import android.annotation.SuppressLint;
+import android.app.Application;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.graphics.drawable.Drawable;
+import android.os.UserHandleHidden;
+
+import androidx.annotation.AnyThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.annotation.WorkerThread;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.Future;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+import io.github.muntashirakon.AppManager.apk.ApkFile;
+import io.github.muntashirakon.AppManager.apk.ApkSource;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.rules.compontents.ComponentUtils;
+import io.github.muntashirakon.AppManager.utils.PackageUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.io.IoUtils;
+
+public class PackageInstallerViewModel extends AndroidViewModel {
+    private final PackageManager mPm;
+    private PackageInfo mNewPackageInfo;
+    private PackageInfo mInstalledPackageInfo;
+    private ApkSource mApkSource;
+    private ApkFile mApkFile;
+    private String mPackageName;
+    private String mAppLabel;
+    private Drawable mAppIcon;
+    private boolean mIsSignatureDifferent = false;
+    private int mTrackerCount;
+    @Nullable
+    private Future<?> mPackageInfoResult;
+    private final MutableLiveData<PackageInfo> mPackageInfoLiveData = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> mPackageUninstalledLiveData = new MutableLiveData<>();
+    private final Set<String> mSelectedSplits = new HashSet<>();
+    @Nullable
+    private Set<String> mBaseNativeAbis;
+
+    public PackageInstallerViewModel(@NonNull Application application) {
+        super(application);
+        mPm = application.getPackageManager();
+    }
+
+    @Override
+    protected void onCleared() {
+        IoUtils.closeQuietly(mApkFile);
+        if (mPackageInfoResult != null) {
+            mPackageInfoResult.cancel(true);
+        }
+        super.onCleared();
+    }
+
+    public LiveData<PackageInfo> packageInfoLiveData() {
+        return mPackageInfoLiveData;
+    }
+
+    public LiveData<Boolean> packageUninstalledLiveData() {
+        return mPackageUninstalledLiveData;
+    }
+
+    @AnyThread
+    public void getPackageInfo(ApkQueueItem apkQueueItem) {
+        if (mPackageInfoResult != null) {
+            mPackageInfoResult.cancel(true);
+        }
+        mSelectedSplits.clear();
+        mPackageInfoResult = ThreadUtils.postOnBackgroundThread(() -> {
+            try {
+                // Three possibilities: 1. Install-existing, 2. ApkFile, 3. Uri
+                if (apkQueueItem.isInstallExisting()) {
+                    if (apkQueueItem.getPackageName() == null) {
+                        throw new IllegalArgumentException("Package name not set for install-existing.");
+                    }
+                    getExistingPackageInfoInternal(apkQueueItem.getPackageName());
+                } else if (apkQueueItem.getApkSource() != null) {
+                    mApkSource = apkQueueItem.getApkSource();
+                    getPackageInfoInternal();
+                } else {
+                    throw new IllegalArgumentException("Invalid queue item.");
+                }
+                apkQueueItem.setApkSource(mApkSource);
+                apkQueueItem.setPackageName(mPackageName);
+                apkQueueItem.setAppLabel(mAppLabel);
+            } catch (Throwable th) { // ApkFileException extends Throwable, not Exception
+                Log.e("PIVM", "Couldn't fetch package info", th);
+                mPackageInfoLiveData.postValue(null);
+            }
+        });
+    }
+
+    public void uninstallPackage() {
+        ThreadUtils.postOnBackgroundThread(() -> {
+            PackageInstallerCompat installer = PackageInstallerCompat.getNewInstance();
+            installer.setAppLabel(mAppLabel);
+            mPackageUninstalledLiveData.postValue(installer.uninstall(mPackageName, UserHandleHidden.USER_ALL, false));
+        });
+    }
+
+    public PackageInfo getNewPackageInfo() {
+        return mNewPackageInfo;
+    }
+
+    @Nullable
+    public PackageInfo getInstalledPackageInfo() {
+        return mInstalledPackageInfo;
+    }
+
+    public String getAppLabel() {
+        return mAppLabel;
+    }
+
+    public Drawable getAppIcon() {
+        return mAppIcon;
+    }
+
+    public String getPackageName() {
+        return mPackageName;
+    }
+
+    public ApkFile getApkFile() {
+        return mApkFile;
+    }
+
+    public ApkSource getApkSource() {
+        return mApkSource;
+    }
+
+    public int getTrackerCount() {
+        return mTrackerCount;
+    }
+
+    public boolean isSignatureDifferent() {
+        return mIsSignatureDifferent;
+    }
+
+    public Set<String> getSelectedSplits() {
+        return mSelectedSplits;
+    }
+
+    /**
+     * The ABIs the base APK and the selected ABI splits carry native code for, or {@code null} when
+     * the base APK couldn't be read.
+     */
+    @Nullable
+    public Set<String> getNativeAbis(@NonNull Collection<String> selectedEntryIds) {
+        if (mBaseNativeAbis == null || mApkFile == null) {
+            return null;
+        }
+        Set<String> abis = new TreeSet<>(mBaseNativeAbis);
+        for (ApkFile.Entry entry : mApkFile.getEntries()) {
+            if (entry.type == ApkFile.APK_SPLIT_ABI && selectedEntryIds.contains(entry.id)) {
+                abis.add(entry.getAbi());
+            }
+        }
+        return abis;
+    }
+
+    @WorkerThread
+    private void loadBaseNativeAbis() {
+        mBaseNativeAbis = null;
+        try {
+            mBaseNativeAbis = readNativeAbis(mApkFile.getBaseEntry().getFile(false));
+        } catch (IOException | RuntimeException e) {
+            // Only the native-code preflight is lost, the system installer still checks
+            Log.w("PIVM", "Couldn't list the base APK's native libraries", e);
+        }
+    }
+
+    /**
+     * The ABIs an APK carries native libraries for, read from its {@code lib/<abi>/} entries.
+     */
+    @VisibleForTesting
+    @WorkerThread
+    @NonNull
+    static Set<String> readNativeAbis(@NonNull File apk) throws IOException {
+        try (ZipFile zipFile = new ZipFile(apk)) {
+            List<String> names = new ArrayList<>();
+            Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                names.add(entries.nextElement().getName());
+            }
+            return InstallDependencyChecker.nativeAbisOf(names);
+        }
+    }
+
+    public void selectDefaultSplitsForInstallation() {
+        if (!mApkFile.isSplit() || !mSelectedSplits.isEmpty()) {
+            return;
+        }
+        HashMap<String, HashSet<Integer>> seenTypes = new HashMap<>();
+        for (ApkFile.Entry entry : mApkFile.getEntries()) {
+            if (entry.isRequired() && entry.supported()) {
+                selectSplit(entry, seenTypes);
+            }
+        }
+        for (ApkFile.Entry entry : mApkFile.getEntries()) {
+            if (mSelectedSplits.contains(entry.id) || !entry.supported()) {
+                continue;
+            }
+            HashSet<Integer> types = seenTypes.get(entry.getFeature());
+            if (types == null) {
+                continue;
+            }
+            switch (entry.type) {
+                case ApkFile.APK_SPLIT_ABI:
+                case ApkFile.APK_SPLIT_DENSITY:
+                case ApkFile.APK_SPLIT_LOCALE:
+                    if (!types.contains(entry.type)) {
+                        selectSplit(entry, seenTypes);
+                    }
+                    break;
+            }
+        }
+    }
+
+    @NonNull
+    public ArrayList<String> getSelectedSplitsForInstallation() {
+        if (mApkFile.isSplit()) {
+            selectDefaultSplitsForInstallation();
+            if (mSelectedSplits.isEmpty()) {
+                throw new IllegalArgumentException("No splits selected.");
+            }
+            return new ArrayList<>(mSelectedSplits);
+        }
+        return new ArrayList<>(Collections.singletonList(mApkFile.getBaseEntry().id));
+    }
+
+    private void selectSplit(@NonNull ApkFile.Entry entry, @NonNull HashMap<String, HashSet<Integer>> seenTypes) {
+        mSelectedSplits.add(entry.id);
+        HashSet<Integer> types = seenTypes.get(entry.getFeature());
+        if (types == null) {
+            types = new HashSet<>();
+            seenTypes.put(entry.getFeature(), types);
+        }
+        types.add(entry.type);
+    }
+
+    private void getPackageInfoInternal() throws PackageManager.NameNotFoundException, IOException, ApkFile.ApkFileException {
+        mApkFile = mApkSource.resolve();
+        mNewPackageInfo = loadNewPackageInfo();
+        mPackageName = mNewPackageInfo.packageName;
+        if (ThreadUtils.isInterrupted()) {
+            return;
+        }
+        try {
+            mInstalledPackageInfo = loadInstalledPackageInfo(mPackageName);
+            if (ThreadUtils.isInterrupted()) {
+                return;
+            }
+        } catch (PackageManager.NameNotFoundException ignore) {
+        }
+        mAppLabel = mPm.getApplicationLabel(mNewPackageInfo.applicationInfo).toString();
+        mAppIcon = mPm.getApplicationIcon(mNewPackageInfo.applicationInfo);
+        mTrackerCount = ComponentUtils.getTrackerComponentsCountForPackage(mNewPackageInfo);
+        if (ThreadUtils.isInterrupted()) {
+            return;
+        }
+        loadBaseNativeAbis();
+        if (mNewPackageInfo != null && mInstalledPackageInfo != null) {
+            mIsSignatureDifferent = PackageUtils.isSignatureDifferent(mNewPackageInfo, mInstalledPackageInfo);
+        }
+        mPackageInfoLiveData.postValue(mNewPackageInfo);
+    }
+
+    private void getExistingPackageInfoInternal(@NonNull String packageName) throws PackageManager.NameNotFoundException, IOException, ApkFile.ApkFileException {
+        mPackageName = packageName;
+        mInstalledPackageInfo = loadInstalledPackageInfo(packageName);
+        mApkSource = ApkSource.getApkSource(mInstalledPackageInfo.applicationInfo);
+        mApkFile = mApkSource.resolve();
+        mNewPackageInfo = loadNewPackageInfo();
+        mAppLabel = mPm.getApplicationLabel(mNewPackageInfo.applicationInfo).toString();
+        mAppIcon = mPm.getApplicationIcon(mNewPackageInfo.applicationInfo);
+        mTrackerCount = ComponentUtils.getTrackerComponentsCountForPackage(mNewPackageInfo);
+        loadBaseNativeAbis();
+        if (mNewPackageInfo != null && mInstalledPackageInfo != null) {
+            mIsSignatureDifferent = PackageUtils.isSignatureDifferent(mNewPackageInfo, mInstalledPackageInfo);
+        }
+        mPackageInfoLiveData.postValue(mNewPackageInfo);
+    }
+
+    @WorkerThread
+    @NonNull
+    private PackageInfo loadNewPackageInfo() throws PackageManager.NameNotFoundException, IOException {
+        String apkPath = mApkFile.getBaseEntry().getFile(false).getAbsolutePath();
+        int flags = PackageManager.GET_PERMISSIONS
+                | PackageManager.GET_ACTIVITIES | PackageManager.GET_RECEIVERS | PackageManager.GET_PROVIDERS
+                | PackageManager.GET_SERVICES | MATCH_DISABLED_COMPONENTS | GET_SIGNING_CERTIFICATES_APK
+                | PackageManager.GET_CONFIGURATIONS | PackageManager.GET_SHARED_LIBRARY_FILES;
+        PackageInfo packageInfo = mPm.getPackageArchiveInfo(apkPath, flags);
+        if (packageInfo == null) {
+            // Previous method could return null if the APK isn't signed. So, try without it.
+            packageInfo = mPm.getPackageArchiveInfo(apkPath, flags & ~GET_SIGNING_CERTIFICATES_APK);
+        }
+        if (packageInfo == null) {
+            throw new PackageManager.NameNotFoundException("Package cannot be parsed.");
+        }
+        packageInfo.applicationInfo.sourceDir = apkPath;
+        packageInfo.applicationInfo.publicSourceDir = apkPath;
+        return packageInfo;
+    }
+
+    @WorkerThread
+    @NonNull
+    private PackageInfo loadInstalledPackageInfo(String packageName) throws PackageManager.NameNotFoundException {
+        @SuppressLint("WrongConstant")
+        PackageInfo packageInfo = mPm.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS
+                | PackageManager.GET_ACTIVITIES | PackageManager.GET_RECEIVERS | PackageManager.GET_PROVIDERS
+                | PackageManager.GET_SERVICES | MATCH_DISABLED_COMPONENTS | GET_SIGNING_CERTIFICATES | MATCH_UNINSTALLED_PACKAGES
+                | PackageManager.GET_CONFIGURATIONS | PackageManager.GET_SHARED_LIBRARY_FILES);
+        if (packageInfo == null) throw new PackageManager.NameNotFoundException("Package not found.");
+        return packageInfo;
+    }
+}

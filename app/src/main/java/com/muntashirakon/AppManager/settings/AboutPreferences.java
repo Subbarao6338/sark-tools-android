@@ -1,0 +1,162 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.settings;
+
+import android.content.ClipData;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.preference.Preference;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import java.util.Locale;
+import java.util.Objects;
+
+import io.github.muntashirakon.AppManager.BuildConfig;
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.changelog.ChangelogDialogUi;
+import io.github.muntashirakon.AppManager.changelog.ChangelogRecyclerAdapter;
+import io.github.muntashirakon.AppManager.misc.DiagnosticUtils;
+import io.github.muntashirakon.AppManager.misc.HelpActivity;
+import io.github.muntashirakon.AppManager.utils.MotionUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.dialog.AlertDialogBuilder;
+import io.github.muntashirakon.dialog.ScrollableDialogBuilder;
+
+public class AboutPreferences extends PreferenceFragment {
+    private MainPreferencesViewModel mModel;
+
+    @Override
+    public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        setPreferencesFromResource(R.xml.preferences_about, rootKey);
+        getPreferenceManager().setPreferenceDataStore(new SettingsDataStore());
+        mModel = new ViewModelProvider(requireActivity()).get(MainPreferencesViewModel.class);
+        Preference versionPref = Objects.requireNonNull(findPreference("version"));
+        versionPref.setSummary(String.format(Locale.getDefault(), "%s (%d)", BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
+        versionPref.setOnPreferenceClickListener(preference -> {
+            mModel.loadChangeLog();
+            return true;
+        });
+        // What's new — dedicated entry point for the in-app changelog viewer
+        ((Preference) Objects.requireNonNull(findPreference("whats_new")))
+                .setOnPreferenceClickListener(preference -> {
+                    mModel.loadChangeLog();
+                    return true;
+                });
+        // User manual
+        ((Preference) Objects.requireNonNull(findPreference("user_manual")))
+                .setOnPreferenceClickListener(preference -> {
+                    Intent helpIntent = new Intent(requireContext(), HelpActivity.class);
+                    startActivity(helpIntent);
+                    return true;
+                });
+        // Website
+        ((Preference) Objects.requireNonNull(findPreference("website")))
+                .setOnPreferenceClickListener(preference -> {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.website_message)));
+                    startActivity(intent);
+                    return true;
+                });
+        // Get help
+        ((Preference) Objects.requireNonNull(findPreference("get_help")))
+                .setOnPreferenceClickListener(preference -> {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.discussions_site)));
+                    startActivity(intent);
+                    return true;
+                });
+        // Third-party libraries
+        ((Preference) Objects.requireNonNull(findPreference("third_party_libraries")))
+                .setOnPreferenceClickListener(preference -> {
+                    new ScrollableDialogBuilder(requireActivity())
+                            .setTitle(R.string.third_party)
+                            .setMessage(R.string.third_party_message)
+                            .enableAnchors()
+                            .setNegativeButton(R.string.close, null)
+                            .show();
+                    return true;
+                });
+        // Credits
+        ((Preference) Objects.requireNonNull(findPreference("credits")))
+                .setOnPreferenceClickListener(preference -> {
+                    new ScrollableDialogBuilder(requireActivity())
+                            .setTitle(R.string.credits)
+                            .setMessage(R.string.credits_message)
+                            .enableAnchors()
+                            .setNegativeButton(R.string.close, null)
+                            .show();
+                    return true;
+                });
+        // Diagnostic dump
+        ((Preference) Objects.requireNonNull(findPreference("export_diagnostics")))
+                .setOnPreferenceClickListener(preference -> {
+                    Toast.makeText(requireContext(), R.string.diagnostic_preparing, Toast.LENGTH_SHORT).show();
+                    ThreadUtils.postOnBackgroundThread(() -> {
+                        Uri reportUri = DiagnosticUtils.buildDiagnosticReport(requireContext());
+                        ThreadUtils.postOnMainThread(() -> {
+                            if (reportUri == null) {
+                                Toast.makeText(requireContext(), R.string.diagnostic_failed, Toast.LENGTH_LONG).show();
+                                return;
+                            }
+                            Intent share = buildDiagnosticShareIntent(reportUri,
+                                    getString(R.string.diagnostic_report_subject));
+                            startActivity(Intent.createChooser(share, getString(R.string.pref_export_diagnostics)));
+                        });
+                    });
+                    return true;
+                });
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        MotionUtils.applySharedAxisZTransition(this);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        // Observe Changelog
+        mModel.getChangeLog().observe(getViewLifecycleOwner(), changelog -> {
+            if (changelog == null) {
+                UIUtils.displayLongToast(R.string.changelog_could_not_be_loaded);
+                return;
+            }
+            View v = View.inflate(requireContext(), R.layout.dialog_whats_new, null);
+            RecyclerView recyclerView = ChangelogDialogUi.setupList(v);
+            recyclerView.setLayoutManager(new LinearLayoutManager(recyclerView.getContext()));
+            ChangelogRecyclerAdapter adapter = new ChangelogRecyclerAdapter();
+            recyclerView.setAdapter(adapter);
+            adapter.setAdapterList(changelog.getChangelogItems());
+            new AlertDialogBuilder(requireActivity(), true)
+                    .setTitle(R.string.changelog)
+                    .setView(v)
+                    .show();
+        });
+    }
+
+    @Override
+    public int getTitle() {
+        return R.string.about;
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static Intent buildDiagnosticShareIntent(@NonNull Uri reportUri, @NonNull CharSequence subject) {
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.setType("application/zip");
+        share.putExtra(Intent.EXTRA_SUBJECT, subject);
+        share.putExtra(Intent.EXTRA_STREAM, reportUri);
+        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        share.setClipData(ClipData.newRawUri("", reportUri));
+        return share;
+    }
+}

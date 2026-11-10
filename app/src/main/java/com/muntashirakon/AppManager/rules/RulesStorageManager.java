@@ -1,0 +1,464 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.rules;
+
+import android.annotation.UserIdInt;
+import android.content.Context;
+import android.os.RemoteException;
+
+import androidx.annotation.GuardedBy;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.WorkerThread;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
+
+import io.github.muntashirakon.AppManager.compat.AppOpsManagerCompat;
+import io.github.muntashirakon.AppManager.compat.NetworkPolicyManagerCompat;
+import io.github.muntashirakon.AppManager.compat.PermissionCompat;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.magisk.MagiskProcess;
+import io.github.muntashirakon.AppManager.rules.compontents.ComponentUtils;
+import io.github.muntashirakon.AppManager.rules.struct.AppOpReferenceRule;
+import io.github.muntashirakon.AppManager.rules.struct.AppOpRule;
+import io.github.muntashirakon.AppManager.rules.struct.BatteryOptimizationRule;
+import io.github.muntashirakon.AppManager.rules.struct.ComponentRule;
+import io.github.muntashirakon.AppManager.rules.struct.FreezeRule;
+import io.github.muntashirakon.AppManager.rules.struct.MagiskDenyListRule;
+import io.github.muntashirakon.AppManager.rules.struct.MagiskHideRule;
+import io.github.muntashirakon.AppManager.rules.struct.NetPolicyRule;
+import io.github.muntashirakon.AppManager.rules.struct.NotificationListenerRule;
+import io.github.muntashirakon.AppManager.rules.struct.PermissionReferenceRule;
+import io.github.muntashirakon.AppManager.rules.struct.PermissionRule;
+import io.github.muntashirakon.AppManager.rules.struct.RuleEntry;
+import io.github.muntashirakon.AppManager.rules.struct.SsaidRule;
+import io.github.muntashirakon.AppManager.rules.struct.UriGrantRule;
+import io.github.muntashirakon.AppManager.uri.UriManager;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
+import io.github.muntashirakon.AppManager.utils.FreezeUtils;
+import io.github.muntashirakon.io.AtomicExtendedFile;
+import io.github.muntashirakon.io.ExtendedFile;
+import io.github.muntashirakon.io.Path;
+import io.github.muntashirakon.io.PathReader;
+import io.github.muntashirakon.io.Paths;
+
+public class RulesStorageManager implements Closeable {
+    private static final String TAG = RulesStorageManager.class.getSimpleName();
+    private static final ConcurrentHashMap<String, ReentrantLock> TRANSACTION_LOCKS = new ConcurrentHashMap<>();
+
+    @NonNull
+    private final ArrayList<RuleEntry> mEntries;
+    @NonNull
+    private final ReentrantLock mTransactionLock;
+    private boolean mTransactionLockHeld;
+
+    @GuardedBy("entries")
+    @NonNull
+    protected String packageName;
+    @GuardedBy("entries")
+    protected boolean readOnly = true;
+    @UserIdInt
+    protected int userId;
+
+    @WorkerThread
+    @NonNull
+    public static List<FreezeRule> getAllFreezeRules() {
+        Context context = ContextUtils.getContext();
+        List<String> packages = ComponentUtils.getAllPackagesWithRules(context);
+        int userId = android.os.UserHandleHidden.myUserId();
+        List<FreezeRule> result = new ArrayList<>();
+        for (String pkg : packages) {
+            try (RulesStorageManager rsm = new RulesStorageManager(pkg, userId)) {
+                result.addAll(rsm.getAll(FreezeRule.class));
+            }
+        }
+        return result;
+    }
+
+    protected RulesStorageManager(@NonNull String packageName, @UserIdInt int userId) {
+        this(packageName, userId, false);
+    }
+
+    /**
+     * Create a rules manager, optionally taking the package/user transaction lock before loading
+     * the file. Mutable callers use the locked form so their read-modify-write cycle cannot race
+     * another caller in this process.
+     */
+    protected RulesStorageManager(@NonNull String packageName, @UserIdInt int userId,
+                                   boolean lockBeforeLoad) {
+        this.packageName = packageName;
+        this.userId = userId;
+        mEntries = new ArrayList<>();
+        mTransactionLock = TRANSACTION_LOCKS.computeIfAbsent(packageName + "\u0000" + userId,
+                key -> new ReentrantLock());
+        if (lockBeforeLoad) {
+            mTransactionLock.lock();
+            mTransactionLockHeld = true;
+        }
+        try {
+            loadEntries(getDesiredFile(false), false);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public void setReadOnly() {
+        this.readOnly = true;
+        releaseTransactionLock();
+    }
+
+    public void setMutable() {
+        if (!readOnly) return;
+        if (!mTransactionLockHeld) {
+            mTransactionLock.lock();
+            mTransactionLockHeld = true;
+            reloadEntriesFromDisk();
+        }
+        this.readOnly = false;
+    }
+
+    @Override
+    public void close() {
+        try {
+            if (!readOnly) commit();
+        } finally {
+            setReadOnly();
+        }
+    }
+
+    /**
+     * Return whether this manager currently owns its package/user transaction lock.
+     */
+    protected final boolean isTransactionLockHeld() {
+        return mTransactionLockHeld;
+    }
+
+    private void releaseTransactionLock() {
+        if (mTransactionLockHeld) {
+            mTransactionLockHeld = false;
+            mTransactionLock.unlock();
+        }
+    }
+
+    @GuardedBy("entries")
+    public <T extends RuleEntry> List<T> getAll(Class<T> type) {
+        synchronized (mEntries) {
+            List<T> newEntries = new ArrayList<>();
+            for (RuleEntry entry : mEntries) if (type.isInstance(entry)) newEntries.add(type.cast(entry));
+            return newEntries;
+        }
+    }
+
+    @GuardedBy("entries")
+    public List<RuleEntry> getAll(List<RuleType> types) {
+        synchronized (mEntries) {
+            List<RuleEntry> newEntries = new ArrayList<>();
+            for (RuleEntry entry : mEntries) if (types.contains(entry.type)) newEntries.add(entry);
+            return newEntries;
+        }
+    }
+
+    @GuardedBy("entries")
+    public List<ComponentRule> getAllComponents() {
+        return getAll(ComponentRule.class);
+    }
+
+    @GuardedBy("entries")
+    public List<RuleEntry> getAll() {
+        synchronized (mEntries) {
+            return mEntries;
+        }
+    }
+
+    @GuardedBy("entries")
+    public int entryCount() {
+        synchronized (mEntries) {
+            return mEntries.size();
+        }
+    }
+
+    @GuardedBy("entries")
+    public void removeEntry(RuleEntry entry) {
+        synchronized (mEntries) {
+            mEntries.remove(entry);
+        }
+    }
+
+    @GuardedBy("entries")
+    @Nullable
+    protected RuleEntry removeEntries(String name, RuleType type) {
+        synchronized (mEntries) {
+            Iterator<RuleEntry> entryIterator = mEntries.iterator();
+            RuleEntry entry = null;
+            while (entryIterator.hasNext()) {
+                entry = entryIterator.next();
+                if (entry.name.equals(name) && entry.type.equals(type)) {
+                    entryIterator.remove();
+                }
+            }
+            return entry;
+        }
+    }
+
+    protected void setComponent(String name, RuleType componentType, @ComponentRule.ComponentStatus String componentStatus) {
+        ComponentRule newRule = new ComponentRule(packageName, name, componentType, componentStatus);
+        RuleEntry oldRule = addUniqueEntry(newRule);
+        if (oldRule instanceof ComponentRule) {
+            newRule.setLastComponentStatus(((ComponentRule) oldRule).getComponentStatus());
+        }
+    }
+
+    public void setAppOp(int op, @AppOpsManagerCompat.Mode int mode) {
+        addUniqueEntry(new AppOpRule(packageName, op, mode));
+    }
+
+    public void deleteAppOp(int op) {
+        removeEntries(String.valueOf(op), RuleType.APP_OP);
+    }
+
+    public void setAppOpReference(int op, @AppOpsManagerCompat.Mode int mode) {
+        addUniqueEntry(new AppOpReferenceRule(packageName, op, mode));
+    }
+
+    public void deleteAppOpReference(int op) {
+        removeEntries(String.valueOf(op), RuleType.APP_OP_REFERENCE);
+    }
+
+    @Nullable
+    public AppOpReferenceRule getAppOpReference(int op) {
+        synchronized (mEntries) {
+            for (RuleEntry entry : mEntries) {
+                if (entry instanceof AppOpReferenceRule && entry.name.equals(String.valueOf(op))) {
+                    return (AppOpReferenceRule) entry;
+                }
+            }
+        }
+        return null;
+    }
+
+    public void setPermission(String name, boolean isGranted, @PermissionCompat.PermissionFlags int flags) {
+        addUniqueEntry(new PermissionRule(packageName, name, isGranted, flags));
+    }
+
+    public void setPermissionReference(String name, boolean isGranted) {
+        addUniqueEntry(new PermissionReferenceRule(packageName, name, isGranted));
+    }
+
+    public void deletePermissionReference(String name) {
+        removeEntries(name, RuleType.PERMISSION_REFERENCE);
+    }
+
+    @Nullable
+    public PermissionReferenceRule getPermissionReference(String name) {
+        synchronized (mEntries) {
+            for (RuleEntry entry : mEntries) {
+                if (entry instanceof PermissionReferenceRule && entry.name.equals(name)) {
+                    return (PermissionReferenceRule) entry;
+                }
+            }
+        }
+        return null;
+    }
+
+    public void setNotificationListener(String name, boolean isGranted) {
+        addUniqueEntry(new NotificationListenerRule(packageName, name, isGranted));
+    }
+
+    public void setMagiskHide(@NonNull MagiskProcess magiskProcess) {
+        addUniqueEntry(new MagiskHideRule(magiskProcess));
+    }
+
+    public void setMagiskDenyList(MagiskProcess magiskProcess) {
+        addUniqueEntry(new MagiskDenyListRule(magiskProcess));
+    }
+
+    public void setBatteryOptimization(boolean willOptimize) {
+        addUniqueEntry(new BatteryOptimizationRule(packageName, willOptimize));
+    }
+
+    public void setNetPolicy(@NetworkPolicyManagerCompat.NetPolicy int netPolicy) {
+        addUniqueEntry(new NetPolicyRule(packageName, netPolicy));
+    }
+
+    public void setUriGrant(@NonNull UriManager.UriGrant uriGrant) {
+        // There could be many UriGrants
+        addEntryInternal(new UriGrantRule(packageName, uriGrant));
+    }
+
+    public void setSsaid(@NonNull String ssaid) {
+        addUniqueEntry(new SsaidRule(packageName, ssaid));
+    }
+
+    public void setFreezeType(@FreezeUtils.FreezeMethod int freezeType) {
+        addUniqueEntry(new FreezeRule(packageName, freezeType));
+    }
+
+    /**
+     * Add entry, remove old entries depending on entry {@link RuleType}.
+     */
+    @GuardedBy("entries")
+    public void addEntry(@NonNull RuleEntry entry) {
+        synchronized (mEntries) {
+            if (entry.type.equals(RuleType.URI_GRANT)) {
+                // UriGrant is not unique
+                addEntryInternal(entry);
+            } else addUniqueEntry(entry);
+        }
+    }
+
+    /**
+     * Remove the exact entry if exists before adding it.
+     */
+    @GuardedBy("entries")
+    private void addEntryInternal(@NonNull RuleEntry entry) {
+        synchronized (mEntries) {
+            removeEntry(entry);
+            mEntries.add(entry);
+        }
+    }
+
+    /**
+     * Remove all entries of the given name and type before adding the entry.
+     */
+    @GuardedBy("entries")
+    @Nullable
+    private RuleEntry addUniqueEntry(@NonNull RuleEntry entry) {
+        synchronized (mEntries) {
+            RuleEntry previousEntry = removeEntries(entry.name, entry.type);
+            mEntries.add(entry);
+            return previousEntry;
+        }
+    }
+
+    @GuardedBy("entries")
+    protected void loadEntries(Path file, boolean isExternal) throws IOException {
+        List<RuleEntry> entries = readEntries(file, isExternal);
+        synchronized (mEntries) {
+            mEntries.addAll(entries);
+        }
+    }
+
+    private void reloadEntriesFromDisk() {
+        try {
+            List<RuleEntry> entries = readEntries(getDesiredFile(false), false);
+            synchronized (mEntries) {
+                mEntries.clear();
+                mEntries.addAll(entries);
+            }
+        } catch (Exception e) {
+            // Keep the last known-good in-memory snapshot if a transient read fails after the
+            // transaction lock has been acquired. A failed refresh must never turn a later commit
+            // into an empty rules file.
+            Log.w(TAG, "Could not refresh rules for " + packageName, e);
+        }
+    }
+
+    @NonNull
+    private List<RuleEntry> readEntries(Path file, boolean isExternal) throws IOException {
+        ArrayList<RuleEntry> entries = new ArrayList<>();
+        String dataRow;
+        try (BufferedReader TSVFile = new BufferedReader(new PathReader(file))) {
+            while ((dataRow = TSVFile.readLine()) != null) {
+                RuleEntry entry;
+                try {
+                    entry = RuleEntry.unflattenFromString(packageName, dataRow, isExternal);
+                } catch (IllegalArgumentException e) {
+                    // Skip a single malformed/legacy line rather than truncating the
+                    // rest of the file (fail-unsafe partial load). Mirrors the
+                    // per-entry skip in ComponentUtils.readIFWRules and RulesImporter.
+                    Log.w(TAG, "Skipping malformed rule line for " + packageName + ": " + dataRow, e);
+                    continue;
+                }
+                entries.add(entry);
+            }
+        }
+        return entries;
+    }
+
+    @WorkerThread
+    @GuardedBy("entries")
+    public void commit() {
+        try {
+            saveEntries(getDesiredFile(true), false);
+        } catch (IOException | RemoteException ex) {
+            Log.w(TAG, ex);
+        }
+    }
+
+    @WorkerThread
+    @GuardedBy("entries")
+    public void commitExternal(Path tsvRulesFile) {
+        try {
+            saveEntries(tsvRulesFile, true);
+        } catch (IOException | RemoteException ex) {
+            Log.w(TAG, ex);
+        }
+    }
+
+    @WorkerThread
+    @GuardedBy("entries")
+    protected void saveEntries(Path tsvRulesFile, boolean isExternal) throws IOException, RemoteException {
+        synchronized (mEntries) {
+            if (mEntries.isEmpty()) {
+                ExtendedFile localFile = tsvRulesFile.getFile();
+                if (localFile != null) {
+                    new AtomicExtendedFile(localFile).delete();
+                } else {
+                    tsvRulesFile.delete();
+                }
+                return;
+            }
+            // Serialize fully into memory BEFORE touching the on-disk file: openOutputStream()
+            // truncates on open, so a failure mid-serialization (a malformed entry) would otherwise
+            // leave a truncated .tsv and silently drop every rule after the failure point.
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            ComponentUtils.storeRules(buffer, mEntries, isExternal);
+            byte[] data = buffer.toByteArray();
+            ExtendedFile localFile = tsvRulesFile.getFile();
+            if (localFile != null) {
+                AtomicExtendedFile atomicFile = new AtomicExtendedFile(localFile);
+                FileOutputStream outputStream = null;
+                try {
+                    outputStream = atomicFile.startWrite();
+                    outputStream.write(data);
+                    atomicFile.finishWrite(outputStream);
+                    outputStream = null;
+                } catch (IOException e) {
+                    atomicFile.failWrite(outputStream);
+                    throw e;
+                }
+            } else {
+                try (OutputStream TSVFile = tsvRulesFile.openOutputStream()) {
+                    TSVFile.write(data);
+                }
+            }
+        }
+    }
+
+    @NonNull
+    public static Path getConfDir(@NonNull Context context) {
+        return Objects.requireNonNull(Paths.build(context.getFilesDir(), "conf"));
+    }
+
+    @NonNull
+    protected Path getDesiredFile(boolean create) throws IOException {
+        Path confDir = getConfDir(ContextUtils.getContext());
+        if (!confDir.exists()) {
+            confDir.mkdirs();
+        }
+        if (create) {
+            return confDir.findOrCreateFile(packageName + ".tsv", null);
+        }
+        return confDir.findFile(packageName + ".tsv");
+    }
+}

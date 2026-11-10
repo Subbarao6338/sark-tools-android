@@ -1,0 +1,1437 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.settings;
+
+import android.Manifest;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Process;
+import android.os.RemoteException;
+import android.provider.Settings;
+import android.text.TextUtils;
+
+import androidx.annotation.AnyThread;
+import androidx.annotation.GuardedBy;
+import androidx.annotation.IntDef;
+import androidx.annotation.MainThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.annotation.StringDef;
+import androidx.annotation.StringRes;
+import androidx.annotation.UiThread;
+import androidx.annotation.WorkerThread;
+import androidx.core.app.ActivityCompat;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
+import androidx.lifecycle.Observer;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.adb.AdbConnectionManager;
+import io.github.muntashirakon.AppManager.adb.AdbPairingCodeDialog;
+import io.github.muntashirakon.AppManager.adb.AdbPairingService;
+import io.github.muntashirakon.AppManager.adb.AdbPairingSession;
+import io.github.muntashirakon.AppManager.adb.AdbUtils;
+import io.github.muntashirakon.AppManager.compat.ManifestCompat;
+import io.github.muntashirakon.AppManager.ipc.LocalServices;
+import io.github.muntashirakon.AppManager.logcat.helper.ServiceHelper;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.misc.NoOps;
+import io.github.muntashirakon.AppManager.runner.RunnerUtils;
+import io.github.muntashirakon.AppManager.self.SelfPermissions;
+import io.github.muntashirakon.AppManager.servermanager.AdbFailure;
+import io.github.muntashirakon.AppManager.servermanager.LocalServer;
+import io.github.muntashirakon.AppManager.servermanager.ServerConfig;
+import io.github.muntashirakon.AppManager.servermanager.ServerConnectionFailure;
+import io.github.muntashirakon.AppManager.servermanager.ServerStatusChangeReceiver;
+import io.github.muntashirakon.AppManager.servermanager.WifiWaitService;
+import io.github.muntashirakon.AppManager.shizuku.ShizukuBridge;
+import io.github.muntashirakon.AppManager.session.SessionMonitoringService;
+import io.github.muntashirakon.AppManager.users.Owners;
+import io.github.muntashirakon.AppManager.users.Users;
+import io.github.muntashirakon.AppManager.utils.AppPref;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
+import io.github.muntashirakon.AppManager.utils.ExUtils;
+import io.github.muntashirakon.AppManager.utils.NotificationUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.adb.AdbPairingRequiredException;
+import io.github.muntashirakon.dialog.DialogTitleBuilder;
+import io.github.muntashirakon.dialog.ScrollableDialogBuilder;
+import io.github.muntashirakon.dialog.TextInputDialogBuilder;
+import rikka.shizuku.Shizuku;
+
+/**
+ * Controls mode of operation and other related functions
+ */
+public class Ops {
+    public static final String TAG = Ops.class.getSimpleName();
+    private static final int REQUEST_LOCAL_NETWORK_PERMISSION = 0x4c4e;
+
+    @StringDef({MODE_AUTO, MODE_ROOT, MODE_SHIZUKU, MODE_ADB_OVER_TCP, MODE_ADB_WIFI, MODE_NO_ROOT})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Mode {
+    }
+
+    public static final String MODE_AUTO = "auto";
+    public static final String MODE_ROOT = "root";
+    public static final String MODE_SHIZUKU = "shizuku";
+    public static final String MODE_ADB_OVER_TCP = "adb_tcp";
+    public static final String MODE_ADB_WIFI = "adb_wifi";
+    public static final String MODE_NO_ROOT = "no-root";
+
+    @IntDef({
+            STATUS_SUCCESS,
+            STATUS_FAILURE,
+            STATUS_AUTO_CONNECT_WIRELESS_DEBUGGING,
+            STATUS_WIRELESS_DEBUGGING_CHOOSER_REQUIRED,
+            STATUS_ADB_PAIRING_REQUIRED,
+            STATUS_ADB_CONNECT_REQUIRED,
+            STATUS_FAILURE_ADB_NEED_MORE_PERMS,
+            STATUS_SHIZUKU_PERMISSION_REQUIRED,
+            STATUS_LOCAL_NETWORK_PERMISSION_REQUIRED,
+            STATUS_FAILURE_SERVER_START,
+            STATUS_FAILURE_SERVER_UNRESPONSIVE,
+            STATUS_FAILURE_SERVER_NOT_ACKNOWLEDGED,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Status {
+    }
+
+    public static final int STATUS_SUCCESS = 0;
+    public static final int STATUS_FAILURE = 1;
+    public static final int STATUS_AUTO_CONNECT_WIRELESS_DEBUGGING = 2;
+    public static final int STATUS_WIRELESS_DEBUGGING_CHOOSER_REQUIRED = 3;
+    public static final int STATUS_ADB_PAIRING_REQUIRED = 4;
+    public static final int STATUS_ADB_CONNECT_REQUIRED = 5;
+    public static final int STATUS_FAILURE_ADB_NEED_MORE_PERMS = 6;
+    public static final int STATUS_SHIZUKU_PERMISSION_REQUIRED = 7;
+    public static final int STATUS_LOCAL_NETWORK_PERMISSION_REQUIRED = 8;
+    public static final int STATUS_FAILURE_SERVER_START = 9;
+    public static final int STATUS_FAILURE_SERVER_UNRESPONSIVE = 10;
+    public static final int STATUS_FAILURE_SERVER_NOT_ACKNOWLEDGED = 11;
+    private static final int SDK_ANDROID_17 = 37;
+
+    public static int ROOT_UID = 0;
+    public static int SHELL_UID = 2000;
+    public static int PHONE_UID = Process.PHONE_UID;
+    public static int SYSTEM_UID = Process.SYSTEM_UID;
+
+    private static volatile int sWorkingUid = Process.myUid();
+    /**
+     * Observable mirror of {@link #sWorkingUid}.
+     *
+     * <p>The privileged server can go away without the UI asking: it is stopped, it crashes, or
+     * the connection drops, and every one of those paths already reports through
+     * {@link #setWorkingUid(int)}. Publishing from there means a status surface observing this
+     * cannot show a dead server as alive, without anything having to poll for it.
+     */
+    private static final MutableLiveData<Integer> sWorkingUidLiveData =
+            new MutableLiveData<>(sWorkingUid);
+    private static volatile boolean sDirectRoot = false; // AM has root AND that root is being used
+    private static boolean sIsAdb = false; // UID = 2000
+    private static boolean sIsSystem = false; // UID = 1000
+    private static boolean sIsRoot = false; // UID = 0
+    private static boolean sIsShizuku = false; // Privileged binder is backed by Shizuku/Sui UserService
+    /**
+     * Port of upstream 2f2b31e89: a mode change, a connect and the boot-time reconnect each set the
+     * mode flags and restart the server, so one at a time, in the order they came in.
+     */
+    private static final ReentrantLock sTransitionLock = new ReentrantLock(true);
+    /**
+     * Goes up each time a transition takes the lock. The settings screen saves a new mode only once
+     * the switch to it worked, so a reconnect that queued behind the switch can't tell from the mode.
+     */
+    private static final AtomicInteger sTransitions = new AtomicInteger();
+
+    // Security
+    private static final Object sSecurityLock = new Object();
+    @GuardedBy("sSecurityLock")
+    private static boolean sIsAuthenticated = false;
+
+    private Ops() {
+    }
+
+    @AnyThread
+    public static int getWorkingUid() {
+        return sWorkingUid;
+    }
+
+    @AnyThread
+    public static void setWorkingUid(int newUid) {
+        boolean changed = sWorkingUid != newUid;
+        sWorkingUid = newUid;
+        if (changed) {
+            sWorkingUidLiveData.postValue(newUid);
+        }
+    }
+
+    /**
+     * Emits the uid operations currently run as, whenever it changes — including when the
+     * privileged server stops or disconnects and it falls back to this app's own uid.
+     */
+    @AnyThread
+    @NonNull
+    public static LiveData<Integer> getWorkingUidLiveData() {
+        return sWorkingUidLiveData;
+    }
+
+    @AnyThread
+    public static int getWorkingUidOrRoot() {
+        int uid = getWorkingUid();
+        if (uid != ROOT_UID && sDirectRoot) {
+            return ROOT_UID;
+        }
+        return uid;
+    }
+
+    @AnyThread
+    public static boolean isWorkingUidRoot() {
+        return getWorkingUid() == ROOT_UID;
+    }
+
+    /**
+     * Whether App Manager is currently using direct root (e.g. root granted to the app) to perform operations. The
+     * result returned by this method may not reflect the actual state due to other factors.
+     */
+    @AnyThread
+    public static boolean isDirectRoot() {
+        return sDirectRoot;
+    }
+
+    /**
+     * Whether App Manager is running in system mode
+     */
+    @AnyThread
+    public static boolean isSystem() {
+        return sIsSystem;
+    }
+
+    /**
+     * Whether App Manager is running in ADB mode
+     */
+    @AnyThread
+    public static boolean isAdb() {
+        return sIsAdb && !sIsShizuku;
+    }
+
+    /**
+     * Whether the current privileged binder is backed by Shizuku/Sui instead of
+     * AppManagerNG's root/ADB local server.
+     */
+    @AnyThread
+    public static boolean isShizuku() {
+        return sIsShizuku;
+    }
+
+    /**
+     * Whether the configured mode is ADB but the working shell is actually
+     * running with uid 0 — the "ADB Root" surface KernelSU v3.2.3+ added
+     * (also reachable via APatch's adb-root toggle and Magisk's kang mode).
+     *
+     * <p>This is privilege-equivalent to root but follows the ADB code-path
+     * for transport. <b>Trust caveat:</b> "anyone can plug in via USB" — a
+     * device left unattended on a desk with USB debugging enabled grants
+     * any laptop the same uid-0 surface; consumers (Privilege Health-Check
+     * screen, onboarding wizard) MUST gate elevated trust on explicit user
+     * confirmation before treating this as full-root for sensitive ops.
+     *
+     * <p>Cheap and safe to call from any thread — reads three already-cached
+     * static booleans plus the working-uid sentinel; no shell round-trip.
+     * The KernelSU-presence check is intentionally not folded in here so
+     * that APatch/Magisk paths still register; callers wanting a stricter
+     * "root manager confirmed" gate should pair this with
+     * {@code RootManagerInfo.detect()}.
+     */
+    @AnyThread
+    public static boolean isAdbShellRoot() {
+        return sIsAdb && !sIsShizuku && !sDirectRoot && getWorkingUid() == ROOT_UID;
+    }
+
+    /**
+     * Whether the current App Manager session is authenticated by the user. It does two things:
+     * <ol>
+     *     <li>If security is enabled, it marks that the user has got passed the security challenge.
+     *     <li>It checks if a mode of operation is set before proceeding further.
+     * </ol>
+     */
+    @GuardedBy("sSecurityLock")
+    @AnyThread
+    public static boolean isAuthenticated() {
+        synchronized (sSecurityLock) {
+            return sIsAuthenticated;
+        }
+    }
+
+    @GuardedBy("sSecurityLock")
+    @MainThread
+    public static void setAuthenticated(@NonNull Context context, boolean authenticated) {
+        synchronized (sSecurityLock) {
+            sIsAuthenticated = authenticated;
+            if (Prefs.Privacy.isPersistentSessionAllowed()) {
+                Intent service = new Intent(context, SessionMonitoringService.class);
+                if (authenticated) {
+                    ContextCompat.startForegroundService(context, service);
+                } else {
+                    context.stopService(service);
+                }
+            }
+        }
+    }
+
+    @NonNull
+    public static CharSequence getInferredMode(@NonNull Context context) {
+        int uid = Users.getSelfOrRemoteUid();
+        if (sIsShizuku) {
+            if (uid == ROOT_UID) {
+                return context.getString(R.string.shizuku_root);
+            }
+            if (uid == SHELL_UID) {
+                return context.getString(R.string.shizuku_shell);
+            }
+            return context.getString(R.string.shizuku);
+        }
+        if (uid == ROOT_UID) {
+            return context.getString(R.string.root);
+        }
+        if (uid == SHELL_UID) {
+            return "ADB";
+        }
+        if (uid != Process.myUid()) {
+            String uidStr = Owners.getUidOwnerMap(false).get(uid);
+            if (!TextUtils.isEmpty(uidStr)) {
+                return uidStr.substring(0, 1).toUpperCase(Locale.ROOT)
+                        + (uidStr.length() > 1 ? uidStr.substring(1) : "");
+            }
+        }
+        return context.getString(R.string.no_root);
+    }
+
+    @NoOps
+    public static String getMode() {
+        String mode = AppPref.getString(AppPref.PrefKey.PREF_MODE_OF_OPS_STR);
+        // Backward compatibility for v2.6.0
+        if (mode.equals("adb")) {
+            mode = MODE_ADB_OVER_TCP;
+        }
+        if ((MODE_ADB_OVER_TCP.equals(mode) || MODE_ADB_WIFI.equals(mode))
+                && !SelfPermissions.checkSelfPermission(Manifest.permission.INTERNET)) {
+            // ADB enabled but the INTERNET permission is not granted, replace current with auto.
+            return MODE_AUTO;
+        }
+        return mode;
+    }
+
+    @NoOps
+    public static void setMode(@NonNull String newMode) {
+        AppPref.set(AppPref.PrefKey.PREF_MODE_OF_OPS_STR, newMode);
+        if (!MODE_ADB_WIFI.equals(newMode) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // A boot-time reconnect or a pairing for the old mode must not bring wireless ADB back
+            Context context = ContextUtils.getContext();
+            context.stopService(new Intent(context, WifiWaitService.class));
+            context.stopService(new Intent(context, AdbPairingService.class));
+        }
+    }
+
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    @Status
+    public static int init(@NonNull Context context, boolean force) {
+        return init(context, force, getMode(), true);
+    }
+
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    @Status
+    public static int init(@NonNull Context context, boolean force, @NonNull @Mode String mode) {
+        return init(context, force, mode, false);
+    }
+
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    @Status
+    private static int init(@NonNull Context context, boolean force, @NonNull @Mode String mode,
+                            boolean persistAutoDetectedMode) {
+        sTransitionLock.lock();
+        sTransitions.incrementAndGet();
+        try {
+            return initLocked(context, force, mode, persistAutoDetectedMode);
+        } finally {
+            sTransitionLock.unlock();
+        }
+    }
+
+    /**
+     * Starts the server in the saved mode for a caller with nobody there to answer a dialog, an
+     * automation broadcast. A status that wants a person comes back as it is.
+     */
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    @Status
+    public static int startUnattended(@NonNull Context context) {
+        sTransitionLock.lock();
+        sTransitions.incrementAndGet();
+        try {
+            return connectUnattendedLocked(context, false, getMode(), true);
+        } finally {
+            sTransitionLock.unlock();
+        }
+    }
+
+    /**
+     * Switches to a mode and saves it once the switch worked, like the settings screen does. The
+     * save is inside the lock here, so a connect queued behind this one sees the new mode.
+     */
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    @Status
+    public static int switchModeUnattended(@NonNull Context context, @NonNull @Mode String mode) {
+        sTransitionLock.lock();
+        sTransitions.incrementAndGet();
+        try {
+            if (MODE_ADB_OVER_TCP.equals(mode)) {
+                ServerConfig.setAdbPort(ServerConfig.DEFAULT_ADB_PORT);
+            }
+            int status = connectUnattendedLocked(context, true, mode, false);
+            if (status == STATUS_SUCCESS) {
+                setMode(mode);
+            }
+            return status;
+        } finally {
+            sTransitionLock.unlock();
+        }
+    }
+
+    /**
+     * Stops the privileged server and leaves the saved mode alone. A process woken just for this
+     * holds no connection, so {@link #initNoRoot()} alone would report success over a server a
+     * previous run left listening: that one gets connected to, so it can be told to close.
+     */
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    @Status
+    public static int stopServerUnattended(@NonNull Context context) {
+        sTransitionLock.lock();
+        sTransitions.incrementAndGet();
+        try {
+            return stopServerLocked(context);
+        } finally {
+            sTransitionLock.unlock();
+        }
+    }
+
+    /**
+     * Whether a settings screen is partway through applying a mode. It saves that mode outside the
+     * transition lock, so a switch from elsewhere has to wait until it's done.
+     */
+    @AnyThread
+    public static boolean isModeApplyInProgress() {
+        return ModeOfOpsApplyState.isAnyApplying();
+    }
+
+    @WorkerThread
+    @Status
+    private static int connectUnattendedLocked(@NonNull Context context, boolean force, @NonNull @Mode String mode,
+                                               boolean persistAutoDetectedMode) {
+        int status = initLocked(context, force, mode, persistAutoDetectedMode);
+        if (status == STATUS_AUTO_CONNECT_WIRELESS_DEBUGGING) {
+            return autoConnectWirelessDebuggingLocked(context);
+        }
+        return status;
+    }
+
+    @WorkerThread
+    @Status
+    private static int stopServerLocked(@NonNull Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // The saved mode stays, so a queued reconnect for it must not bring the server back
+            context.stopService(new Intent(context, WifiWaitService.class));
+            context.stopService(new Intent(context, AdbPairingService.class));
+        }
+        initNoRoot();
+        if (!LocalServer.alive(context)) {
+            return STATUS_SUCCESS;
+        }
+        try {
+            LocalServer.getInstance();
+            LocalServer.closeIfConnected();
+        } catch (IOException | AdbPairingRequiredException | RuntimeException e) {
+            Log.w(TAG, "Could not reach the privileged server to stop it.", e);
+            return reportServerFailure(e, STATUS_FAILURE);
+        }
+        return LocalServer.alive(context) ? STATUS_FAILURE : STATUS_SUCCESS;
+    }
+
+    @WorkerThread
+    @Status
+    private static int initLocked(@NonNull Context context, boolean force, @NonNull @Mode String mode,
+                                  boolean persistAutoDetectedMode) {
+        if (MODE_NO_ROOT.equals(mode)) {
+            return initNoRoot();
+        }
+        // Only the modes that can use root probe for it. The probe builds a root shell, which is a
+        // superuser prompt on a rooted device.
+        sDirectRoot = (MODE_AUTO.equals(mode) || MODE_ROOT.equals(mode)) && hasRoot();
+        if (MODE_AUTO.equals(mode)) {
+            autoDetectRootSystemOrAdb(context, persistAutoDetectedMode);
+            return sIsAdb ? STATUS_SUCCESS : initPermissionsWithSuccess();
+        }
+        if (!force && isAMServiceUpAndRunning(context, mode)) {
+            // An instance of AMService is already running
+            return sIsAdb ? STATUS_SUCCESS : initPermissionsWithSuccess();
+        }
+        try {
+            switch (mode) {
+                case MODE_ROOT:
+                    if (!sDirectRoot) {
+                        throw new Exception("Root is unavailable.");
+                    }
+                    // Disable server first, along with anything a late SERVER_STARTED would still bind
+                    ServerStatusChangeReceiver.cancelPendingServerStart();
+                    ExUtils.exceptionAsIgnored(() -> {
+                        if (LocalServer.alive(context)) {
+                            LocalServer.getInstance().closeBgServer();
+                        }
+                    });
+                    sIsSystem = sIsAdb = sIsShizuku = false;
+                    sIsRoot = true;
+                    LocalServices.bindServicesIfNotAlready();
+                    return initPermissionsWithSuccess();
+                case MODE_SHIZUKU:
+                    return initShizuku(context);
+                case MODE_ADB_WIFI:
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        if (isLocalNetworkPermissionMissing(context)) {
+                            return STATUS_LOCAL_NETWORK_PERMISSION_REQUIRED;
+                        }
+                        if (!AdbUtils.isWifiConnected(context)) {
+                            throw new AdbFailure.NoWifiException();
+                        }
+                        if (AdbUtils.enableWirelessDebugging(context)) {
+                            // Wireless debugging enabled, try auto-connect
+                            return STATUS_AUTO_CONNECT_WIRELESS_DEBUGGING;
+                        } else {
+                            // Wireless debugging is turned off or there's no permission
+                            return STATUS_WIRELESS_DEBUGGING_CHOOSER_REQUIRED;
+                        }
+                    } // else fallback to ADB over TCP
+                case MODE_ADB_OVER_TCP:
+                    sDirectRoot = false;
+                    sIsRoot = sIsSystem = false;
+                    sIsAdb = true;
+                    sIsShizuku = false;
+                    connectAdbFull(findAdbPort(context, 10, AdbUtils.getAdbPortOrDefault(), false));
+                    AdbFailure.clear();
+                    return checkRootOrIncompleteUsbDebuggingInAdb();
+            }
+        } catch (Throwable e) {
+            Log.e(TAG, e);
+            // Fallback to no-root mode for this session, this does not modify the user preference
+            ServerStatusChangeReceiver.cancelPendingServerStart();
+            sIsAdb = sIsSystem = sIsRoot = sIsShizuku = false;
+            AdbFailure adbFailure = MODE_ADB_WIFI.equals(mode) || MODE_ADB_OVER_TCP.equals(mode)
+                    ? recordAdbFailure(context, e, MODE_ADB_WIFI.equals(mode)) : null;
+            int status = reportServerFailure(e, STATUS_FAILURE);
+            if (status == STATUS_FAILURE) {
+                if (adbFailure != null && adbFailure.code != AdbFailure.Code.UNKNOWN) {
+                    CharSequence reason = adbFailure.explain(context);
+                    ThreadUtils.postOnMainThread(() -> UIUtils.displayLongToast(reason));
+                } else {
+                    ThreadUtils.postOnMainThread(() -> UIUtils.displayLongToast(R.string.failed_to_use_the_current_mode_of_operation));
+                }
+            }
+            return status;
+        }
+        return STATUS_FAILURE;
+    }
+
+    /**
+     * An explicit no-root choice makes no root probe, no Shizuku or ADB connection and no remote UID
+     * lookup. It only tears down a privileged connection this process already holds, and finishes that
+     * before reporting success, so a fresh start never waits on a server another mode left listening.
+     * The teardown runs before the mode flags change, because stopping a server that ignores the close
+     * request needs the ADB or root channel of the mode being left.
+     */
+    @WorkerThread
+    @Status
+    private static int initNoRoot() {
+        ServerStatusChangeReceiver.cancelPendingServerStart();
+        if (LocalServices.alive()) {
+            LocalServices.stopServices();
+        }
+        LocalServer.closeIfConnected();
+        sDirectRoot = false;
+        sIsAdb = sIsSystem = sIsRoot = sIsShizuku = false;
+        return STATUS_SUCCESS;
+    }
+
+    /**
+     * Whether App Manager has been granted root permission.
+     *
+     * @return {@code true} iff root is granted.
+     */
+    @AnyThread
+    @NoOps
+    public static boolean hasRoot() {
+        return RunnerUtils.isRootGiven();
+    }
+
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    private static void autoDetectRootSystemOrAdb(@NonNull Context context, boolean persistDetectedMode) {
+        sIsRoot = sDirectRoot;
+        if (sDirectRoot) {
+            // Root permission was granted
+            setDetectedMode(MODE_ROOT, persistDetectedMode);
+            // Disable remote server
+            ServerStatusChangeReceiver.cancelPendingServerStart();
+            ExUtils.exceptionAsIgnored(() -> {
+                if (LocalServer.alive(context)) {
+                    LocalServer.getInstance().closeBgServer();
+                }
+            });
+            // Disable ADB and force root
+            sIsSystem = sIsAdb = false;
+            sIsShizuku = false;
+            if (LocalServices.alive()) {
+                if (Users.getSelfOrRemoteUid() == ROOT_UID) {
+                    // Service is already running in root mode
+                    return;
+                }
+                // Service is running in ADB/other mode, but we need root
+                LocalServices.stopServices();
+            }
+            try {
+                // Service is confirmed dead
+                LocalServices.bindServices();
+                if (LocalServices.alive() && Users.getSelfOrRemoteUid() == ROOT_UID) {
+                    // Service is running in root
+                    return;
+                }
+            } catch (RemoteException e) {
+                Log.e(TAG, e);
+            }
+            // Root is granted but Binder communication cannot be initiated
+            Log.e(TAG, "Root granted but could not use root to initiate a connection. Trying ADB...");
+            if (AdbUtils.startAdb(AdbUtils.getAdbPortOrDefault())) {
+                Log.i(TAG, "Started ADB over TCP via root.");
+            } else {
+                Log.w(TAG, "Could not start ADB over TCP via root.");
+            }
+            sIsRoot = false;
+            // Fall-through, in case we can use other options
+        }
+        boolean adbAvailableForAutoMode = isAdbAvailableForAutoMode();
+        boolean shizukuUsable = ShizukuBridge.isUsable();
+        boolean skipRootBackedShizuku = ShizukuBridge.shouldAvoidRootBackedShizukuInAuto(adbAvailableForAutoMode);
+        if (skipRootBackedShizuku) {
+            Log.i(TAG, "Skipping root-backed Shizuku in auto mode because ADB is available.");
+        }
+        // Root was not working/granted; Shizuku/Sui is the next best rootless privileged path.
+        if (shizukuUsable && !skipRootBackedShizuku) {
+            setDetectedMode(MODE_SHIZUKU, persistDetectedMode);
+            sDirectRoot = false;
+            sIsRoot = sIsSystem = sIsAdb = false;
+            sIsShizuku = true;
+            if (LocalServices.alive()) {
+                LocalServices.stopServices();
+            }
+            try {
+                LocalServices.bindServices();
+                if (LocalServices.alive()) {
+                    int status = checkRootSystemOrShellInShizuku();
+                    if (status == STATUS_SUCCESS) {
+                        return;
+                    }
+                }
+            } catch (RemoteException e) {
+                Log.e(TAG, e);
+            }
+            sIsShizuku = false;
+        }
+        // Root was not working/granted, but check for AM service just in case
+        if (LocalServices.alive()) {
+            setDetectedMode(MODE_ADB_OVER_TCP, persistDetectedMode);
+            sIsShizuku = false;
+            int uid = Users.getSelfOrRemoteUid();
+            if (uid == ROOT_UID) {
+                sIsSystem = sIsAdb = false;
+                sIsRoot = true;
+                return;
+            }
+            if (uid == SYSTEM_UID) {
+                sIsRoot = sIsAdb = false;
+                sIsSystem = true;
+                return;
+            }
+            if (uid == SHELL_UID) {
+                sIsRoot = sIsSystem = false;
+                sIsAdb = true;
+                ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(R.string.working_on_adb_mode));
+                return;
+            }
+        }
+        // Root not granted
+        if (!SelfPermissions.checkSelfPermission(Manifest.permission.INTERNET)) {
+            // INTERNET permission is not granted
+            setDetectedMode(MODE_NO_ROOT, persistDetectedMode);
+            // Skip checking for ADB
+            sIsAdb = sIsShizuku = false;
+            return;
+        }
+        // Check for ADB
+        if (!adbAvailableForAutoMode) {
+            // ADB not running. In auto mode, we do not attempt to enable it either
+            setDetectedMode(MODE_NO_ROOT, persistDetectedMode);
+            sIsAdb = sIsSystem = sIsRoot = sIsShizuku = false;
+            return;
+        }
+        sIsAdb = true; // First enable ADB if not already
+        try {
+            connectAdbFull(findAdbPort(context, 7, ServerConfig.getAdbPort(), false));
+        } catch (Throwable e) {
+            Log.e(TAG, e);
+        }
+        sIsAdb = LocalServices.alive();
+        if (sIsAdb) {
+            // No need to return anything here because we're in auto-mode.
+            // Any message produced by the method below is just a helpful message.
+            checkRootOrIncompleteUsbDebuggingInAdb();
+        }
+        setDetectedMode(getWorkingUid() != Process.myUid() ? MODE_ADB_OVER_TCP : MODE_NO_ROOT,
+                persistDetectedMode);
+    }
+
+    private static void setDetectedMode(@NonNull @Mode String mode, boolean persistDetectedMode) {
+        // A cancelled detection may have stopped short of the mode that works, and saving what it
+        // got to would keep Auto from ever looking again
+        if (persistDetectedMode && !Thread.currentThread().isInterrupted()) {
+            setMode(mode);
+        }
+    }
+
+    private static boolean isAdbAvailableForAutoMode() {
+        return SelfPermissions.checkSelfPermission(Manifest.permission.INTERNET) && AdbUtils.isAdbdRunning();
+    }
+
+    @UiThread
+    @RequiresApi(Build.VERSION_CODES.R)
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    public static void connectWirelessDebugging(@NonNull FragmentActivity activity,
+                                                @NonNull AdbConnectionInterface callback) {
+        if (isLocalNetworkPermissionMissing(activity)) {
+            displayLocalNetworkPermissionMessage(activity, callback);
+            return;
+        }
+        DialogTitleBuilder builder = new DialogTitleBuilder(activity)
+                .setTitle(R.string.manual_wireless_debugging_title)
+                .setEndIcon(R.drawable.ic_open_in_new, v -> {
+                    Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                            .putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    activity.startActivity(intent);
+                })
+                .setEndIconContentDescription(R.string.open_developer_options_page);
+
+        new MaterialAlertDialogBuilder(activity)
+                .setCustomTitle(builder.build())
+                .setMessage(R.string.manual_wireless_debugging_instructions)
+                .setCancelable(false)
+                .setPositiveButton(R.string.adb_connect, (dialog1, which1) -> callback.onStatusReceived(STATUS_ADB_CONNECT_REQUIRED))
+                .setNeutralButton(R.string.adb_pair, (dialog1, which1) -> callback.onStatusReceived(STATUS_ADB_PAIRING_REQUIRED))
+                .setNegativeButton(R.string.cancel, (dialog, which) -> callback.connectAdb(-1))
+                .show();
+    }
+
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    @Status
+    public static int autoConnectWirelessDebugging(@NonNull Context context) {
+        sTransitionLock.lock();
+        sTransitions.incrementAndGet();
+        try {
+            return autoConnectWirelessDebuggingLocked(context);
+        } finally {
+            sTransitionLock.unlock();
+        }
+    }
+
+    /**
+     * The reconnect the Wi-Fi wait service runs. The mode can change while it waits for the lock,
+     * so it checks again once it holds it, and stopping the service (an interrupt) ends the wait.
+     */
+    @WorkerThread
+    @Status
+    public static int autoConnectWirelessDebuggingInBackground(@NonNull Context context) {
+        int transitions = sTransitions.get();
+        try {
+            sTransitionLock.lockInterruptibly();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return STATUS_FAILURE;
+        }
+        try {
+            if (!MODE_ADB_WIFI.equals(getMode())) {
+                Log.i(TAG, "The mode changed while the reconnect waited, not connecting.");
+                return STATUS_FAILURE;
+            }
+            if (sTransitions.get() != transitions) {
+                // A switch or connect ran first. It left ADB connected, which is all this is for,
+                // or it went to a mode the settings screen hasn't saved yet.
+                Log.i(TAG, "Another connect ran while the reconnect waited, not connecting.");
+                return sIsAdb && LocalServices.alive() ? STATUS_SUCCESS : STATUS_FAILURE;
+            }
+            sTransitions.incrementAndGet();
+            return autoConnectWirelessDebuggingLocked(context);
+        } finally {
+            sTransitionLock.unlock();
+        }
+    }
+
+    @WorkerThread
+    @Status
+    private static int autoConnectWirelessDebuggingLocked(@NonNull Context context) {
+        if (isLocalNetworkPermissionMissing(context)) {
+            return STATUS_LOCAL_NETWORK_PERMISSION_REQUIRED;
+        }
+        boolean lastAdb = sIsAdb;
+        boolean lastSystem = sIsSystem;
+        boolean lastRoot = sIsRoot;
+        sIsAdb = true;
+        sIsSystem = sIsRoot = false;
+        try {
+            connectAdbFull(findAdbPort(context, 5, ServerConfig.getAdbPort(), true));
+            AdbFailure.clear();
+            return checkRootOrIncompleteUsbDebuggingInAdb();
+        } catch (RemoteException | IOException | AdbPairingRequiredException | RuntimeException e) {
+            // RuntimeException: a port mDNS reported as 0 fails in setAdbPort, and the flags above
+            // must still go back
+            Log.e(TAG, "Could not auto-connect to adbd", e);
+            // Go back to the last mode
+            sIsAdb = lastAdb;
+            sIsSystem = lastSystem;
+            sIsRoot = lastRoot;
+            recordAdbFailure(context, e, true);
+            if (e instanceof AdbPairingRequiredException) {
+                // Only pairing is required
+                return STATUS_ADB_PAIRING_REQUIRED;
+            }
+            // Pairing or another port can't fix a server that won't start or answer
+            return reportServerFailure(e, STATUS_WIRELESS_DEBUGGING_CHOOSER_REQUIRED);
+        }
+    }
+
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    @Status
+    public static int connectAdb(@NonNull Context context, int port, @Status int returnCodeOnFailure) {
+        // -1 is a cancelled dialog
+        if (!ServerConfig.isValidAdbPort(port)) return returnCodeOnFailure;
+        sTransitionLock.lock();
+        sTransitions.incrementAndGet();
+        try {
+            return connectAdbLocked(port, returnCodeOnFailure);
+        } finally {
+            sTransitionLock.unlock();
+        }
+    }
+
+    @WorkerThread
+    @Status
+    private static int connectAdbLocked(int port, @Status int returnCodeOnFailure) {
+        boolean lastAdb = sIsAdb;
+        boolean lastSystem = sIsSystem;
+        boolean lastRoot = sIsRoot;
+        sIsAdb = true;
+        sIsSystem = sIsRoot = false;
+        try {
+            connectAdbFull(port);
+            AdbFailure.clear();
+            return checkRootOrIncompleteUsbDebuggingInAdb();
+        } catch (RemoteException | IOException | AdbPairingRequiredException | RuntimeException e) {
+            Log.e(TAG, "Could not connect to adbd using port " + port, e);
+            // Go back to the last mode
+            sIsAdb = lastAdb;
+            sIsSystem = lastSystem;
+            sIsRoot = lastRoot;
+            // Onboarding's ADB over TCP setup connects to the fixed TCP port, the Wireless
+            // debugging dialogs to the port Wireless debugging picked
+            recordAdbFailure(ContextUtils.getContext(), e, port != ServerConfig.DEFAULT_ADB_PORT);
+            return reportServerFailure(e, returnCodeOnFailure);
+        }
+    }
+
+    /**
+     * Keeps why an ADB-mode connect failed, until one works, for the Mode of operation screen and
+     * the support bundle.
+     *
+     * @param wireless The connect was for Wireless debugging, so its being switched off explains it
+     */
+    @NonNull
+    private static AdbFailure recordAdbFailure(@NonNull Context context, @NonNull Throwable failure, boolean wireless) {
+        boolean wirelessDebuggingOff = false;
+        if (wireless && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                wirelessDebuggingOff = AdbUtils.isWirelessDebuggingOff(context);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "Could not read the Wireless debugging setting", e);
+            }
+        }
+        AdbFailure adbFailure = AdbFailure.classify(failure, wirelessDebuggingOff);
+        if (Thread.currentThread().isInterrupted()) {
+            // A cancelled attempt says nothing about the connection, so the last real failure stays
+            return adbFailure;
+        }
+        AdbFailure.record(adbFailure);
+        return adbFailure;
+    }
+
+    /**
+     * Like {@link #getServerFailureStatus(Throwable, int)}, and tells the user what went wrong when
+     * it is a server failure. Done here rather than by the screens because background callers
+     * (auto-freeze, the installer) ignore the status.
+     */
+    @Status
+    private static int reportServerFailure(@NonNull Throwable failure, @Status int fallback) {
+        int status = getServerFailureStatus(failure, fallback);
+        int message = getServerFailureMessage(status);
+        if (message != 0) {
+            ThreadUtils.postOnMainThread(() -> UIUtils.displayLongToast(message));
+        }
+        return status;
+    }
+
+    /**
+     * The status for a failure the user can act on (the server won't start, answer or accept this
+     * app), or {@code fallback} for anything else.
+     */
+    @Status
+    static int getServerFailureStatus(@NonNull Throwable failure, @Status int fallback) {
+        ServerConnectionFailure serverFailure = ServerConnectionFailure.find(failure);
+        if (serverFailure == null) {
+            return fallback;
+        }
+        switch (serverFailure.getReason()) {
+            case SERVER_START:
+                return STATUS_FAILURE_SERVER_START;
+            case UNRESPONSIVE:
+                return STATUS_FAILURE_SERVER_UNRESPONSIVE;
+            case NOT_ACKNOWLEDGED:
+                return STATUS_FAILURE_SERVER_NOT_ACKNOWLEDGED;
+            default:
+                return fallback;
+        }
+    }
+
+    /**
+     * What to tell the user about a server failure status, or {@code 0} when it isn't one.
+     */
+    @StringRes
+    public static int getServerFailureMessage(@Status int status) {
+        switch (status) {
+            case STATUS_FAILURE_SERVER_START:
+                return R.string.server_start_failed;
+            case STATUS_FAILURE_SERVER_UNRESPONSIVE:
+                return R.string.server_unresponsive;
+            case STATUS_FAILURE_SERVER_NOT_ACKNOWLEDGED:
+                return R.string.server_not_acknowledged;
+            default:
+                return 0;
+        }
+    }
+
+    /**
+     * Restart the local server against this adbd port, then bind both remote services.
+     */
+    @WorkerThread
+    private static void connectAdbFull(int adbPort)
+            throws IOException, AdbPairingRequiredException, RemoteException {
+        ServerConfig.setAdbPort(adbPort);
+        LocalServer.restart();
+        LocalServices.bindServicesIfNotAlready();
+    }
+
+    @UiThread
+    @NoOps
+    public static void connectAdbInput(@NonNull FragmentActivity activity,
+                                       @NonNull AdbConnectionInterface callback) {
+        new TextInputDialogBuilder(activity, R.string.port_number)
+                .setTitle(R.string.wireless_debugging)
+                .setInputText(String.valueOf(ServerConfig.getAdbPort()))
+                .setHelperText(R.string.adb_connect_port_number_description)
+                .setPositiveButton(R.string.ok, (dialog2, which2, inputText, isChecked) -> {
+                    if (TextUtils.isEmpty(inputText)) {
+                        UIUtils.displayShortToast(R.string.port_number_empty);
+                        callback.connectAdb(-1);
+                        return;
+                    }
+                    int port;
+                    try {
+                        port = Integer.decode(inputText.toString().trim());
+                    } catch (NumberFormatException e) {
+                        port = -1;
+                    }
+                    if (!ServerConfig.isValidAdbPort(port)) {
+                        UIUtils.displayShortToast(R.string.port_number_invalid);
+                        callback.connectAdb(-1);
+                        return;
+                    }
+                    callback.connectAdb(port);
+                })
+                .setNegativeButton(R.string.cancel, (dialog, which, inputText, isChecked) -> callback.connectAdb(-1))
+                .setCancelable(false)
+                .show();
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    @UiThread
+    @NoOps
+    public static void pairAdbInput(@NonNull FragmentActivity activity,
+                                    @NonNull AdbConnectionInterface callback) {
+        if (isLocalNetworkPermissionMissing(activity)) {
+            displayLocalNetworkPermissionMessage(activity, callback);
+            return;
+        }
+        Runnable startNotificationPairing = () -> {
+            ContextCompat.startForegroundService(activity, AdbPairingService.getStartSearchingIntent(activity));
+            callback.pairAdb();
+        };
+        Runnable startInAppPairing = () -> {
+            ContextCompat.startForegroundService(activity, AdbPairingService.getStartSearchingIntent(activity));
+            callback.pairAdb();
+            AdbPairingCodeDialog.show(activity, null);
+        };
+        Runnable openDeveloperOptionsAndPair = () -> {
+            Intent developerOptionsIntent = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                    .putExtra(":settings:fragment_args_key", "toggle_adb_wireless")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(developerOptionsIntent);
+            startNotificationPairing.run();
+        };
+        new MaterialAlertDialogBuilder(activity)
+                .setTitle(R.string.adb_pairing_title)
+                .setMessage(R.string.adb_pairing_instruction)
+                .setCancelable(false)
+                .setNeutralButton(R.string.action_manual, (dialog, which) -> startInAppPairing.run())
+                .setNegativeButton(R.string.cancel, (dialog, which) -> callback.onStatusReceived(STATUS_FAILURE))
+                .setPositiveButton(R.string.go, (dialog, which) ->
+                        NotificationUtils.requestPostNotificationsForWorkflow(activity,
+                                R.string.adb_pairing_notification_permission_title,
+                                R.string.adb_pairing_notification_permission_message,
+                                openDeveloperOptionsAndPair))
+                .show();
+    }
+
+    @WorkerThread
+    @NoOps
+    @RequiresApi(Build.VERSION_CODES.R)
+    @Status
+    public static int pairAdb(@NonNull Context context) {
+        if (isLocalNetworkPermissionMissing(context)) {
+            return STATUS_LOCAL_NETWORK_PERMISSION_REQUIRED;
+        }
+        // Unlike upstream, no mode lock while the user types the code, which can take minutes and
+        // would hold up the boot-time reconnect. connectAdb takes it for the connect.
+        try {
+            int status = pairAdbInternal(context);
+            if (status == STATUS_ADB_CONNECT_REQUIRED) {
+                return connectAdb(context, findAdbPort(context, 7, ServerConfig.getAdbPort(), true),
+                        STATUS_ADB_CONNECT_REQUIRED);
+            }
+        } catch (Exception e) {
+            ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(R.string.failed));
+            Log.e(TAG, e);
+            // Failed, fall-through
+        }
+        return STATUS_FAILURE;
+    }
+
+
+    @WorkerThread
+    @NoOps
+    @RequiresApi(Build.VERSION_CODES.R)
+    @Status
+    private static int pairAdbInternal(@NonNull Context context) {
+        AtomicReference<CountDownLatch> observerObserver = new AtomicReference<>(new CountDownLatch(1));
+        AtomicReference<Exception> pairingError = new AtomicReference<>();
+        // The observer is handed the last outcome at once, which may be from an earlier pairing
+        long since = AdbConnectionManager.getLastPairingResultNumber();
+        Observer<AdbConnectionManager.PairingResult> observer = result -> {
+            if (result.number <= since) {
+                return;
+            }
+            pairingError.set(result.error);
+            observerObserver.get().countDown();
+        };
+        ThreadUtils.postOnMainThread(() -> AdbConnectionManager.getPairingObserver().observeForever(observer));
+        while (true) {
+            boolean success;
+            try {
+                success = observerObserver.get().await(1, TimeUnit.HOURS);
+            } catch (InterruptedException ignore) {
+                success = false;
+            }
+            if (success) {
+                if (pairingError.get() != null) {
+                    boolean serviceRunning = ServiceHelper.checkIfServiceIsRunning(context, AdbPairingService.class);
+                    if (AdbPairingSession.shouldWaitForRetry(AdbPairingSession.getCurrentState(), serviceRunning)) {
+                        observerObserver.set(new CountDownLatch(1));
+                        continue;
+                    }
+                    success = false;
+                }
+            }
+            ThreadUtils.postOnMainThread(() -> AdbConnectionManager.getPairingObserver().removeObserver(observer));
+            if (success) {
+                return STATUS_ADB_CONNECT_REQUIRED;
+            } else {
+                context.stopService(AdbPairingService.getStopSearchingIntent(context));
+                return STATUS_FAILURE;
+            }
+        }
+    }
+
+    @UiThread
+    public static void displayIncompleteUsbDebuggingMessage(@NonNull FragmentActivity activity,
+                                                            @Nullable Runnable onDismiss) {
+        new ScrollableDialogBuilder(activity)
+                .setTitle(R.string.adb_incomplete_usb_debugging_title)
+                .setMessage(R.string.adb_incomplete_usb_debugging_message)
+                .enableAnchors()
+                .setNegativeButton(R.string.close, null)
+                .setPositiveButton(R.string.open, (dialog, which, isChecked) -> {
+                    Intent intent = new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    try {
+                        activity.startActivity(intent);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Could not open the developer settings.", e);
+                    }
+                })
+                // Finishing the mode request waits for the user to read this
+                .setOnDismissListener(dialog -> {
+                    if (onDismiss != null) onDismiss.run();
+                })
+                .show();
+    }
+
+    private static int initPermissionsWithSuccess() {
+        SelfPermissions.init();
+        return STATUS_SUCCESS;
+    }
+
+    /**
+     * @return {@code true} iff AMService is up and running
+     */
+    @WorkerThread
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    private static boolean isAMServiceUpAndRunning(@NonNull Context context, @Mode @NonNull String mode) {
+        boolean lastAdb = sIsAdb;
+        boolean lastSystem = sIsSystem;
+        boolean lastRoot = sIsRoot;
+        boolean lastShizuku = sIsShizuku;
+        // At this point, we have already checked MODE_AUTO, and MODE_NO_ROOT has lower priority.
+        sIsRoot = MODE_ROOT.equals(mode);
+        sIsShizuku = MODE_SHIZUKU.equals(mode);
+        sIsAdb = MODE_ADB_OVER_TCP.equals(mode) || MODE_ADB_WIFI.equals(mode);
+        sIsSystem = false;
+        if (sIsShizuku) {
+            if (LocalServices.alive()) {
+                return checkRootSystemOrShellInShizuku() == STATUS_SUCCESS;
+            }
+            sIsAdb = lastAdb;
+            sIsSystem = lastSystem;
+            sIsRoot = lastRoot;
+            sIsShizuku = lastShizuku;
+            return false;
+        }
+        if (LocalServer.alive(context)) {
+            // Remote server is running, but local server may not be running
+            try {
+                LocalServer.getInstance();
+                LocalServices.bindServicesIfNotAlready();
+            } catch (RemoteException | IOException | AdbPairingRequiredException | RuntimeException e) {
+                Log.e(TAG, e);
+                // fall-through, because the remote service may still be alive
+            }
+        }
+        if (LocalServices.alive()) {
+            // AM service is running
+            int uid = Users.getSelfOrRemoteUid();
+            if (sIsRoot && uid == ROOT_UID) {
+                // AM service is running as root
+                return true;
+            }
+            if (uid == SYSTEM_UID) {
+                // AM service is running as system
+                sIsSystem = true;
+                sIsRoot = sIsAdb = false;
+                return true;
+            }
+            if (sIsAdb) {
+                // AM service is running as ADB
+                return checkRootOrIncompleteUsbDebuggingInAdb() == STATUS_SUCCESS;
+            }
+            // All checks are failed, stop services
+            LocalServices.stopServices();
+        }
+        // Checks are failed, revert everything
+        sIsAdb = lastAdb;
+        sIsSystem = lastSystem;
+        sIsRoot = lastRoot;
+        sIsShizuku = lastShizuku;
+        return false;
+    }
+
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    private static int checkRootOrIncompleteUsbDebuggingInAdb() {
+        // ADB already granted and AM service is running
+        int uid = Users.getSelfOrRemoteUid();
+        sIsShizuku = false;
+        if (uid == ROOT_UID) {
+            // AM service is being run as root
+            sIsRoot = true;
+            sIsSystem = sIsAdb = false;
+            ThreadUtils.postOnMainThread(() -> UIUtils.displayLongToast(R.string.warning_working_on_root_mode));
+        } else if (uid == SYSTEM_UID) {
+            // AM service is being run as system
+            sIsSystem = true;
+            sIsRoot = sIsAdb = false;
+            ThreadUtils.postOnMainThread(() -> UIUtils.displayLongToast(R.string.warning_working_on_system_mode));
+        } else if (uid == SHELL_UID) { // ADB mode
+            if (!SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.GRANT_RUNTIME_PERMISSIONS)) {
+                // USB debugging is incomplete, revert back to no-root
+                sIsAdb = sIsSystem = sIsRoot = false;
+                return STATUS_FAILURE_ADB_NEED_MORE_PERMS;
+            }
+            ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(R.string.working_on_adb_mode));
+        } else {
+            // No-root mode
+            sIsAdb = sIsSystem = sIsRoot = false;
+            return STATUS_FAILURE;
+        }
+        return initPermissionsWithSuccess();
+    }
+
+    @NoOps // Although we've used Ops checks, its overall usage does not affect anything
+    private static int checkRootSystemOrShellInShizuku() {
+        int uid = Users.getSelfOrRemoteUid();
+        sIsShizuku = true;
+        sDirectRoot = false;
+        if (uid == ROOT_UID) {
+            sIsRoot = true;
+            sIsSystem = sIsAdb = false;
+            ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(R.string.working_on_shizuku_root_mode));
+        } else if (uid == SYSTEM_UID) {
+            sIsSystem = true;
+            sIsRoot = sIsAdb = false;
+            ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(R.string.working_on_shizuku_system_mode));
+        } else if (uid == SHELL_UID) {
+            if (!SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.GRANT_RUNTIME_PERMISSIONS)) {
+                sIsAdb = sIsSystem = sIsRoot = sIsShizuku = false;
+                return STATUS_FAILURE;
+            }
+            sIsAdb = true;
+            sIsRoot = sIsSystem = false;
+            ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(R.string.working_on_shizuku_mode));
+        } else {
+            sIsAdb = sIsSystem = sIsRoot = sIsShizuku = false;
+            return STATUS_FAILURE;
+        }
+        return initPermissionsWithSuccess();
+    }
+
+    @WorkerThread
+    @Status
+    public static int connectShizuku(@NonNull Context context) {
+        // Sets the mode flags and closes the server, so it takes its turn like the ADB connects
+        sTransitionLock.lock();
+        sTransitions.incrementAndGet();
+        try {
+            return initShizuku(context);
+        } catch (Throwable e) {
+            Log.e(TAG, "Could not connect to Shizuku", e);
+            sIsAdb = sIsSystem = sIsRoot = sIsShizuku = false;
+            return STATUS_FAILURE;
+        } finally {
+            sTransitionLock.unlock();
+        }
+    }
+
+    @WorkerThread
+    @Status
+    private static int initShizuku(@NonNull Context context) throws Exception {
+        sDirectRoot = false;
+        sIsShizuku = true;
+        sIsAdb = sIsSystem = sIsRoot = false;
+        ExUtils.exceptionAsIgnored(() -> {
+            if (LocalServer.alive(context)) {
+                LocalServer.getInstance().closeBgServer();
+            }
+        });
+        if (!ShizukuBridge.supportsUserService()) {
+            throw new Exception("Shizuku UserService is unavailable.");
+        }
+        if (!ShizukuBridge.hasPermission()) {
+            return STATUS_SHIZUKU_PERMISSION_REQUIRED;
+        }
+        LocalServices.bindServicesIfNotAlready();
+        return checkRootSystemOrShellInShizuku();
+    }
+
+    @UiThread
+    public static void requestShizukuPermission(@NonNull FragmentActivity activity,
+                                                @NonNull AdbConnectionInterface callback) {
+        if (!ShizukuBridge.supportsUserService()) {
+            new MaterialAlertDialogBuilder(activity)
+                    .setTitle(R.string.shizuku)
+                    .setMessage(R.string.shizuku_unavailable_message)
+                    .setPositiveButton(R.string.close, (dialog, which) -> callback.onStatusReceived(STATUS_FAILURE))
+                    .show();
+            return;
+        }
+        if (ShizukuBridge.shouldShowPermissionRationale()) {
+            new MaterialAlertDialogBuilder(activity)
+                    .setTitle(R.string.shizuku_permission_required_title)
+                    .setMessage(R.string.shizuku_permission_denied_message)
+                    .setPositiveButton(R.string.close, (dialog, which) -> callback.onStatusReceived(STATUS_FAILURE))
+                    .show();
+            return;
+        }
+        Shizuku.OnRequestPermissionResultListener listener = new Shizuku.OnRequestPermissionResultListener() {
+            @Override
+            public void onRequestPermissionResult(int requestCode, int grantResult) {
+                if (requestCode != ShizukuBridge.REQUEST_PERMISSION_CODE) {
+                    return;
+                }
+                Shizuku.removeRequestPermissionResultListener(this);
+                if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                    callback.connectShizuku(activity.getApplicationContext());
+                } else {
+                    callback.onStatusReceived(STATUS_FAILURE);
+                }
+            }
+        };
+        try {
+            Shizuku.addRequestPermissionResultListener(listener);
+            Shizuku.requestPermission(ShizukuBridge.REQUEST_PERMISSION_CODE);
+        } catch (Throwable e) {
+            Shizuku.removeRequestPermissionResultListener(listener);
+            Log.e(TAG, "Could not request Shizuku permission", e);
+            callback.onStatusReceived(STATUS_FAILURE);
+        }
+    }
+
+    @WorkerThread
+    @RequiresApi(Build.VERSION_CODES.R)
+    @NoOps
+    private static int findAdbPort(@NonNull Context context, long timeoutInSeconds, boolean wirelessDebuggingOnly)
+            throws IOException, InterruptedException {
+        if (isLocalNetworkPermissionMissing(context)) {
+            throw new IOException("Local network permission not granted.");
+        }
+        return AdbUtils.getLatestAdbDaemon(context, timeoutInSeconds, TimeUnit.SECONDS, wirelessDebuggingOnly).second;
+    }
+
+    /**
+     * @param wirelessDebuggingOnly skip the plain port that {@code adb tcpip} advertises, which can
+     *                              answer first while Wireless debugging is also on
+     */
+    @WorkerThread
+    @NoOps
+    private static int findAdbPort(@NonNull Context context, long timeoutInSeconds, int defaultPort,
+                                   boolean wirelessDebuggingOnly)
+            throws IOException {
+        if (!AdbUtils.isAdbdRunning()) {
+            throw new IOException("ADB daemon not running.");
+        }
+        if (isLocalNetworkPermissionMissing(context)) {
+            return defaultPort;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Find ADB port only in Android 11 (R) or later
+            try {
+                return findAdbPort(context, timeoutInSeconds, wirelessDebuggingOnly);
+            } catch (InterruptedException e) {
+                // The attempt was cancelled, so it ends here instead of trying the default port
+                Thread.currentThread().interrupt();
+                throw new InterruptedIOException("Cancelled while looking for the ADB port.");
+            } catch (IOException e) {
+                Log.w(TAG, "Could not find ADB port", e);
+            }
+        }
+        return defaultPort;
+    }
+
+    @AnyThread
+    public static boolean isLocalNetworkPermissionMissing(@NonNull Context context) {
+        return Build.VERSION.SDK_INT >= SDK_ANDROID_17
+                && context.getApplicationInfo().targetSdkVersion >= SDK_ANDROID_17
+                && !SelfPermissions.checkSelfPermission(ManifestCompat.permission.ACCESS_LOCAL_NETWORK);
+    }
+
+    @UiThread
+    public static void displayLocalNetworkPermissionMessage(@NonNull FragmentActivity activity,
+                                                           @NonNull AdbConnectionInterface callback) {
+        new MaterialAlertDialogBuilder(activity)
+                .setTitle(R.string.local_network_permission_required)
+                .setMessage(R.string.local_network_permission_required_message)
+                .setNegativeButton(R.string.close, (dialog, which) -> callback.onStatusReceived(STATUS_FAILURE))
+                .setPositiveButton(R.string.local_network_permission_allow, (dialog, which) -> {
+                    try {
+                        ActivityCompat.requestPermissions(activity,
+                                new String[]{ManifestCompat.permission.ACCESS_LOCAL_NETWORK},
+                                REQUEST_LOCAL_NETWORK_PERMISSION);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Could not request local network permission directly.", e);
+                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                .setData(Uri.parse("package:" + activity.getPackageName()));
+                        try {
+                            activity.startActivity(intent);
+                        } catch (Exception settingsError) {
+                            Log.w(TAG, "Could not open App Manager settings for %s.", settingsError,
+                                    activity.getPackageName());
+                        }
+                    }
+                    callback.onStatusReceived(STATUS_FAILURE);
+                })
+                .show();
+    }
+
+    @AnyThread
+    public interface AdbConnectionInterface {
+        // TODO: 8/4/24 Remove the first two methods since the third method can be used instead of them
+        void connectAdb(int port);
+
+        @RequiresApi(Build.VERSION_CODES.R)
+        void pairAdb();
+
+        void onStatusReceived(@Status int status);
+
+        /**
+         * Connect through Shizuku once its permission is granted. The view models override this to
+         * run it with their other mode requests, one at a time.
+         */
+        default void connectShizuku(@NonNull Context context) {
+            ThreadUtils.postOnBackgroundThread(() -> onStatusReceived(Ops.connectShizuku(context)));
+        }
+    }
+}

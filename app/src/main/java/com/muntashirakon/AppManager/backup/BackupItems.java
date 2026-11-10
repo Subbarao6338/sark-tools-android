@@ -1,0 +1,934 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.backup;
+
+import static io.github.muntashirakon.AppManager.backup.BackupManager.KEYSTORE_PREFIX;
+
+import android.annotation.UserIdInt;
+import android.content.ContentResolver;
+import android.net.Uri;
+import android.util.Base64;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.Closeable;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import io.github.muntashirakon.AppManager.backup.struct.BackupMetadataV5;
+import io.github.muntashirakon.AppManager.crypto.Crypto;
+import io.github.muntashirakon.AppManager.crypto.DummyCrypto;
+import io.github.muntashirakon.AppManager.db.entity.Backup;
+import io.github.muntashirakon.AppManager.logcat.helper.SaveLogHelper;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
+import io.github.muntashirakon.io.Path;
+import io.github.muntashirakon.io.PathReader;
+import io.github.muntashirakon.io.PathWriter;
+import io.github.muntashirakon.io.Paths;
+
+public class BackupItems {
+    public static final String BACKUP_DIRECTORY = "backups";
+    private static final String POLICY_VOLUME_DIRECTORY = "policy_volume";
+    private static final String APK_SAVING_DIRECTORY = "apks";
+
+    private static final String ICON_FILE = "icon.png";
+    private static final String RULES_TSV = "rules.am.tsv";
+    private static final String MISC_TSV = "misc.am.tsv";
+    private static final String CHECKSUMS_TXT = "checksums.txt";
+    private static final String FREEZE = ".freeze";
+    private static final String NO_MEDIA = ".nomedia";
+    private static final String ADB_BACKUP_EXTENSION = ".ab";
+    private static final String[] SPLIT_ARCHIVE_EXTENSIONS = Arrays.stream(BackupUtils.TAR_TYPES)
+            .map(BackupManager::getExt)
+            .toArray(String[]::new);
+
+    @NonNull
+    private static Path getBaseDirectory() {
+        return Prefs.Storage.getAppManagerDirectory();
+    }
+
+    @NonNull
+    private static Path getBaseDirectory(@Nullable Uri destination, boolean create) throws IOException {
+        if (destination == null) return getBaseDirectory();
+        if (ContentResolver.SCHEME_FILE.equals(destination.getScheme())) {
+            return create ? Paths.get(destination).findOrCreateDirectory("AppManager")
+                    : Paths.get(destination).findFile("AppManager");
+        }
+        Path path = Paths.get(destination);
+        if (create && !path.exists()) path.mkdirs();
+        return path;
+    }
+
+    @NonNull
+    public static BackupItem findBackupItem(@NonNull String relativeDir) throws FileNotFoundException {
+        Locator locator = decodeLocator(relativeDir);
+        try {
+            return new BackupItem(getBaseDirectory(locator.destination, false).findFile(locator.path), relativeDir);
+        } catch (FileNotFoundException e) {
+            throw e;
+        } catch (IOException e) {
+            FileNotFoundException exception = new FileNotFoundException("Could not resolve backup locator.");
+            exception.initCause(e);
+            throw exception;
+        }
+    }
+
+    @NonNull
+    public static BackupItem findOrCreateBackupItem(@UserIdInt int userId, @Nullable String backupName, @NonNull String packageName) throws IOException {
+        return findOrCreateBackupItem(userId, backupName, packageName, null);
+    }
+
+    @NonNull
+    public static BackupItem findOrCreateBackupItem(@UserIdInt int userId, @Nullable String backupName,
+                                                    @NonNull String packageName,
+                                                    @Nullable Uri destination) throws IOException {
+        Path backupPath;
+        List<BackupItem> previousBackupItems = null;
+        if (MetadataManager.getCurrentBackupMetaVersion() >= 5) {
+            List<Backup> previousBackups = BackupUtils.retrieveBackupFromDb(userId, backupName, packageName);
+            if (!previousBackups.isEmpty()) {
+                previousBackupItems = new ArrayList<>(previousBackups.size());
+                String destinationKey = encodeDestination(destination);
+                for (Backup backup : previousBackups) {
+                    if (destinationKey.equals(getDestinationKey(backup.relativeDir))) {
+                        previousBackupItems.add(backup.getItem());
+                    }
+                }
+            }
+            String backupUuid = UUID.randomUUID().toString();
+            backupPath = getBaseDirectory(destination, true)
+                    .findOrCreateDirectory(BACKUP_DIRECTORY)
+                    .findOrCreateDirectory(backupUuid);
+        } else {
+            backupPath = getBaseDirectory(destination, true)
+                    .findOrCreateDirectory(packageName)
+                    .findOrCreateDirectory(BackupUtils.getV4BackupName(userId, backupName));
+        }
+        BackupItem backupItem = new BackupItem(backupPath, true,
+                encodeRelativeDir(destination, relativePathFor(backupPath)));
+        backupItem.setBackupName(BackupUtils.getCompatBackupName(backupName));
+        backupItem.setPreviousBackups(previousBackupItems);
+        return backupItem;
+    }
+
+    @NonNull
+    public static BackupItem createBackupItemGracefully(@UserIdInt int userId, @Nullable String backupName, @NonNull String packageName) throws IOException {
+        return createBackupItemGracefully(userId, backupName, packageName, null);
+    }
+
+    @NonNull
+    public static BackupItem createBackupItemGracefully(@UserIdInt int userId, @Nullable String backupName,
+                                                        @NonNull String packageName,
+                                                        @Nullable Uri destination) throws IOException {
+        Path backupPath;
+        if (MetadataManager.getCurrentBackupMetaVersion() >= 5) {
+            String backupUuid = UUID.randomUUID().toString();
+            backupPath = getBaseDirectory(destination, true)
+                    .findOrCreateDirectory(BACKUP_DIRECTORY)
+                    .findOrCreateDirectory(backupUuid);
+        } else {
+            Path baseDir = getBaseDirectory(destination, true).findOrCreateDirectory(packageName);
+            String backupItemName = BackupUtils.getV4BackupName(userId, backupName);
+            String newBackupName = backupItemName;
+            int i = 0;
+            while (baseDir.hasFile(newBackupName)) {
+                newBackupName = backupItemName + "_" + (++i);
+            }
+            backupPath = baseDir.createNewDirectory(newBackupName);
+        }
+        BackupItem backupItem = new BackupItem(backupPath, true,
+                encodeRelativeDir(destination, relativePathFor(backupPath)));
+        backupItem.setBackupName(BackupUtils.getCompatBackupName(backupName));
+        return backupItem;
+    }
+
+    @NonNull
+    public static List<BackupItem> findAllBackupItems() {
+        Path baseDirectory = getBaseDirectory();
+        List<BackupItem> backupItems = new ArrayList<>();
+        collectBackupItems(baseDirectory, null, backupItems);
+        Set<String> seenDestinations = new HashSet<>();
+        seenDestinations.add(Prefs.Storage.getVolumePath().toString());
+        for (Uri destination : new BackupTagPolicyStore(ContextUtils.getContext()).getKnownDestinations()) {
+            if (!seenDestinations.add(destination.toString())) continue;
+            try {
+                collectBackupItems(getBaseDirectory(destination, false), destination, backupItems);
+            } catch (IOException | RuntimeException ignore) {
+                // Missing/revoked destinations remain in the policy and can recover later.
+            }
+        }
+        return backupItems;
+    }
+
+    private static void collectBackupItems(@NonNull Path baseDirectory, @Nullable Uri destination,
+                                           @NonNull List<BackupItem> backupItems) {
+        Path[] paths = baseDirectory.listFiles(Path::isDirectory);
+        for (Path path : paths) {
+            if (SaveLogHelper.SAVED_LOGS_DIR.equals(path.getName())) {
+                continue;
+            }
+            if (APK_SAVING_DIRECTORY.equals(path.getName())) {
+                continue;
+            }
+            if (".tmp".equals(path.getName())) {
+                continue;
+            }
+            // Other backups can store multiple backups per folder
+            backupItems.addAll(Arrays.stream(path.listFiles(Path::isDirectory))
+                    .map(item -> new BackupItem(item,
+                            encodeRelativeDir(destination, path.getName() + "/" + item.getName())))
+                    .collect(Collectors.toList()));
+        }
+        // We don't need to check further at this stage.
+        // It's the caller's job to check the contents if needed.
+    }
+
+    @NonNull
+    private static String relativePathFor(@NonNull Path backupPath) {
+        return backupPath.requireParent().getName() + "/" + backupPath.getName();
+    }
+
+    @NonNull
+    static String encodeRelativeDir(@Nullable Uri destination, @NonNull String path) {
+        String normalizedPath = path.replace('\\', '/');
+        String encoded = encodeDestination(destination);
+        return encoded.isEmpty() ? normalizedPath
+                : POLICY_VOLUME_DIRECTORY + "/" + encoded + "/" + normalizedPath;
+    }
+
+    @NonNull
+    static String getDestinationKey(@Nullable String relativeDir) {
+        if (relativeDir == null) return "";
+        String prefix = POLICY_VOLUME_DIRECTORY + "/";
+        if (!relativeDir.startsWith(prefix)) return "";
+        int end = relativeDir.indexOf('/', prefix.length());
+        return end > prefix.length() ? relativeDir.substring(prefix.length(), end) : "";
+    }
+
+    @NonNull
+    private static String encodeDestination(@Nullable Uri destination) {
+        if (destination == null) return "";
+        return Base64.encodeToString(destination.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+    }
+
+    @NonNull
+    private static Locator decodeLocator(@NonNull String relativeDir) throws FileNotFoundException {
+        String normalized = relativeDir.replace('\\', '/');
+        String prefix = POLICY_VOLUME_DIRECTORY + "/";
+        if (!normalized.startsWith(prefix)) return new Locator(null, normalized);
+        int end = normalized.indexOf('/', prefix.length());
+        if (end <= prefix.length() || end == normalized.length() - 1) {
+            throw new FileNotFoundException("Invalid policy backup locator.");
+        }
+        try {
+            String raw = new String(Base64.decode(normalized.substring(prefix.length(), end),
+                    Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            Uri destination = Uri.parse(raw);
+            String scheme = destination.getScheme();
+            if ((!ContentResolver.SCHEME_FILE.equals(scheme)
+                    && !ContentResolver.SCHEME_CONTENT.equals(scheme)) || destination.getPath() == null) {
+                throw new IllegalArgumentException("Unsupported URI.");
+            }
+            String path = normalized.substring(end + 1);
+            if (path.startsWith("/")) throw new IllegalArgumentException("Unsafe path.");
+            for (String segment : path.split("/", -1)) {
+                if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) {
+                    throw new IllegalArgumentException("Unsafe path.");
+                }
+            }
+            return new Locator(destination, path);
+        } catch (IllegalArgumentException e) {
+            FileNotFoundException exception = new FileNotFoundException("Invalid policy backup locator.");
+            exception.initCause(e);
+            throw exception;
+        }
+    }
+
+    @VisibleForTesting
+    @Nullable
+    static Uri decodeDestination(@NonNull String relativeDir) throws FileNotFoundException {
+        return decodeLocator(relativeDir).destination;
+    }
+
+    private static final class Locator {
+        @Nullable
+        final Uri destination;
+        @NonNull
+        final String path;
+
+        Locator(@Nullable Uri destination, @NonNull String path) {
+            this.destination = destination;
+            this.path = path;
+        }
+    }
+
+    @NonNull
+    private static synchronized Path getTemporaryUnencryptedPath(@NonNull String backupName) throws IOException {
+        Path tmpDir = Prefs.Storage.getTempPath();
+        String newFilename = backupName;
+        int i = 0;
+        while (tmpDir.hasFile(newFilename)) {
+            newFilename = backupName + "_" + (++i);
+        }
+        return tmpDir.findOrCreateDirectory(newFilename);
+    }
+
+    @NonNull
+    private static synchronized Path getTemporaryBackupPath(@NonNull Path originalBackupPath) throws IOException {
+        return getTemporaryBackupPath(originalBackupPath, "");
+    }
+
+    @NonNull
+    private static synchronized Path getTemporaryBackupPath(@NonNull Path originalBackupPath,
+                                                           @NonNull String suffix) throws IOException {
+        Path tmpDir = originalBackupPath.requireParent();
+        String tmpFilename = "." + originalBackupPath.getName() + suffix;
+        String newFilename = tmpFilename;
+        int i = 0;
+        while (tmpDir.hasFile(newFilename)) {
+            newFilename = tmpFilename + "_" + (++i);
+        }
+        return tmpDir.findOrCreateDirectory(newFilename);
+    }
+
+    @NonNull
+    public static Path getApkBackupDirectory() throws IOException {
+        return getBaseDirectory().findOrCreateDirectory(APK_SAVING_DIRECTORY);
+    }
+
+    public static void createNoMediaIfNotExists() throws IOException {
+        Path backupDirectory = getBaseDirectory();
+        if (!backupDirectory.hasFile(NO_MEDIA)) {
+            backupDirectory.createNewFile(NO_MEDIA, null);
+        }
+    }
+
+    public static class BackupItem implements Closeable {
+        public static final String TAG = BackupItem.class.getSimpleName();
+
+        @NonNull
+        private final Path mBackupPath;
+        @NonNull
+        private final Path mTempBackupPath;
+        @Nullable
+        private final String mStoredRelativeDir;
+        private final Object mCryptoGuard = new Object();
+        @Nullable
+        private Crypto mCrypto;
+        @CryptoUtils.Mode
+        private String mCryptoMode = CryptoUtils.MODE_NO_ENCRYPTION;
+        @Nullable
+        private String mBackupName;
+        private boolean mBackupNameSet = false;
+        private boolean mBackupMode;
+        private boolean mBackupSuccess = false;
+        private final List<Path> mTemporaryFiles = new ArrayList<>();
+        private Path mTempUnencyptedPath;
+        @Nullable
+        private List<BackupItem> mPreviousBackups;
+
+        private BackupItem(@NonNull Path backupPath, boolean backupMode,
+                           @Nullable String storedRelativeDir) throws IOException {
+            mBackupPath = backupPath;
+            mStoredRelativeDir = storedRelativeDir;
+            mBackupMode = backupMode;
+            if (mBackupMode) {
+                mBackupPath.mkdirs();  // Create backup path if not exists
+                mTempBackupPath = getTemporaryBackupPath(mBackupPath);
+            } else mTempBackupPath = mBackupPath;
+        }
+
+        // Read-only instance: the point is not to throw IOException
+        private BackupItem(@NonNull Path backupPath) {
+            this(backupPath, null);
+        }
+
+        private BackupItem(@NonNull Path backupPath, @Nullable String storedRelativeDir) {
+            mBackupPath = backupPath;
+            mStoredRelativeDir = storedRelativeDir;
+            mBackupMode = false;
+            mTempBackupPath = mBackupPath;
+        }
+
+        public void setCrypto(@Nullable Crypto crypto) {
+            if (crypto == null || crypto instanceof DummyCrypto) {
+                mCrypto = null;
+                mCryptoMode = CryptoUtils.MODE_NO_ENCRYPTION;
+            } else {
+                mCrypto = crypto;
+                mCryptoMode = crypto.getModeName();
+            }
+        }
+
+        public void setBackupName(@Nullable String backupName) {
+            mBackupName = backupName;
+            mBackupNameSet = true;
+        }
+
+        @Nullable
+        public String getBackupName() {
+            if (mBackupNameSet) {
+                return mBackupName;
+            }
+            if (mBackupMode) {
+                throw new IllegalStateException("mBackupName must be set in backup mode.");
+            }
+            if (isV5AndUp()) {
+                throw new IllegalStateException("getBackupName() is unavailable in backup v5 and up unless set manually.");
+            }
+            // For v4 or earlier backups, fallback to filename
+            return BackupUtils.getRealBackupName(4, mBackupPath.getName());
+        }
+
+        public void setPreviousBackups(@Nullable List<BackupItem> previousBackups) {
+            mPreviousBackups = previousBackups;
+        }
+
+        public String getRelativeDir() {
+            if (mStoredRelativeDir != null) return mStoredRelativeDir;
+            if (isV5AndUp()) {
+                // {AppManagerDir}/backups/{UUID}/
+                return BackupUtils.getV5RelativeDir(mBackupPath.getName());
+            } else {
+                // {AppManagerDir}/{packagename}/{userid}[_{backup_name}]
+                String userIdBackupName = mBackupPath.getName();
+                String packageName = mBackupPath.requireParent().getName();
+                return BackupUtils.getV4RelativeDir(userIdBackupName, packageName);
+            }
+        }
+
+        public boolean isBackupMode() {
+            return mBackupMode;
+        }
+
+        @NonNull
+        BackupItem getReadOnlyVerificationView() {
+            if (!mBackupMode) {
+                return this;
+            }
+            BackupItem backupItem = new BackupItem(mTempBackupPath, mStoredRelativeDir);
+            if (mBackupNameSet) {
+                backupItem.setBackupName(mBackupName);
+            }
+            return backupItem;
+        }
+
+        @NonNull
+        public Path getBackupPath() {
+            return mBackupMode ? mTempBackupPath : mBackupPath;
+        }
+
+        public long getTotalSize() {
+            return Paths.size(getBackupPath());
+        }
+
+        public Path getUnencryptedBackupPath() throws IOException {
+            if (mCrypto == null) {
+                // Use real path for unencrypted backups
+                return getBackupPath();
+            } else {
+                return requireUnencryptedBackupPath();
+            }
+        }
+
+        public Path requireUnencryptedBackupPath() throws IOException {
+            if (mTempUnencyptedPath == null) {
+                // We can only do this once for each BackupItem
+                mTempUnencyptedPath = getTemporaryUnencryptedPath(getBackupPath().getName());
+            }
+            return mTempUnencyptedPath;
+        }
+
+        @NonNull
+        public Path[] encrypt(@NonNull Path[] files) throws IOException {
+            // Encrypt the files and delete the originals
+            synchronized (mCryptoGuard) {
+                if (mCrypto == null) {
+                    // No encryption enabled
+                    return files;
+                }
+                List<Path> newFileList = new ArrayList<>();
+                // Get desired extension
+                String ext = CryptoUtils.getExtension(mCryptoMode);
+                // Create necessary files (1-1 correspondence)
+                for (Path inputFile : files) {
+                    Path parent = getBackupPath();
+                    String outputFilename = inputFile.getName() + ext;
+                    Path outputPath = parent.createNewFile(outputFilename, null);
+                    newFileList.add(outputPath);
+                    Log.i(TAG, "Input: %s\nOutput: %s", inputFile, outputPath);
+                }
+                Path[] newFiles = newFileList.toArray(new Path[0]);
+                // Perform actual encryption
+                mCrypto.encrypt(files, newFiles);
+                // Delete unencrypted files
+                for (Path inputFile : files) {
+                    if (!inputFile.delete()) {
+                        throw new IOException("Couldn't delete old file " + inputFile);
+                    }
+                }
+                return newFiles;
+            }
+        }
+
+        @NonNull
+        public Path[] decrypt(@NonNull Path[] files) throws IOException {
+            // Decrypt the files but do NOT delete the originals
+            synchronized (mCryptoGuard) {
+                if (mCrypto == null) {
+                    // No encryption enabled
+                    return files;
+                }
+                List<Path> newFileList = new ArrayList<>();
+                // Get desired extension
+                String ext = CryptoUtils.getExtension(mCryptoMode);
+                // Create necessary files (1-1 correspondence)
+                for (Path inputFile : files) {
+                    Path parent = getUnencryptedBackupPath();
+                    String filename = inputFile.getName();
+                    // Strip the crypto extension only when it is a genuine suffix. lastIndexOf + >0
+                    // could mis-truncate a name that merely contains the extension, and dropped a
+                    // name that starts with it.
+                    String outputFilename = (!ext.isEmpty() && filename.endsWith(ext))
+                            ? filename.substring(0, filename.length() - ext.length())
+                            : filename;
+                    Path outputPath = parent.createNewFile(outputFilename, null);
+                    newFileList.add(outputPath);
+                    Log.i(TAG, "Input: %s\nOutput: %s", inputFile, outputPath);
+                }
+                Path[] newFiles = newFileList.toArray(new Path[0]);
+                // Perform actual decryption
+                mCrypto.decrypt(files, newFiles);
+                mTemporaryFiles.addAll(newFileList);
+                return newFiles;
+            }
+        }
+
+        @NonNull
+        public Path getIconFile() throws IOException {
+            // Icon is never encrypted
+            if (mBackupMode) {
+                return getBackupPath().findOrCreateFile(ICON_FILE, null);
+            } else return getBackupPath().findFile(ICON_FILE);
+        }
+
+        public boolean isV5AndUp() {
+            return getBackupPath().hasFile(MetadataManager.INFO_V5_FILE);
+        }
+
+        public Path getInfoFile() throws IOException {
+            // info_v5.am.json is never encrypted
+            if (mBackupMode) {
+                return getBackupPath().findOrCreateFile(MetadataManager.INFO_V5_FILE, null);
+            } else return getBackupPath().findFile(MetadataManager.INFO_V5_FILE);
+        }
+
+        public Path getMetadataV5File(boolean decryptIfRequired) throws IOException {
+            if (mBackupMode) {
+                // Needs to be encrypted in backup mode
+                return getBackupPath().findOrCreateFile(MetadataManager.META_V5_FILE, null);
+            } else {
+                // Needs to be decrypted in restore mode
+                Path file = getBackupPath().findFile(MetadataManager.META_V5_FILE + CryptoUtils.getExtension(mCryptoMode));
+                return decryptIfRequired ? decrypt(new Path[]{file})[0] : file;
+            }
+        }
+
+        @NonNull
+        public Path getMetadataV2File() throws IOException {
+            // meta_v2.am.json is never encrypted
+            if (mBackupMode) {
+                return getBackupPath().findOrCreateFile(MetadataManager.META_V2_FILE, null);
+            } else return getBackupPath().findFile(MetadataManager.META_V2_FILE);
+        }
+
+        public BackupMetadataV5.Info getInfo() throws IOException {
+            return MetadataManager.readInfo(this);
+        }
+
+        public BackupMetadataV5 getMetadata() throws IOException {
+            return MetadataManager.readMetadata(this);
+        }
+
+        public BackupMetadataV5 getMetadata(BackupMetadataV5.Info backupInfo) throws IOException {
+            return MetadataManager.readMetadata(this, backupInfo);
+        }
+
+        @NonNull
+        private Path getChecksumFile() throws IOException {
+            if (mBackupMode) {
+                // Needs to be encrypted in backup mode
+                return getUnencryptedBackupPath().findOrCreateFile(CHECKSUMS_TXT, null);
+            } else {
+                // Needs to be decrypted in restore mode
+                Path file = getBackupPath().findFile(CHECKSUMS_TXT + CryptoUtils.getExtension(mCryptoMode));
+                return decrypt(new Path[]{file})[0];
+            }
+        }
+
+        @NonNull
+        public Checksum getChecksum() throws IOException {
+            return new Checksum(getChecksumFile(), mBackupMode ? "w" : "r");
+        }
+
+        @NonNull
+        public Path getMiscFile() throws IOException {
+            if (mBackupMode) {
+                // Needs to be encrypted in backup mode
+                return getUnencryptedBackupPath().findOrCreateFile(MISC_TSV, null);
+            } else {
+                // Needs to be decrypted in restore mode
+                return getBackupPath().findFile(MISC_TSV + CryptoUtils.getExtension(mCryptoMode));
+            }
+        }
+
+        @NonNull
+        public Path getRulesFile() throws IOException {
+            if (mBackupMode) {
+                // Needs to be encrypted in backup mode
+                return getUnencryptedBackupPath().findOrCreateFile(RULES_TSV, null);
+            } else {
+                // Needs to be decrypted in restore mode
+                return getBackupPath().findFile(RULES_TSV + CryptoUtils.getExtension(mCryptoMode));
+            }
+        }
+
+        @NonNull
+        public Path[] getSourceFiles() {
+            return getBackupArchiveFiles(BackupManager.SOURCE_PREFIX, false);
+        }
+
+        @NonNull
+        public Path[] getDataFiles(int index) {
+            return getBackupArchiveFiles(BackupManager.DATA_PREFIX + index, true);
+        }
+
+        @NonNull
+        public Path[] getKeyStoreFiles() {
+            return getBackupArchiveFiles(KEYSTORE_PREFIX, false);
+        }
+
+        @NonNull
+        private Path[] getBackupArchiveFiles(@NonNull String baseName, boolean allowAdbBackup) {
+            String cryptoExtension = CryptoUtils.getExtension(mCryptoMode);
+            Path[] paths = getBackupPath().listFiles((dir, name) ->
+                    isBackupArchiveFileName(name, baseName, cryptoExtension, allowAdbBackup));
+            return Paths.getSortedPaths(paths);
+        }
+
+        private static boolean isBackupArchiveFileName(@NonNull String name, @NonNull String baseName,
+                                                       @NonNull String cryptoExtension, boolean allowAdbBackup) {
+            if (!cryptoExtension.isEmpty()) {
+                if (!name.endsWith(cryptoExtension)) {
+                    return false;
+                }
+                name = name.substring(0, name.length() - cryptoExtension.length());
+            }
+            if (allowAdbBackup && name.equals(baseName + ADB_BACKUP_EXTENSION)) {
+                return true;
+            }
+            for (String archiveExtension : SPLIT_ARCHIVE_EXTENSIONS) {
+                String splitPrefix = baseName + archiveExtension + ".";
+                if (name.startsWith(splitPrefix)) {
+                    return isNonNegativeDecimal(name.substring(splitPrefix.length()));
+                }
+            }
+            return false;
+        }
+
+        private static boolean isNonNegativeDecimal(@NonNull String value) {
+            if (value.isEmpty()) {
+                return false;
+            }
+            for (int i = 0; i < value.length(); ++i) {
+                char c = value.charAt(i);
+                if (c < '0' || c > '9') {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public void freeze() throws IOException {
+            getBackupPath().createNewFile(FREEZE, null);
+        }
+
+        public void unfreeze() throws FileNotFoundException {
+            getFreezeFile().delete();
+        }
+
+        public boolean isFrozen() {
+            try {
+                return getFreezeFile().exists();
+            } catch (IOException e) {
+                return false;
+            }
+        }
+
+        public void commit() throws IOException {
+            if (mBackupMode) {
+                if (mBackupSuccess) {
+                    // Backup already done
+                    return;
+                }
+                boolean freezeCommittedBackup = hasFrozenPreviousBackup();
+                Path stagedPreviousBackup = stageCommittedBackupForRollback();
+                if (!mTempBackupPath.moveTo(mBackupPath)) {
+                    restoreCommittedBackup(stagedPreviousBackup);
+                    throw new IOException("Could not move " + mTempBackupPath + " to " + mBackupPath);
+                }
+                mBackupSuccess = true;
+                // Set backup mode to false to make it read-only and prevent cleanup from deleting the committed path.
+                mBackupMode = false;
+                try {
+                    if (freezeCommittedBackup) {
+                        mBackupPath.createNewFile(FREEZE, null);
+                    }
+                    if (mPreviousBackups != null) {
+                        for (BackupItem previousBackup : mPreviousBackups) {
+                            if (!previousBackup.delete()) {
+                                Log.w(TAG, "Could not delete %s", previousBackup.mBackupPath);
+                            }
+                        }
+                    }
+                } finally {
+                    if (stagedPreviousBackup != null && stagedPreviousBackup.exists()
+                            && !stagedPreviousBackup.delete()) {
+                        Log.w(TAG, "Could not delete staged previous backup %s", stagedPreviousBackup);
+                    }
+                }
+            }
+        }
+
+        @Nullable
+        private Path stageCommittedBackupForRollback() throws IOException {
+            if (!mBackupPath.exists()) {
+                return null;
+            }
+            if (mBackupPath.isDirectory() && mBackupPath.listFiles().length == 0) {
+                if (!mBackupPath.delete()) {
+                    throw new IOException("Could not delete empty backup placeholder " + mBackupPath);
+                }
+                return null;
+            }
+            Path stagedBackupPath = getTemporaryBackupPath(mBackupPath, ".rollback");
+            if (!stagedBackupPath.delete()) {
+                throw new IOException("Could not prepare rollback path " + stagedBackupPath);
+            }
+            Path stagedBackup = mBackupPath.copyTo(stagedBackupPath);
+            if (stagedBackup == null) {
+                throw new IOException("Could not stage existing backup " + mBackupPath);
+            }
+            if (!mBackupPath.delete()) {
+                if (!stagedBackup.delete()) {
+                    Log.w(TAG, "Could not delete staged previous backup %s", stagedBackup);
+                }
+                throw new IOException("Could not delete " + mBackupPath);
+            }
+            return stagedBackup;
+        }
+
+        private void restoreCommittedBackup(@Nullable Path stagedPreviousBackup) throws IOException {
+            if (stagedPreviousBackup == null) {
+                return;
+            }
+            if (mBackupPath.exists() && !mBackupPath.delete()) {
+                throw new IOException("Could not remove failed backup output " + mBackupPath
+                        + "; previous backup is staged at " + stagedPreviousBackup);
+            }
+            Path restoredBackup = stagedPreviousBackup.copyTo(mBackupPath);
+            if (restoredBackup == null) {
+                throw new IOException("Could not restore previous backup from " + stagedPreviousBackup);
+            }
+            if (!stagedPreviousBackup.delete()) {
+                Log.w(TAG, "Could not delete staged previous backup %s", stagedPreviousBackup);
+            }
+        }
+
+        private boolean hasFrozenPreviousBackup() {
+            if (mPreviousBackups == null) {
+                return false;
+            }
+            for (BackupItem previousBackup : mPreviousBackups) {
+                if (previousBackup.isFrozen()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Releases temporary decrypted files and any open {@link Crypto} key material. Read-only
+         * enumeration paths (listing/deleting backups) must call this — otherwise every encrypted
+         * backup they touch leaks a plaintext temp copy of its metadata and leaves derived key
+         * material un-wiped for the lifetime of the process. Equivalent to {@link #cleanup()}.
+         */
+        @Override
+        public void close() {
+            cleanup();
+        }
+
+        public void cleanup() {
+            if (mBackupMode) {
+                if (!mBackupSuccess) {
+                    // Backup wasn't successful, delete the directory
+                    mTempBackupPath.delete();
+                    if (mBackupPath.exists() && mBackupPath.isDirectory() && mBackupPath.listFiles().length == 0) {
+                        mBackupPath.delete();
+                    }
+                }
+            }
+            for (Path file : mTemporaryFiles) {
+                Log.d(TAG, "Deleting %s", file);
+                file.delete();
+            }
+            if (mTempUnencyptedPath != null) {
+                mTempUnencyptedPath.delete();
+            }
+            if (mCrypto != null) {
+                mCrypto.close();
+            }
+        }
+
+        public boolean exists() {
+            return mBackupPath.exists();
+        }
+
+        public boolean delete() {
+            if (mBackupPath.exists()) {
+                if (!isV5AndUp()) {
+                    // For v4 and earlier, delete parent if it's the last one.
+                    Path parent = mBackupPath.requireParent();
+                    if (parent.listFiles().length == 1) {
+                        // Also deletes children
+                        return parent.delete();
+                    }
+                }
+                return mBackupPath.delete();
+            }
+            return true;  // The backup path doesn't exist anyway
+        }
+
+        @NonNull
+        private Path getFreezeFile() throws FileNotFoundException {
+            return getBackupPath().findFile(FREEZE);
+        }
+    }
+
+    public static class Checksum implements Closeable {
+        private PrintWriter mWriter;
+        private final HashMap<String, String> mChecksums = new HashMap<>();
+        private final String mMode;
+        private final Path mFile;
+
+        @NonNull
+        public static String[] getCertChecksums(@NonNull Checksum checksum) {
+            List<String> certChecksums = new ArrayList<>();
+            synchronized (checksum.mChecksums) {
+                for (String name : checksum.mChecksums.keySet()) {
+                    if (name.startsWith(BackupManager.CERT_PREFIX)) {
+                        certChecksums.add(checksum.mChecksums.get(name));
+                    }
+                }
+            }
+            return certChecksums.toArray(new String[0]);
+        }
+
+        Checksum(@NonNull Path checksumFile, String mode) throws IOException {
+            mFile = checksumFile;
+            mMode = mode;
+            if ("w".equals(mode)) {
+                mWriter = new PrintWriter(new BufferedWriter(new PathWriter(checksumFile)));
+            } else if ("r".equals(mode)) {
+                synchronized (mChecksums) {
+                    // Get checksums
+                    try (BufferedReader reader = new BufferedReader(new PathReader(checksumFile))) {
+                        String line;
+                        String[] lineSplits;
+                        while ((line = reader.readLine()) != null) {
+                            lineSplits = line.split("\t", 2);
+                            if (lineSplits.length != 2 || lineSplits[0].isEmpty() || lineSplits[1].isEmpty()
+                                    || mChecksums.containsKey(lineSplits[1])) {
+                                throw new IOException("Illegal lines found in the checksum file.");
+                            }
+                            mChecksums.put(lineSplits[1], lineSplits[0]);
+                        }
+                    }
+                }
+            } else throw new IOException("Unknown mode: " + mode);
+        }
+
+        @VisibleForTesting
+        Checksum(@NonNull Writer writer) {
+            mFile = null;
+            mMode = "w";
+            mWriter = new PrintWriter(writer);
+        }
+
+        public Path getFile() {
+            return mFile;
+        }
+
+        public void add(@NonNull String fileName, @NonNull String checksum) throws IOException {
+            synchronized (mChecksums) {
+                if (!"w".equals(mMode)) {
+                    throw new IllegalStateException("add is inaccessible in mode " + mMode);
+                }
+                if (fileName.isEmpty() || checksum.isEmpty() || mChecksums.containsKey(fileName)) {
+                    throw new IllegalArgumentException("Illegal checksum entry.");
+                }
+                mWriter.println(String.format("%s\t%s", checksum, fileName));
+                mWriter.flush();
+                // PrintWriter swallows IOExceptions; surface them so a mid-backup write
+                // failure (disk full, revoked SAF permission) is reported instead of
+                // silently truncating checksums.txt and weakening later verification.
+                if (mWriter.checkError()) {
+                    throw new IOException("Failed to write checksum entry for " + fileName);
+                }
+                mChecksums.put(fileName, checksum);
+            }
+        }
+
+        @Nullable
+        String get(String fileName) {
+            synchronized (mChecksums) {
+                return mChecksums.get(fileName);
+            }
+        }
+
+        @Override
+        public void close() {
+            synchronized (mChecksums) {
+                if (mWriter != null) {
+                    // add() already surfaces per-write failures; log any residual error at
+                    // close as a backstop rather than throwing from a Closeable used in
+                    // cleanup/finally paths (which would mask the original failure).
+                    boolean hadError = mWriter.checkError();
+                    mWriter.close();
+                    mWriter = null;
+                    if (hadError) {
+                        Log.w("Checksum", "Checksum file " + mFile + " may be incomplete: a write error occurred.");
+                    }
+                }
+            }
+        }
+    }
+}

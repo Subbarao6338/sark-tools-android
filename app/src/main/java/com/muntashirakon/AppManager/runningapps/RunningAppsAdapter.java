@@ -1,0 +1,584 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.runningapps;
+
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.graphics.Color;
+import android.os.Build;
+import android.os.Process;
+import android.text.Spannable;
+import android.text.TextUtils;
+import android.text.format.Formatter;
+import android.text.style.ForegroundColorSpan;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.annotation.AttrRes;
+import androidx.annotation.NonNull;
+import androidx.appcompat.widget.LinearLayoutCompat;
+import androidx.appcompat.widget.PopupMenu;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.color.MaterialColors;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.compat.ManifestCompat;
+import io.github.muntashirakon.AppManager.logcat.LogViewerActivity;
+import io.github.muntashirakon.AppManager.logcat.struct.SearchCriteria;
+import io.github.muntashirakon.AppManager.self.SelfPermissions;
+import io.github.muntashirakon.AppManager.self.imagecache.ImageLoader;
+import io.github.muntashirakon.AppManager.settings.FeatureController;
+import io.github.muntashirakon.AppManager.settings.Ops;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.utils.LangUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
+import io.github.muntashirakon.proc.ProcMemoryInfo;
+import io.github.muntashirakon.util.AccessibilityUtils;
+import io.github.muntashirakon.util.AdapterUtils;
+import io.github.muntashirakon.widget.MultiSelectionView;
+
+public class RunningAppsAdapter extends MultiSelectionView.Adapter<MultiSelectionView.ViewHolder> {
+    private static final int VIEW_TYPE_MEMORY_INFO = 1;
+    private static final int VIEW_TYPE_PROCESS_INFO = 2;
+    private static final int VIEW_TYPE_EMPTY = 3;
+
+    private final RunningAppsActivity mActivity;
+    private final RunningAppsViewModel mModel;
+    private final int mQueryStringHighlightColor;
+    private final int mColorRegularStroke;
+    private final Object mLock = new Object();
+    @NonNull
+    private final List<ProcessItem> mProcessItems = new ArrayList<>();
+    private ProcMemoryInfo mProcMemoryInfo;
+
+    RunningAppsAdapter(@NonNull RunningAppsActivity activity) {
+        super();
+        mActivity = activity;
+        mModel = activity.model;
+        mQueryStringHighlightColor = ColorCodes.getQueryStringHighlightColor(activity);
+        mColorRegularStroke = MaterialColors.getColor(activity,
+                com.google.android.material.R.attr.colorOutlineVariant, Color.TRANSPARENT);
+    }
+
+    void setDefaultList(@NonNull List<ProcessItem> processItems) {
+        synchronized (mLock) {
+            mProcessItems.clear();
+            for (ProcessItem processItem : processItems) {
+                if (processItem != null) {
+                    mProcessItems.add(processItem);
+                }
+            }
+            notifyDataSetChanged();
+        }
+        notifySelectionChange();
+    }
+
+    public void setDeviceMemoryInfo(ProcMemoryInfo procMemoryInfo) {
+        mProcMemoryInfo = procMemoryInfo;
+        notifyItemChanged(0, AdapterUtils.STUB);
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        if (isEmptyPlaceholderPosition(position)) return VIEW_TYPE_EMPTY;
+        if (position == 0) return VIEW_TYPE_MEMORY_INFO;
+        return VIEW_TYPE_PROCESS_INFO;
+    }
+
+    @NonNull
+    @Override
+    public MultiSelectionView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        if (viewType == VIEW_TYPE_MEMORY_INFO) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.header_running_apps_memory_info, parent, false);
+            return new HeaderViewHolder(view);
+        }
+        if (viewType == VIEW_TYPE_EMPTY) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.view_list_empty_state, parent, false);
+            return new EmptyViewHolder(view);
+        }
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_running_app, parent, false);
+        return new BodyViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull MultiSelectionView.ViewHolder holder, int position) {
+        if (isEmptyPlaceholderPosition(position)) {
+            onBindViewHolder((EmptyViewHolder) holder);
+        } else if (position == 0) {
+            onBindViewHolder((HeaderViewHolder) holder);
+        } else {
+            onBindViewHolder((BodyViewHolder) holder, position);
+            super.onBindViewHolder(holder, position);
+        }
+    }
+
+    private void onBindViewHolder(@NonNull HeaderViewHolder holder) {
+        if (mProcMemoryInfo == null) {
+            return;
+        }
+        Context context = holder.itemView.getContext();
+        StringBuilder contentDescription = new StringBuilder();
+        // Memory
+        long appMemory = mProcMemoryInfo.getApplicationMemory();
+        long cachedMemory = mProcMemoryInfo.getCachedMemory();
+        long buffers = mProcMemoryInfo.getBuffers();
+        long freeMemory = mProcMemoryInfo.getFreeMemory();
+        double total = appMemory + cachedMemory + buffers + freeMemory;
+        boolean totalIsNonZero = total > 0;
+        String fUsedMemory = Formatter.formatFileSize(context, mProcMemoryInfo.getUsedMemory());
+        String fTotalMemory = Formatter.formatFileSize(context, mProcMemoryInfo.getTotalMemory());
+        String fAvailableMemory = Formatter.formatFileSize(context, mProcMemoryInfo.getAvailableMemory());
+        String fAppMemory = Formatter.formatShortFileSize(context, appMemory);
+        String fCachedMemory = Formatter.formatShortFileSize(context, cachedMemory);
+        String fBuffers = Formatter.formatShortFileSize(context, buffers);
+        String fFreeMemory = Formatter.formatShortFileSize(context, freeMemory);
+        AdapterUtils.setVisible(holder.mMemoryInfoChart, totalIsNonZero);
+        AdapterUtils.setVisible(holder.mMemoryShortInfoView, totalIsNonZero);
+        AdapterUtils.setVisible(holder.mMemoryInfoView, totalIsNonZero);
+        if (totalIsNonZero) {
+            holder.mMemoryInfoChart.post(() -> {
+                int width = holder.mMemoryInfoChart.getWidth();
+                setLayoutWidth(holder.mMemoryInfoChartChildren[0], (int) (width * appMemory / total));
+                setLayoutWidth(holder.mMemoryInfoChartChildren[1], (int) (width * cachedMemory / total));
+                setLayoutWidth(holder.mMemoryInfoChartChildren[2], (int) (width * buffers / total));
+            });
+            // Update content description for memory (free memory is not important for accessibility)
+            contentDescription.append(context.getString(R.string.memory_usage_accessibility_description,
+                    fUsedMemory, fTotalMemory, fAvailableMemory, fAppMemory, fCachedMemory, fBuffers));
+        } else {
+            contentDescription.append(context.getString(R.string.memory_usage_unavailable));
+        }
+        holder.mMemoryShortInfoView.setText(UIUtils.getStyledKeyValue(context, R.string.memory,
+                fUsedMemory + "/" + fTotalMemory + " (" +
+                context.getString(R.string.available_memory, fAvailableMemory) + ")"));
+        // Set color info
+        Spannable memInfo = UIUtils.charSequenceToSpannable(context.getString(R.string.memory_chart_info,
+                fAppMemory, fCachedMemory, fBuffers, fFreeMemory));
+        setColors(holder.itemView, memInfo, new int[]{androidx.appcompat.R.attr.colorPrimary, com.google.android.material.R.attr.colorTertiary, com.google.android.material.R.attr.colorSecondary,
+                com.google.android.material.R.attr.colorSurfaceVariant});
+        holder.mMemoryInfoView.setText(memInfo);
+
+        // Swap
+        long usedSwap = mProcMemoryInfo.getUsedSwap();
+        long totalSwap = mProcMemoryInfo.getTotalSwap();
+        String fUsedSwap = Formatter.formatFileSize(context, usedSwap);
+        String fTotalSwap = Formatter.formatFileSize(context, totalSwap);
+        boolean totalSwapIsNonZero = totalSwap > 0;
+        AdapterUtils.setVisible(holder.mSwapInfoChart, totalSwapIsNonZero);
+        AdapterUtils.setVisible(holder.mSwapShortInfoView, totalSwapIsNonZero);
+        AdapterUtils.setVisible(holder.mSwapInfoView, totalSwapIsNonZero);
+        if (totalSwapIsNonZero) {
+            holder.mSwapInfoChart.post(() -> {
+                int width = holder.mSwapInfoChart.getWidth();
+                setLayoutWidth(holder.mSwapInfoChartChildren[0], (int) (width * usedSwap / totalSwap));
+            });
+            // Update content description for swap
+            contentDescription.append("\n\n");
+            contentDescription.append(context.getString(R.string.swap_usage_accessibility_description, fTotalSwap, fUsedSwap));
+        }
+        holder.mSwapShortInfoView.setText(UIUtils.getStyledKeyValue(context, R.string.swap, fUsedSwap + "/" + fTotalSwap));
+        // Set color and size info
+        Spannable swapInfo = UIUtils.charSequenceToSpannable(context.getString(R.string.swap_chart_info, Formatter
+                .formatShortFileSize(context, usedSwap), Formatter.formatShortFileSize(context, totalSwap - usedSwap)));
+        setColors(holder.itemView, swapInfo, new int[]{androidx.appcompat.R.attr.colorPrimary, com.google.android.material.R.attr.colorSurfaceVariant});
+        holder.mSwapInfoView.setText(swapInfo);
+        holder.itemView.setContentDescription(contentDescription);
+    }
+
+    private void onBindViewHolder(@NonNull EmptyViewHolder holder) {
+        boolean hasFilters = mModel != null && mModel.getFilter() != RunningAppsActivity.FILTER_NONE;
+        boolean hasQuery = mModel != null && !TextUtils.isEmpty(mModel.getQuery());
+        boolean isFiltered = hasFilters || hasQuery;
+        holder.title.setText(isFiltered ? R.string.running_apps_empty_filtered_title : R.string.running_apps_empty_title);
+        holder.summary.setText(isFiltered
+                ? R.string.running_apps_empty_filtered_summary
+                : R.string.running_apps_empty_no_processes_summary);
+        holder.action.setVisibility(View.VISIBLE);
+        if (isFiltered) {
+            if (hasFilters && hasQuery) {
+                holder.action.setText(R.string.running_apps_empty_clear_search_and_filters);
+            } else if (hasQuery) {
+                holder.action.setText(R.string.running_apps_empty_clear_search);
+            } else {
+                holder.action.setText(R.string.running_apps_empty_clear_filters);
+            }
+            holder.action.setIconResource(R.drawable.ic_filter_list);
+            holder.action.setOnClickListener(v -> mActivity.clearSearchAndFilters());
+        } else {
+            holder.action.setText(R.string.refresh);
+            holder.action.setIconResource(R.drawable.ic_refresh);
+            holder.action.setOnClickListener(v -> mActivity.refresh());
+        }
+        holder.itemView.setContentDescription(holder.title.getText() + ". " + holder.summary.getText());
+    }
+
+    private void onBindViewHolder(@NonNull BodyViewHolder holder, int position) {
+        ProcessItem processItem;
+        synchronized (mLock) {
+            processItem = mProcessItems.get(positionToProcessIndex(position));
+        }
+        ApplicationInfo applicationInfo;
+        if (processItem instanceof AppProcessItem) {
+            applicationInfo = ((AppProcessItem) processItem).packageInfo.applicationInfo;
+        } else applicationInfo = null;
+        String processName = processItem.name;
+        // Load icon
+        holder.icon.setTag(processName);
+        ImageLoader.getInstance().displayImage(processName, applicationInfo, holder.icon);
+        holder.icon.setContentDescription(mActivity.getString(R.string.running_apps_select_process, processName));
+        // Set process name
+        holder.processName.setText(UIUtils.getHighlightedText(processName, mModel.getQuery(), mQueryStringHighlightColor));
+        // Set package name
+        String packageName = mActivity.getString(R.string.running_apps_system_process);
+        if (applicationInfo != null) {
+            packageName = applicationInfo.packageName;
+            holder.processKind.setText(R.string.running_apps_app_process);
+            holder.packageName.setText(UIUtils.getHighlightedText(packageName, mModel.getQuery(), mQueryStringHighlightColor));
+        } else {
+            holder.processKind.setText(R.string.running_apps_system_process);
+            holder.packageName.setText(R.string.running_apps_system_process_summary);
+        }
+        // Set process IDs
+        String processIds = mActivity.getString(R.string.pid_and_ppid, processItem.pid, processItem.ppid);
+        holder.processIds.setText(mActivity.getString(R.string.running_apps_process_metrics,
+                processItem.pid, Formatter.formatFileSize(mActivity, processItem.getMemory()),
+                Formatter.formatFileSize(mActivity, processItem.getVirtualMemory())));
+        // Set memory usage
+        String memoryUsage = mActivity.getString(R.string.memory_virtual_memory,
+                Formatter.formatFileSize(mActivity, processItem.getMemory()),
+                Formatter.formatFileSize(mActivity, processItem.getVirtualMemory()));
+        holder.memoryUsage.setText(memoryUsage);
+        // Set user info
+        String userInfo = mActivity.getString(R.string.user_and_uid, processItem.user, processItem.uid);
+        String stateInfo;
+        if (TextUtils.isEmpty(processItem.state_extra)) {
+            stateInfo = mActivity.getString(R.string.process_state, processItem.state);
+        } else {
+            stateInfo = mActivity.getString(R.string.process_state_with_extra, processItem.state, processItem.state_extra);
+        }
+        String compactState = TextUtils.isEmpty(processItem.state_extra)
+                ? processItem.state
+                : mActivity.getString(R.string.running_apps_state_with_extra_compact,
+                        processItem.state, processItem.state_extra);
+        holder.userAndStateInfo.setText(mActivity.getString(R.string.running_apps_user_state_compact,
+                processItem.user, processItem.uid, compactState));
+        holder.selinuxContext.setText(String.format("SELinux%s %s", LangUtils.getSeparatorString(),
+                processItem.context));
+        holder.more.setContentDescription(mActivity.getString(R.string.running_apps_more_actions_for_process, processName));
+        holder.itemView.setContentDescription(mActivity.getString(R.string.running_apps_process_content_description,
+                processName, packageName, processIds, memoryUsage, String.format("%s, %s", userInfo, stateInfo)));
+        // Set more
+        holder.more.setOnClickListener(v -> {
+            PopupMenu popupMenu = new PopupMenu(mActivity, holder.more);
+            popupMenu.setForceShowIcon(true);
+            popupMenu.inflate(R.menu.activity_running_apps_popup_actions);
+            Menu menu = popupMenu.getMenu();
+            // Set kill
+            MenuItem killItem = menu.findItem(R.id.action_kill);
+            if ((processItem.uid >= Process.FIRST_APPLICATION_UID || Prefs.RunningApps.enableKillForSystemApps()) && Ops.isWorkingUidRoot()) {
+                killItem.setVisible(true).setOnMenuItemClickListener(item -> {
+                    mModel.killProcess(processItem);
+                    return true;
+                });
+            } else killItem.setVisible(false);
+            // Set view logs
+            MenuItem viewLogsItem = menu.findItem(R.id.action_view_logs);
+            if (FeatureController.isLogViewerEnabled()) {
+                viewLogsItem.setVisible(true).setOnMenuItemClickListener(item -> {
+                    Intent logViewerIntent = new Intent(mActivity.getApplicationContext(), LogViewerActivity.class)
+                            .putExtra(LogViewerActivity.EXTRA_FILTER, SearchCriteria.PID_KEYWORD + processItem.pid)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    mActivity.startActivity(logViewerIntent);
+                    return true;
+                });
+            } else viewLogsItem.setVisible(false);
+            // Scan using VT
+            MenuItem scanVtIem = menu.findItem(R.id.action_scan_vt);
+            if (mModel.isVirusTotalAvailable()
+                    && (applicationInfo != null
+                    || RunningAppsViewModel.getReadableCommandlineFile(processItem.getCommandlineArgs()) != null)) {
+                scanVtIem.setVisible(true).setOnMenuItemClickListener(item -> {
+                    mModel.scanWithVt(processItem);
+                    return true;
+                });
+            } else scanVtIem.setVisible(false);
+            // Set force-stop
+            MenuItem forceStopItem = menu.findItem(R.id.action_force_stop);
+            boolean canForceStop = applicationInfo != null
+                    && SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.FORCE_STOP_PACKAGES);
+            forceStopItem.setVisible(canForceStop);
+            if (canForceStop) {
+                forceStopItem.setOnMenuItemClickListener(item -> {
+                    mActivity.requestForceStop(applicationInfo);
+                    return true;
+                });
+            }
+            MenuItem bgItem = menu.findItem(R.id.action_disable_background);
+            boolean canPreventBackground = applicationInfo != null
+                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+                    && SelfPermissions.canModifyAppOpMode()
+                    && mModel.canRunInBackground(applicationInfo);
+            bgItem.setVisible(canPreventBackground);
+            if (canPreventBackground) {
+                bgItem.setOnMenuItemClickListener(item -> {
+                    mModel.preventBackgroundRun(applicationInfo);
+                    return true;
+                });
+            }
+            MenuItem restoreBgItem = menu.findItem(R.id.action_restore_background);
+            boolean canRestoreBackground = applicationInfo != null
+                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+                    && SelfPermissions.canModifyAppOpMode()
+                    && mModel.hasBackgroundRunRestriction(applicationInfo);
+            restoreBgItem.setVisible(canRestoreBackground);
+            if (canRestoreBackground) {
+                restoreBgItem.setOnMenuItemClickListener(item -> {
+                    mModel.restoreBackgroundRun(applicationInfo);
+                    return true;
+                });
+            }
+            // Display popup menu
+            popupMenu.show();
+        });
+        // Set selections
+        holder.icon.setOnClickListener(v -> {
+            int pos = holder.getBindingAdapterPosition();
+            if (pos == RecyclerView.NO_POSITION) return;
+            toggleSelection(pos);
+            AccessibilityUtils.requestAccessibilityFocus(holder.itemView);
+        });
+        holder.itemView.setOnLongClickListener(v -> {
+            int pos = holder.getBindingAdapterPosition();
+            if (pos == RecyclerView.NO_POSITION) return true;
+            ProcessItem lastSelectedItem = mModel.getLastSelectedItem();
+            int lastSelectedItemPosition = lastSelectedItem == null ? -1 : mProcessItems.indexOf(lastSelectedItem);
+            if (lastSelectedItemPosition >= 0) {
+                // Select from last selection to this selection
+                selectRange(lastSelectedItemPosition + 1, pos);
+            } else {
+                toggleSelection(pos);
+                AccessibilityUtils.requestAccessibilityFocus(holder.itemView);
+            }
+            return true;
+        });
+        // Open process details
+        holder.itemView.setOnClickListener(v -> {
+            int pos = holder.getBindingAdapterPosition();
+            if (pos == RecyclerView.NO_POSITION) return;
+            if (isInSelectionMode()) {
+                toggleSelection(pos);
+                AccessibilityUtils.requestAccessibilityFocus(holder.itemView);
+            } else {
+                mModel.requestDisplayProcessDetails(processItem);
+            }
+        });
+        holder.itemView.setStrokeColor(mColorRegularStroke);
+    }
+
+    @Override
+    public long getItemId(int position) {
+        if (isEmptyPlaceholderPosition(position)) {
+            return Long.MIN_VALUE;
+        }
+        if (position == 0) {
+            return mProcMemoryInfo != null ? mProcMemoryInfo.hashCode() : View.NO_ID;
+        }
+        synchronized (mLock) {
+            return mProcessItems.get(positionToProcessIndex(position)).hashCode();
+        }
+    }
+
+    @Override
+    protected boolean select(int position) {
+        if (position == 0 || isEmptyPlaceholderPosition(position)) {
+            return false;
+        }
+        synchronized (mLock) {
+            mModel.select(mProcessItems.get(positionToProcessIndex(position)));
+            return true;
+        }
+    }
+
+    @Override
+    protected boolean deselect(int position) {
+        if (position == 0 || isEmptyPlaceholderPosition(position)) {
+            return false;
+        }
+        synchronized (mLock) {
+            mModel.deselect(mProcessItems.get(positionToProcessIndex(position)));
+            return true;
+        }
+    }
+
+    @Override
+    protected boolean isSelected(int position) {
+        if (position == 0 || isEmptyPlaceholderPosition(position)) {
+            return false;
+        }
+        synchronized (mLock) {
+            return mModel.isSelected(mProcessItems.get(positionToProcessIndex(position)));
+        }
+    }
+
+    @Override
+    protected boolean isSelectable(int position) {
+        return position > 0 && !isEmptyPlaceholderPosition(position);
+    }
+
+    @Override
+    protected void cancelSelection() {
+        super.cancelSelection();
+        mModel.clearSelections();
+    }
+
+    @NonNull
+    public ArrayList<ProcessItem> getSelectedItems() {
+        return mModel.getSelections();
+    }
+
+    @Override
+    protected int getSelectedItemCount() {
+        return mModel.getSelectionCount();
+    }
+
+    @Override
+    protected int getTotalItemCount() {
+        return mModel.getTotalCount();
+    }
+
+    @Override
+    public int getItemCount() {
+        synchronized (mLock) {
+            if (mProcessItems.isEmpty()) {
+                return isFilteredState() ? 1 : 2;
+            }
+            return 1 + mProcessItems.size();
+        }
+    }
+
+    private boolean isEmptyPlaceholderPosition(int position) {
+        synchronized (mLock) {
+            if (!mProcessItems.isEmpty()) {
+                return false;
+            }
+            return isFilteredState() ? position == 0 : position == 1;
+        }
+    }
+
+    private int positionToProcessIndex(int position) {
+        return position - 1;
+    }
+
+    private boolean isFilteredState() {
+        return mModel != null && (mModel.getFilter() != RunningAppsActivity.FILTER_NONE
+                || !TextUtils.isEmpty(mModel.getQuery()));
+    }
+
+    private static void setColors(@NonNull View v, @NonNull Spannable text, @NonNull @AttrRes int[] colors) {
+        int idx = 0;
+        for (int color : colors) {
+            idx = text.toString().indexOf('●', idx);
+            if (idx == -1) break;
+            text.setSpan(new ForegroundColorSpan(MaterialColors.getColor(v, color)), idx, idx + 1,
+                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE);
+            ++idx;
+        }
+    }
+
+    private static void setLayoutWidth(@NonNull View view, int width) {
+        ViewGroup.LayoutParams lp = view.getLayoutParams();
+        lp.width = width;
+        view.setLayoutParams(lp);
+    }
+
+    static class HeaderViewHolder extends MultiSelectionView.ViewHolder {
+        private final TextView mMemoryShortInfoView;
+        private final TextView mMemoryInfoView;
+        private final View[] mMemoryInfoChartChildren;
+        private final LinearLayoutCompat mMemoryInfoChart;
+        private final TextView mSwapShortInfoView;
+        private final TextView mSwapInfoView;
+        private final View[] mSwapInfoChartChildren;
+        private final LinearLayoutCompat mSwapInfoChart;
+
+        public HeaderViewHolder(@NonNull View itemView) {
+            super(itemView);
+            mMemoryShortInfoView = itemView.findViewById(R.id.memory_usage);
+            mMemoryInfoView = itemView.findViewById(R.id.memory_usage_info);
+            mMemoryInfoChart = itemView.findViewById(R.id.memory_usage_chart);
+            int childCount = mMemoryInfoChart.getChildCount();
+            mMemoryInfoChartChildren = new View[childCount];
+            for (int i = 0; i < childCount; ++i) {
+                mMemoryInfoChartChildren[i] = mMemoryInfoChart.getChildAt(i);
+            }
+            mSwapShortInfoView = itemView.findViewById(R.id.swap_usage);
+            mSwapInfoView = itemView.findViewById(R.id.swap_usage_info);
+            mSwapInfoChart = itemView.findViewById(R.id.swap_usage_chart);
+            childCount = mSwapInfoChart.getChildCount();
+            mSwapInfoChartChildren = new View[childCount];
+            for (int i = 0; i < childCount; ++i) {
+                mSwapInfoChartChildren[i] = mSwapInfoChart.getChildAt(i);
+            }
+        }
+    }
+
+    static class BodyViewHolder extends MultiSelectionView.ViewHolder {
+        MaterialCardView itemView;
+        ImageView icon;
+        MaterialButton more;
+        TextView processName;
+        TextView processKind;
+        TextView packageName;
+        TextView processIds;
+        TextView memoryUsage;
+        TextView userAndStateInfo;
+        TextView selinuxContext;
+
+        public BodyViewHolder(@NonNull View itemView) {
+            super(itemView);
+            this.itemView = (MaterialCardView) itemView;
+            icon = itemView.findViewById(R.id.icon);
+            more = itemView.findViewById(R.id.more);
+            processName = itemView.findViewById(R.id.process_name);
+            processKind = itemView.findViewById(R.id.process_kind);
+            packageName = itemView.findViewById(R.id.package_name);
+            processIds = itemView.findViewById(R.id.process_ids);
+            memoryUsage = itemView.findViewById(R.id.memory_usage);
+            userAndStateInfo = itemView.findViewById(R.id.user_state_info);
+            selinuxContext = itemView.findViewById(R.id.selinux_context);
+        }
+    }
+
+    static class EmptyViewHolder extends MultiSelectionView.ViewHolder {
+        final TextView title;
+        final TextView summary;
+        final MaterialButton action;
+
+        EmptyViewHolder(@NonNull View itemView) {
+            super(itemView);
+            ViewGroup.LayoutParams layoutParams = itemView.getLayoutParams();
+            if (layoutParams != null) {
+                layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                itemView.setLayoutParams(layoutParams);
+            }
+            itemView.setMinimumHeight(itemView.getResources()
+                    .getDimensionPixelSize(R.dimen.running_apps_empty_state_min_height));
+            title = itemView.findViewById(R.id.empty_state_title);
+            summary = itemView.findViewById(R.id.empty_state_summary);
+            action = itemView.findViewById(R.id.empty_state_action);
+        }
+    }
+}

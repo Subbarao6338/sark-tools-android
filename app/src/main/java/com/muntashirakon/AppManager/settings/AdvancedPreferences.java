@@ -1,0 +1,262 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.settings;
+
+import android.os.Build;
+import android.os.Bundle;
+import android.text.Editable;
+import android.text.InputType;
+import android.text.TextUtils;
+import android.view.View;
+import android.view.inputmethod.EditorInfo;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.core.view.inputmethod.EditorInfoCompat;
+import androidx.fragment.app.DialogFragment;
+import androidx.fragment.app.FragmentActivity;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.preference.Preference;
+import androidx.preference.SwitchPreferenceCompat;
+
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textfield.TextInputEditText;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.servermanager.LocalServer;
+import io.github.muntashirakon.AppManager.users.ProfileVisibilityDiagnostics;
+import io.github.muntashirakon.AppManager.utils.MotionUtils;
+import io.github.muntashirakon.AppManager.settings.crypto.ImportExportKeyStoreDialogFragment;
+import io.github.muntashirakon.AppManager.utils.AppPref;
+import io.github.muntashirakon.AppManager.utils.ArrayUtils;
+import io.github.muntashirakon.AppManager.utils.MultithreadedExecutor;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.AppManager.utils.Utils;
+import io.github.muntashirakon.dialog.SearchableMultiChoiceDialogBuilder;
+import io.github.muntashirakon.dialog.TextInputDialogBuilder;
+import io.github.muntashirakon.util.UiUtils;
+
+public class AdvancedPreferences extends PreferenceFragment {
+    public static final String[] APK_NAME_FORMATS = new String[]{
+            "%label%",
+            "%package_name%",
+            "%version%",
+            "%version_code%",
+            "%min_sdk%",
+            "%target_sdk%",
+            "%datetime%"
+    };
+
+    private int mThreadCount;
+    private MainPreferencesViewModel mModel;
+    private Preference mAdbLocalServerPortPreference;
+
+    @Override
+    public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        setPreferencesFromResource(R.xml.preferences_advanced, rootKey);
+        getPreferenceManager().setPreferenceDataStore(new SettingsDataStore());
+        mModel = new ViewModelProvider(requireActivity()).get(MainPreferencesViewModel.class);
+        // Selected users
+        Preference usersPref = Objects.requireNonNull(findPreference("selected_users"));
+        usersPref.setSummary(ProfileVisibilityDiagnostics.getSelectedUsersSummary(requireContext()));
+        usersPref.setOnPreferenceClickListener(preference -> {
+            mModel.loadAllUsers();
+            return true;
+        });
+        // Saved apk name format
+        Preference savedApkFormatPref = Objects.requireNonNull(findPreference("saved_apk_format"));
+        savedApkFormatPref.setOnPreferenceClickListener(preference -> {
+            View view = getLayoutInflater().inflate(R.layout.dialog_set_apk_format, null);
+            TextInputEditText inputApkNameFormat = view.findViewById(R.id.input_apk_name_format);
+            inputApkNameFormat.setText(AppPref.getString(AppPref.PrefKey.PREF_SAVED_APK_FORMAT_STR));
+            ChipGroup apkNameFormats = view.findViewById(R.id.apk_name_formats);
+            for (String apkNameFormatStr : APK_NAME_FORMATS) {
+                if ("%min_sdk%".equals(apkNameFormatStr) && Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+                    // Old devices does not support min SDK
+                    continue;
+                }
+                addChip(apkNameFormats, apkNameFormatStr).setOnClickListener(v -> {
+                    Editable apkFormat = inputApkNameFormat.getText();
+                    if (apkFormat != null) {
+                        apkFormat.insert(inputApkNameFormat.getSelectionStart(), ((Chip) v).getText());
+                    }
+                });
+            }
+            AlertDialog dialog = new MaterialAlertDialogBuilder(requireActivity())
+                    .setTitle(R.string.pref_saved_apk_name_format)
+                    .setView(view)
+                    .setPositiveButton(R.string.save, (dialog1, which) -> {
+                        Editable apkFormat = inputApkNameFormat.getText();
+                        if (!TextUtils.isEmpty(apkFormat)) {
+                            AppPref.set(AppPref.PrefKey.PREF_SAVED_APK_FORMAT_STR, apkFormat.toString().trim());
+                        }
+                    })
+                    .setNegativeButton(R.string.cancel, null)
+                    .create();
+            dialog.setOnShowListener(dialog1 -> inputApkNameFormat.postDelayed(() -> {
+                inputApkNameFormat.requestFocus();
+                inputApkNameFormat.requestFocusFromTouch();
+                inputApkNameFormat.setSelection(inputApkNameFormat.length());
+                UiUtils.showKeyboard(inputApkNameFormat);
+            }, 200));
+            dialog.show();
+            return true;
+        });
+        // Thread count
+        Preference threadCountPref = Objects.requireNonNull(findPreference("thread_count"));
+        mThreadCount = MultithreadedExecutor.getThreadCount();
+        threadCountPref.setSummary(getResources().getQuantityString(R.plurals.pref_thread_count_msg, mThreadCount, mThreadCount));
+        threadCountPref.setOnPreferenceClickListener(preference -> {
+            new TextInputDialogBuilder(requireActivity(), null)
+                    .setTitle(R.string.pref_thread_count)
+                    .setHelperText(getString(R.string.pref_thread_count_hint, Utils.getTotalCores()))
+                    .setInputText(String.valueOf(mThreadCount))
+                    .setInputInputType(InputType.TYPE_CLASS_NUMBER)
+                    .setInputImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfoCompat.IME_FLAG_NO_PERSONALIZED_LEARNING)
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.save, (dialog, which, inputText, isChecked) -> {
+                        // Parse defensively: TextUtils.isDigitsOnly passes overflowing values like
+                        // "99999999999", and Integer.decode would then throw in this handler.
+                        Integer c = parsePositiveInt(inputText);
+                        if (c == null) {
+                            UIUtils.displayShortToast(R.string.failed_to_parse_some_numbers);
+                            return;
+                        }
+                        MultithreadedExecutor.setThreadCount(c);
+                        mThreadCount = MultithreadedExecutor.getThreadCount();
+                        threadCountPref.setSummary(getResources().getQuantityString(R.plurals.pref_thread_count_msg, mThreadCount, mThreadCount));
+                    })
+                    .show();
+            return true;
+        });
+        // ADB local server port
+        mAdbLocalServerPortPreference = Objects.requireNonNull(findPreference("adb_local_server_port"));
+        mAdbLocalServerPortPreference.setSummary(String.valueOf(Prefs.Misc.getAdbLocalServerPort()));
+        mAdbLocalServerPortPreference.setOnPreferenceClickListener(pref -> {
+            int currentPort = Prefs.Misc.getAdbLocalServerPort();
+            new TextInputDialogBuilder(requireActivity(), null)
+                    .setTitle(R.string.adb_local_server_port)
+                    .setInputText(String.valueOf(currentPort))
+                    .setInputInputType(InputType.TYPE_CLASS_NUMBER)
+                    .setInputImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfoCompat.IME_FLAG_NO_PERSONALIZED_LEARNING)
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(R.string.save, (dialog, which, inputText, isChecked) -> {
+                        Integer c = parsePositiveInt(inputText);
+                        if (c == null || c < 1 || c > 65535) {
+                            UIUtils.displayShortToast(R.string.port_number_invalid);
+                            return;
+                        }
+                        mAdbLocalServerPortPreference.setEnabled(false);
+                        mModel.rebindLocalServerPort(c);
+                    })
+                    .show();
+            return true;
+        });
+        // Import/export App Manager's KeyStore
+        ((Preference) Objects.requireNonNull(findPreference("import_export_keystore")))
+                .setOnPreferenceClickListener(preference -> {
+                    DialogFragment fragment = new ImportExportKeyStoreDialogFragment();
+                    fragment.show(getParentFragmentManager(), ImportExportKeyStoreDialogFragment.TAG);
+                    return true;
+                });
+        // Send notifications to the connected device
+        ((SwitchPreferenceCompat) Objects.requireNonNull(findPreference("send_notifications_to_connected_devices")))
+                .setChecked(Prefs.Misc.sendNotificationsToConnectedDevices());
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        MotionUtils.applySharedAxisZTransition(this);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        mModel.selectUsers().observe(getViewLifecycleOwner(), users -> {
+            if (users == null) return;
+            int[] selectedUsers = Prefs.Misc.getSelectedUsers();
+            Integer[] userIds = new Integer[users.size()];
+            CharSequence[] userInfo = new CharSequence[users.size()];
+            List<Integer> preselectedUserIds = new ArrayList<>();
+            for (int i = 0; i < users.size(); ++i) {
+                userIds[i] = users.get(i).id;
+                userInfo[i] = users.get(i).toLocalizedString(requireContext());
+                if (selectedUsers == null || ArrayUtils.contains(selectedUsers, userIds[i])) {
+                    preselectedUserIds.add(userIds[i]);
+                }
+            }
+            FragmentActivity activity = requireActivity();
+            new SearchableMultiChoiceDialogBuilder<>(activity, userIds, userInfo)
+                    .setTitle(R.string.pref_selected_users)
+                    .addSelections(preselectedUserIds)
+                    .setPositiveButton(R.string.save, (dialog, which, selectedUserIds) -> {
+                        if (!selectedUserIds.isEmpty()) {
+                            Prefs.Misc.setSelectedUsers(ArrayUtils.convertToIntArray(selectedUserIds));
+                        } else Prefs.Misc.setSelectedUsers(null);
+                        Utils.relaunchApp(activity);
+                    })
+                    .setNegativeButton(R.string.cancel, null)
+                    .setNeutralButton(R.string.use_default, (dialog, which, selectedUserIds) -> {
+                        Prefs.Misc.setSelectedUsers(null);
+                        Utils.relaunchApp(activity);
+                    })
+                    .show();
+        });
+        mModel.getLocalServerPortRebindResult().observe(getViewLifecycleOwner(), result -> {
+            if (result == null || mAdbLocalServerPortPreference == null) return;
+            mAdbLocalServerPortPreference.setEnabled(true);
+            mAdbLocalServerPortPreference.setSummary(String.valueOf(result.getEffectivePort()));
+            if (result.getStatus() == LocalServer.PortRebindResult.Status.REBOUND) {
+                UIUtils.displayLongToast(R.string.adb_local_server_port_rebound,
+                        result.getEffectivePort());
+            } else if (result.getStatus() == LocalServer.PortRebindResult.Status.CONFIGURED) {
+                UIUtils.displayLongToast(R.string.adb_local_server_port_configured,
+                        result.getEffectivePort());
+            } else if (!result.isSuccessful()) {
+                UIUtils.displayLongToast(R.string.adb_local_server_port_rebind_failed,
+                        result.getEffectivePort());
+            }
+        });
+    }
+
+    @Override
+    public int getTitle() {
+        return R.string.pref_cat_advanced;
+    }
+
+    @NonNull
+    private static Chip addChip(@NonNull ChipGroup apkFormats, @NonNull CharSequence text) {
+        Chip chip = new Chip(apkFormats.getContext());
+        chip.setText(text);
+        apkFormats.addView(chip);
+        return chip;
+    }
+
+    /**
+     * Parses user input into a positive int, returning {@code null} for empty, non-numeric, or
+     * overflowing values (so callers can show an error instead of crashing on Integer.decode).
+     */
+    @Nullable
+    private static Integer parsePositiveInt(@Nullable CharSequence input) {
+        if (input == null) {
+            return null;
+        }
+        String text = input.toString().trim();
+        if (text.isEmpty() || !TextUtils.isDigitsOnly(text)) {
+            return null;
+        }
+        try {
+            int value = Integer.parseInt(text);
+            return value > 0 ? value : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+}

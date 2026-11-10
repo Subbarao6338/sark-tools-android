@@ -1,0 +1,501 @@
+// SPDX-License-Identifier: MIT AND GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.servermanager;
+
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.os.Build;
+import android.os.Process;
+
+import androidx.annotation.AnyThread;
+import androidx.annotation.GuardedBy;
+import androidx.annotation.IntRange;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.annotation.WorkerThread;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
+
+import io.github.muntashirakon.AppManager.ipc.LocalServices;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.misc.NoOps;
+import io.github.muntashirakon.AppManager.misc.SystemProperties;
+import io.github.muntashirakon.AppManager.server.common.Caller;
+import io.github.muntashirakon.AppManager.server.common.CallerResult;
+import io.github.muntashirakon.AppManager.server.common.Shell;
+import io.github.muntashirakon.AppManager.server.common.ShellCaller;
+import io.github.muntashirakon.AppManager.settings.Ops;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.users.Users;
+import io.github.muntashirakon.AppManager.utils.AppPref;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
+import io.github.muntashirakon.adb.AdbPairingRequiredException;
+
+// Copyright 2016 Zheng Li
+public class LocalServer {
+    private static final String TAG = LocalServer.class.getSimpleName();
+
+    @GuardedBy("lockObject")
+    private static final Object sLock = new Object();
+    private static final Object sPortRebindLock = new Object();
+
+    @SuppressLint("StaticFieldLeak")
+    @Nullable
+    private static LocalServer sLocalServer;
+
+    @GuardedBy("lockObject")
+    @WorkerThread
+    @NoOps(used = true)
+    public static LocalServer getInstance() throws IOException, AdbPairingRequiredException {
+        // Non-null check must be done outside the synchronised block to prevent deadlock on ADB over TCP mode.
+        if (sLocalServer != null) return sLocalServer;
+        synchronized (sLock) {
+            try {
+                Log.d("IPC", "Init: Local server");
+                sLocalServer = new LocalServer();
+            } finally {
+                sLock.notifyAll();
+            }
+        }
+        return sLocalServer;
+    }
+
+    public static void die() {
+        synchronized (sLock) {
+            try {
+                if (sLocalServer != null) {
+                    sLocalServer.destroy();
+                }
+            } finally {
+                sLocalServer = null;
+            }
+        }
+    }
+
+    /**
+     * Closes the privileged server when this process holds a connection to it. A process that never
+     * connected does nothing: it neither probes the port nor connects to a server another mode left
+     * listening.
+     */
+    @WorkerThread
+    public static void closeIfConnected() {
+        LocalServer server;
+        synchronized (sLock) {
+            server = sLocalServer;
+            sLocalServer = null;
+        }
+        if (server == null) {
+            return;
+        }
+        try {
+            server.closeBgServer();
+        } catch (IOException e) {
+            Log.w(TAG, "Could not close the privileged server.", e);
+        } finally {
+            // closeBgServer skips this when stopping the server fails; the streams close regardless.
+            server.destroy();
+        }
+    }
+
+    @AnyThread
+    @NoOps
+    public static boolean alive(Context context) {
+        return alive(context, ServerConfig.getLocalServerPort());
+    }
+
+    /**
+     * Whether something is listening on the port. That's all it says: it may not be this app's
+     * server. Every session still has to get the server's acknowledgement of this app's token in
+     * {@link io.github.muntashirakon.AppManager.server.common.DataTransmission#shakeHands} before
+     * anything is sent over it. A real handshake here would queue behind the one client the
+     * server serves at a time.
+     * <p>
+     * Safe on the main thread: it only binds a loopback socket, with no connection or lookup, and
+     * the Mode of operation screen calls it there on every refresh.
+     */
+    @AnyThread
+    @NoOps
+    public static boolean alive(Context context, @IntRange(from = 1, to = 65535) int port) {
+        try (ServerSocket socket = new ServerSocket()) {
+            socket.bind(new InetSocketAddress(ServerConfig.getLocalServerHost(context),
+                    port), 1);
+            return false;
+        } catch (IOException e) {
+            return true;
+        }
+    }
+
+    @NonNull
+    private final Context mContext;
+    @NonNull
+    private final LocalServerManager mLocalServerManager;
+
+    @WorkerThread
+    @NoOps(used = true)
+    private LocalServer() throws IOException, AdbPairingRequiredException {
+        mContext = ContextUtils.getDeContext(ContextUtils.getContext());
+        mLocalServerManager = LocalServerManager.getInstance(mContext);
+        // Initialise necessary files and permissions
+        ServerConfig.init(mContext);
+        // Start server if not already
+        checkConnect();
+    }
+
+    private LocalServer(@NonNull Context context, @NonNull LocalServerManager localServerManager) {
+        mContext = context;
+        mLocalServerManager = localServerManager;
+    }
+
+    private final Object mConnectLock = new Object();
+    private boolean mConnectStarted = false;
+
+    @GuardedBy("connectLock")
+    @WorkerThread
+    @NoOps(used = true)
+    public void checkConnect() throws IOException, AdbPairingRequiredException {
+        synchronized (mConnectLock) {
+            if (mConnectStarted) {
+                try {
+                    mConnectLock.wait();
+                } catch (InterruptedException e) {
+                    return;
+                }
+            }
+            mConnectStarted = true;
+            try {
+                mLocalServerManager.start();
+            } catch (IOException | AdbPairingRequiredException e) {
+                mConnectStarted = false;
+                mConnectLock.notify();
+                logBootstrapFailureSignature(e);
+                throw e;
+            }
+            mConnectStarted = false;
+            mConnectLock.notify();
+        }
+    }
+
+    /**
+     * Emit a single-line bootstrap-failure signature when the privileged shell
+     * handshake throws — captures device fingerprint, LineageOS property, root
+     * mode, and the exception's class + cause chain so bug-reporters can paste
+     * one line into an issue instead of a full audit log. Targets in particular
+     * the LineageOS 23.2 / Android 16 root-binder regression (upstream AM
+     * #1962, [S185]) where the SELinux denial in {@code system_server} kills
+     * the handshake silently and users have no signal to act on.
+     */
+    private static void logBootstrapFailureSignature(@NonNull Exception e) {
+        try {
+            String signature = buildBootstrapSignature("failed", e, -1, null);
+            rememberBootstrapSignature(signature);
+            Log.e("IPC", signature);
+        } catch (Throwable ignored) {
+            // Diagnostic logging must never mask the original failure.
+        }
+    }
+
+    public static void rememberBootstrapSignature(@NonNull String signature) {
+        AppPref.set(AppPref.PrefKey.PREF_LAST_LOCAL_SERVER_BOOTSTRAP_SIGNATURE_STR, signature);
+    }
+
+    @NonNull
+    public static String getLastBootstrapSignature() {
+        return AppPref.getString(AppPref.PrefKey.PREF_LAST_LOCAL_SERVER_BOOTSTRAP_SIGNATURE_STR);
+    }
+
+    @NonNull
+    public static String buildBootstrapSignature(@NonNull String outcome,
+                                                 @Nullable Throwable throwable,
+                                                 long elapsedMillis,
+                                                 @Nullable Shell.Result probeResult) {
+        try {
+            Integer probeStatusCode = null;
+            String probeMessage = null;
+            if (probeResult != null) {
+                probeStatusCode = probeResult.getStatusCode();
+                probeMessage = probeResult.getMessage();
+            }
+            return buildBootstrapSignature(outcome, throwable, elapsedMillis, probeStatusCode, probeMessage,
+                    Build.MANUFACTURER, Build.PRODUCT, Build.DEVICE, Build.VERSION.SDK_INT, Build.ID,
+                    SystemProperties.get("ro.lineage.version", ""), Ops.getMode(), Users.getSelfOrRemoteUid(),
+                    Process.myUid());
+        } catch (Throwable diagnosticFailure) {
+            Throwable reported = throwable != null ? throwable : diagnosticFailure;
+            return buildBootstrapSignature(outcome, reported, elapsedMillis, null, null,
+                    "unknown", "unknown", "unknown", -1, "unknown", null, "unknown", -1, -1);
+        }
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static String buildBootstrapSignature(@NonNull String outcome,
+                                          @Nullable Throwable throwable,
+                                          long elapsedMillis,
+                                          @Nullable Integer probeStatusCode,
+                                          @Nullable String probeMessage,
+                                          @NonNull String manufacturer,
+                                          @NonNull String product,
+                                          @NonNull String device,
+                                          int sdk,
+                                          @NonNull String buildId,
+                                          @Nullable String lineage,
+                                          @NonNull String mode,
+                                          int remoteUid,
+                                          int appUid) {
+        StringBuilder sig = new StringBuilder("LocalServer bootstrap ")
+                .append(outcome)
+                .append(": ")
+                .append(manufacturer).append('/')
+                .append(product).append('/')
+                .append(device)
+                .append(" (sdk=").append(sdk)
+                .append(", id=").append(buildId)
+                .append(", mode=").append(mode)
+                .append(", uid=").append(remoteUid)
+                .append(", appUid=").append(appUid)
+                .append(')');
+        if (lineage != null && !lineage.isEmpty()) {
+            sig.append(" [LineageOS ").append(lineage).append(']');
+        }
+        if (throwable != null) {
+            sig.append(" — ").append(throwable.getClass().getSimpleName());
+            String msg = singleLine(throwable.getMessage());
+            if (msg != null && !msg.isEmpty()) {
+                sig.append(": ").append(msg);
+            }
+            Throwable cause = throwable.getCause();
+            if (cause != null && cause != throwable) {
+                sig.append(" (caused by ").append(cause.getClass().getSimpleName());
+                String causeMsg = singleLine(cause.getMessage());
+                if (causeMsg != null && !causeMsg.isEmpty()) {
+                    sig.append(": ").append(causeMsg);
+                }
+                sig.append(')');
+            }
+        } else {
+            sig.append(" — OK");
+        }
+        if (elapsedMillis >= 0) {
+            sig.append(" elapsed=").append(elapsedMillis).append("ms");
+        }
+        if (probeStatusCode != null) {
+            sig.append(" probeExit=").append(probeStatusCode);
+        }
+        String probe = singleLine(probeMessage);
+        if (probe != null && !probe.isEmpty()) {
+            sig.append(" probeOutput=").append(probe);
+        }
+        return sig.toString();
+    }
+
+    @Nullable
+    private static String singleLine(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String compact = value.trim().replaceAll("\\s+", " ");
+        if (compact.length() > 180) {
+            return compact.substring(0, 177) + "...";
+        }
+        return compact;
+    }
+
+    public Shell.Result runCommand(String command) throws IOException {
+        ShellCaller shellCaller = new ShellCaller(command);
+        CallerResult callerResult = exec(shellCaller);
+        Throwable th = callerResult.getThrowable();
+        if (th != null) {
+            throw new IOException(th);
+        }
+        return callerResult.getShellResult();
+    }
+
+    @WorkerThread
+    public CallerResult exec(Caller caller) throws IOException {
+        try {
+            checkConnect();
+            return mLocalServerManager.execNew(caller);
+        } catch (SocketTimeoutException e) {
+            Log.w(TAG, e);
+            closeBgServer();
+            // Retry
+            try {
+                checkConnect();
+                return mLocalServerManager.execNew(caller);
+            } catch (AdbPairingRequiredException e2) {
+                throw new IOException(e2);
+            }
+        } catch (AdbPairingRequiredException e) {
+            throw new IOException(e);
+        }
+    }
+
+    @AnyThread
+    public boolean isRunning() {
+        return mLocalServerManager.isRunning();
+    }
+
+    public void destroy() {
+        mLocalServerManager.stop();
+    }
+
+    @WorkerThread
+    public void closeBgServer() throws IOException {
+        mLocalServerManager.closeBgServer();
+        mLocalServerManager.stop();
+    }
+
+    @WorkerThread
+    @NoOps(used = true)
+    public static void restart() throws IOException, AdbPairingRequiredException {
+        // Same lock as a port change: both stop and start the one server
+        synchronized (sPortRebindLock) {
+            if (sLocalServer != null) {
+                LocalServerManager manager = sLocalServer.mLocalServerManager;
+                try {
+                    manager.closeBgServer();
+                } catch (Exception e) {
+                    // Usually the old server is already gone (no-root in between, reboot, killed).
+                    // Giving up here made every later switch back to ADB fail the same way.
+                    Log.w(TAG, "Could not stop the previous local server.", e);
+                } finally {
+                    manager.stop();
+                }
+                try {
+                    manager.start();
+                } catch (IOException | AdbPairingRequiredException e) {
+                    manager.stop();
+                    throw e;
+                }
+            } else {
+                getInstance();
+            }
+        }
+    }
+
+    @WorkerThread
+    @NonNull
+    public static PortRebindResult rebindPort(@IntRange(from = 1, to = 65535) int newPort) {
+        synchronized (sPortRebindLock) {
+            int oldPort = ServerConfig.getLocalServerPort();
+            if (newPort == oldPort) {
+                return new PortRebindResult(oldPort, newPort, oldPort,
+                        PortRebindResult.Status.UNCHANGED);
+            }
+            boolean canStartLocalServer = Ops.isDirectRoot() || Ops.isAdb();
+            Context context = ContextUtils.getDeContext(ContextUtils.getContext());
+            LocalServerManager manager = LocalServerManager.getInstance(context);
+            try {
+                ServerConfig.init(context);
+                manager.closeBgServer(oldPort);
+                manager.stop();
+            } catch (Exception stopFailure) {
+                Log.e(TAG, "Could not stop the local server on port " + oldPort + '.', stopFailure);
+                manager.stop();
+                boolean restored = restorePort(manager, oldPort);
+                return new PortRebindResult(oldPort, newPort, oldPort, restored
+                        ? PortRebindResult.Status.ROLLED_BACK
+                        : PortRebindResult.Status.FAILED);
+            }
+
+            Prefs.Misc.setAdbLocalServerPort(newPort);
+            if (!canStartLocalServer) {
+                return new PortRebindResult(oldPort, newPort, newPort,
+                        PortRebindResult.Status.CONFIGURED);
+            }
+            try {
+                manager.start();
+                ensureLocalServerWrapper(context, manager);
+                LocalServices.bindServices();
+                return new PortRebindResult(oldPort, newPort, newPort,
+                        PortRebindResult.Status.REBOUND);
+            } catch (Exception startFailure) {
+                Log.e(TAG, "Could not start the local server on port " + newPort + '.', startFailure);
+                try {
+                    manager.closeBgServer(newPort);
+                } catch (Exception cleanupFailure) {
+                    Log.w(TAG, "Could not clean up the failed replacement server.", cleanupFailure);
+                }
+                manager.stop();
+                Prefs.Misc.setAdbLocalServerPort(oldPort);
+                boolean restored = restorePort(manager, oldPort);
+                return new PortRebindResult(oldPort, newPort, oldPort, restored
+                        ? PortRebindResult.Status.ROLLED_BACK
+                        : PortRebindResult.Status.FAILED);
+            }
+        }
+    }
+
+    private static boolean restorePort(@NonNull LocalServerManager manager, int oldPort) {
+        Prefs.Misc.setAdbLocalServerPort(oldPort);
+        try {
+            manager.start();
+            ensureLocalServerWrapper(ContextUtils.getDeContext(ContextUtils.getContext()), manager);
+            LocalServices.bindServices();
+            return true;
+        } catch (Exception rollbackFailure) {
+            Log.e(TAG, "Could not restore the local server on port " + oldPort + '.', rollbackFailure);
+            manager.stop();
+            return false;
+        }
+    }
+
+    private static void ensureLocalServerWrapper(@NonNull Context context,
+                                                 @NonNull LocalServerManager manager) {
+        synchronized (sLock) {
+            if (sLocalServer == null) {
+                sLocalServer = new LocalServer(context, manager);
+            }
+        }
+    }
+
+    public static final class PortRebindResult {
+        public enum Status {
+            UNCHANGED,
+            CONFIGURED,
+            REBOUND,
+            ROLLED_BACK,
+            FAILED
+        }
+
+        private final int mOldPort;
+        private final int mRequestedPort;
+        private final int mEffectivePort;
+        @NonNull
+        private final Status mStatus;
+
+        PortRebindResult(int oldPort, int requestedPort, int effectivePort,
+                         @NonNull Status status) {
+            mOldPort = oldPort;
+            mRequestedPort = requestedPort;
+            mEffectivePort = effectivePort;
+            mStatus = status;
+        }
+
+        public int getOldPort() {
+            return mOldPort;
+        }
+
+        public int getRequestedPort() {
+            return mRequestedPort;
+        }
+
+        public int getEffectivePort() {
+            return mEffectivePort;
+        }
+
+        @NonNull
+        public Status getStatus() {
+            return mStatus;
+        }
+
+        public boolean isSuccessful() {
+            return mStatus == Status.UNCHANGED || mStatus == Status.CONFIGURED
+                    || mStatus == Status.REBOUND;
+        }
+    }
+}

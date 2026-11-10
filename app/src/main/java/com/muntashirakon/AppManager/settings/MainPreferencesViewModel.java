@@ -1,0 +1,503 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.settings;
+
+import android.app.Application;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.net.Uri;
+import android.os.Build;
+import android.os.PowerManager;
+import android.os.UserHandleHidden;
+import android.text.TextUtils;
+
+import androidx.annotation.MainThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.annotation.VisibleForTesting;
+import androidx.collection.ArrayMap;
+import androidx.core.util.Pair;
+import androidx.documentfile.provider.DocumentFileUtils;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
+
+import org.xmlpull.v1.XmlPullParserException;
+
+import java.io.IOException;
+import java.security.cert.Certificate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.apk.signing.Signer;
+import io.github.muntashirakon.AppManager.changelog.Changelog;
+import io.github.muntashirakon.AppManager.changelog.ChangelogParser;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.history.ops.OpHistoryManager;
+import io.github.muntashirakon.AppManager.history.ops.OperationJournalMetadata;
+import io.github.muntashirakon.AppManager.history.ops.SingleAppActionHistoryItem;
+import io.github.muntashirakon.AppManager.crypto.ks.KeyPair;
+import io.github.muntashirakon.AppManager.crypto.ks.KeyStoreManager;
+import io.github.muntashirakon.AppManager.db.entity.App;
+import io.github.muntashirakon.AppManager.db.utils.AppDb;
+import io.github.muntashirakon.AppManager.misc.DeviceInfo2;
+import io.github.muntashirakon.AppManager.rules.compontents.ComponentUtils;
+import io.github.muntashirakon.AppManager.runner.RunnerUtils;
+import io.github.muntashirakon.AppManager.rules.compontents.ComponentRuleResetPlan;
+import io.github.muntashirakon.AppManager.rules.compontents.ComponentRuleResetResult;
+import io.github.muntashirakon.AppManager.rules.compontents.ComponentsBlocker;
+import io.github.muntashirakon.AppManager.servermanager.LocalServer;
+import io.github.muntashirakon.AppManager.servermanager.ServerConfig;
+import io.github.muntashirakon.AppManager.users.UserInfo;
+import io.github.muntashirakon.AppManager.users.Users;
+import io.github.muntashirakon.AppManager.utils.CpuUtils;
+import io.github.muntashirakon.AppManager.utils.DigestUtils;
+import io.github.muntashirakon.AppManager.utils.StorageUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.lifecycle.SingleLiveEvent;
+
+public class MainPreferencesViewModel extends AndroidViewModel implements Ops.AdbConnectionInterface {
+    public static final String TAG = MainPreferencesViewModel.class.getSimpleName();
+    private final Object mRulesLock = new Object();
+    private final MutableLiveData<List<UserInfo>> mSelectUsers = new SingleLiveEvent<>();
+    private final MutableLiveData<Changelog> mChangeLog = new SingleLiveEvent<>();
+    private final MutableLiveData<DeviceInfo2> mDeviceInfo = new SingleLiveEvent<>();
+    private final MutableLiveData<String> mCustomCommand0 = new SingleLiveEvent<>();
+    private final MutableLiveData<String> mCustomCommand1 = new SingleLiveEvent<>();
+    private final MutableLiveData<Integer> mModeOfOpsStatus = new SingleLiveEvent<>();
+    private final MutableLiveData<LocalServer.PortRebindResult> mLocalServerPortRebindResult
+            = new SingleLiveEvent<>();
+    private final MutableLiveData<ComponentRuleResetState> mComponentRuleResetState = new MutableLiveData<>();
+    private final MutableLiveData<ArrayMap<String, Uri>> mStorageVolumesLiveData = new SingleLiveEvent<>();
+    private final MutableLiveData<String> mSigningKeySha256HashLiveData = new SingleLiveEvent<>();
+    private final MutableLiveData<List<Pair<String, CharSequence>>> mPackageNameLabelPairLiveData = new SingleLiveEvent<>();
+    private final ExecutorService mExecutor = Executors.newFixedThreadPool(1);
+    private final AtomicBoolean mRuleResetCancelled = new AtomicBoolean();
+    private final AtomicBoolean mModeOperationPending = new AtomicBoolean(false);
+    private final ModeOfOpsApplyState mModeApplyState = new ModeOfOpsApplyState();
+    private final ModeStatusDialogTracker mModeStatusDialogs = new ModeStatusDialogTracker();
+    private final Object mRuleResetLock = new Object();
+    private Future<?> mRuleResetFuture;
+    @NonNull
+    private volatile List<ComponentRuleResetPlan> mRuleResetRetryPlans = Collections.emptyList();
+
+    public MainPreferencesViewModel(@NonNull Application application) {
+        super(application);
+    }
+
+    public LiveData<List<UserInfo>> selectUsers() {
+        return mSelectUsers;
+    }
+
+    public void loadAllUsers() {
+        ThreadUtils.postOnBackgroundThread(() -> mSelectUsers.postValue(Users.getAllUsers()));
+    }
+
+    public LiveData<Changelog> getChangeLog() {
+        return mChangeLog;
+    }
+
+    public void loadChangeLog() {
+        ThreadUtils.postOnBackgroundThread(() -> {
+            try {
+                Changelog changelog = new ChangelogParser(getApplication(), R.raw.changelog).parse();
+                mChangeLog.postValue(changelog);
+            } catch (IOException | XmlPullParserException e) {
+                Log.e(TAG, "Could not parse changelog", e);
+                // Post null so the observer can surface an error instead of silently
+                // doing nothing when the user taps "What's new".
+                mChangeLog.postValue(null);
+            }
+        });
+    }
+
+    public LiveData<DeviceInfo2> getDeviceInfo() {
+        return mDeviceInfo;
+    }
+
+    public void loadDeviceInfo(@NonNull DeviceInfo2 di) {
+        ThreadUtils.postOnBackgroundThread(() -> {
+            di.loadInfo();
+            mDeviceInfo.postValue(di);
+        });
+    }
+
+    public void reloadApps() {
+        ThreadUtils.postOnBackgroundThread(() -> {
+            PowerManager.WakeLock wakeLock = CpuUtils.getPartialWakeLock("appDbUpdater");
+            try {
+                wakeLock.acquire();
+                AppDb appDb = new AppDb();
+                appDb.deleteAllApplications();
+                appDb.deleteAllBackups();
+                appDb.loadInstalledOrBackedUpApplications(getApplication());
+            } finally {
+                CpuUtils.releaseWakeLock(wakeLock);
+            }
+        });
+    }
+
+    public MutableLiveData<String> getCustomCommand0() {
+        return mCustomCommand0;
+    }
+
+    public MutableLiveData<String> getCustomCommand1() {
+        return mCustomCommand1;
+    }
+
+    public void loadCustomCommands() {
+        mExecutor.submit(() -> {
+            // Each command stands on its own: the ADB one can fail on an APK that stores am.jar
+            // compressed, and that says nothing about the root one
+            String adbCommand = null;
+            try {
+                ServerConfig.init(getApplication());
+                adbCommand = ServerConfig.getManualAdbCommand(getApplication());
+            } catch (Exception e) {
+                Log.w(TAG, e);
+            }
+            mCustomCommand0.postValue(adbCommand);
+            String rootCommand = null;
+            try {
+                // Root can read the launcher in the app's cache. Without su there's nothing to show.
+                if (RunnerUtils.isSuOnPath()) {
+                    ServerConfig.init(getApplication());
+                    rootCommand = ServerConfig.getServerRunnerCommand(0);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, e);
+            }
+            mCustomCommand1.postValue(rootCommand);
+        });
+    }
+
+    public LiveData<Integer> getModeOfOpsStatus() {
+        return mModeOfOpsStatus;
+    }
+
+    /**
+     * The mode switch in progress. It lives here rather than in the screen so that rotating the
+     * screen mid-switch neither loses the switch nor rolls the saved mode back.
+     */
+    @NonNull
+    ModeOfOpsApplyState getModeApplyState() {
+        return mModeApplyState;
+    }
+
+    /**
+     * Whether a mode request is still running. Another one is refused until it finishes.
+     */
+    @MainThread
+    public boolean isModeOperationPending() {
+        return mModeOperationPending.get();
+    }
+
+    /**
+     * The status whose dialog (a port, pairing, a permission) the screen showed and the user
+     * hasn't answered, or {@code null}. A recreated screen shows it again.
+     */
+    @MainThread
+    @Nullable
+    @Ops.Status
+    Integer getLostDialogStatus() {
+        return mModeStatusDialogs.getLostDialogStatus();
+    }
+
+    @MainThread
+    void onModeStatusDialogShown() {
+        mModeStatusDialogs.onDialogShown();
+    }
+
+    public void setModeOfOps() {
+        submitModeOperation(() -> Ops.init(getApplication(), true));
+    }
+
+    public void setModeOfOps(@NonNull @Ops.Mode String mode) {
+        submitModeOperation(() -> Ops.init(getApplication(), true, mode));
+    }
+
+    public LiveData<LocalServer.PortRebindResult> getLocalServerPortRebindResult() {
+        return mLocalServerPortRebindResult;
+    }
+
+    public void rebindLocalServerPort(int port) {
+        mExecutor.submit(() -> mLocalServerPortRebindResult.postValue(LocalServer.rebindPort(port)));
+    }
+
+    public LiveData<ComponentRuleResetState> getComponentRuleResetState() {
+        return mComponentRuleResetState;
+    }
+
+    public void applyAllRules() {
+        ThreadUtils.postOnBackgroundThread(() -> {
+            synchronized (mRulesLock) {
+                // TODO: 13/8/22 Synchronise in ComponentsBlocker instead of here
+                ComponentsBlocker.applyAllRules(getApplication(), UserHandleHidden.myUserId());
+            }
+        });
+    }
+
+    public void removeAllRules() {
+        startRuleReset(null);
+    }
+
+    public void retryFailedRuleResetTargets() {
+        startRuleReset(new ArrayList<>(mRuleResetRetryPlans));
+    }
+
+    public void cancelRuleReset() {
+        mRuleResetCancelled.set(true);
+    }
+
+    public void clearComponentRuleResetResult() {
+        mComponentRuleResetState.setValue(null);
+    }
+
+    private void startRuleReset(@Nullable List<ComponentRuleResetPlan> requestedPlans) {
+        synchronized (mRuleResetLock) {
+            if (mRuleResetFuture != null && !mRuleResetFuture.isDone()) {
+                return;
+            }
+            mRuleResetCancelled.set(false);
+            mComponentRuleResetState.postValue(ComponentRuleResetState.preparing());
+            mRuleResetFuture = mExecutor.submit(() -> {
+                List<ComponentRuleResetPlan> plans = requestedPlans != null
+                        ? requestedPlans
+                        : ComponentUtils.snapshotAllRules(getApplication(), Users.getUsersIds());
+                int total = 0;
+                for (ComponentRuleResetPlan plan : plans) total += plan.size();
+                mComponentRuleResetState.postValue(ComponentRuleResetState.running(0, total,
+                        null, 0, null));
+                ComponentRuleResetResult result = ComponentUtils.resetRules(plans,
+                        mRuleResetCancelled::get,
+                        (completed, targetCount, target) -> mComponentRuleResetState.postValue(
+                                ComponentRuleResetState.running(completed, targetCount,
+                                        target.getPackageName(), target.getUserId(), target.getLabel())));
+                mRuleResetRetryPlans = ComponentUtils.getRetryPlans(plans, result);
+                recordRuleResetHistory(plans, result);
+                mComponentRuleResetState.postValue(ComponentRuleResetState.finished(result));
+            });
+        }
+    }
+
+    private void recordRuleResetHistory(@NonNull List<ComponentRuleResetPlan> plans,
+                                        @NonNull ComponentRuleResetResult result) {
+        Map<String, List<ComponentRuleResetResult.Outcome>> outcomesByTarget = new LinkedHashMap<>();
+        for (ComponentRuleResetResult.Outcome outcome : result.getOutcomes()) {
+            ComponentRuleResetPlan.Target target = outcome.getTarget();
+            String key = target.getPackageName() + ':' + target.getUserId();
+            outcomesByTarget.computeIfAbsent(key, ignored -> new ArrayList<>()).add(outcome);
+        }
+        for (ComponentRuleResetPlan plan : plans) {
+            Map<Integer, List<ComponentRuleResetPlan.Target>> targetsByUser = new LinkedHashMap<>();
+            for (ComponentRuleResetPlan.Target target : plan.getTargets()) {
+                targetsByUser.computeIfAbsent(target.getUserId(), ignored -> new ArrayList<>()).add(target);
+            }
+            for (Map.Entry<Integer, List<ComponentRuleResetPlan.Target>> entry : targetsByUser.entrySet()) {
+                int userId = entry.getKey();
+                List<ComponentRuleResetResult.Outcome> outcomes = outcomesByTarget.getOrDefault(
+                        plan.getPackageName() + ':' + userId, Collections.emptyList());
+                int succeeded = 0;
+                List<String> failures = new ArrayList<>();
+                for (ComponentRuleResetResult.Outcome outcome : outcomes) {
+                    if (outcome.isSuccess()) {
+                        ++succeeded;
+                    } else if (failures.size() < 3) {
+                        failures.add(outcome.getTarget().getLabel() + ": " + outcome.getError());
+                    }
+                }
+                int total = entry.getValue().size();
+                int failed = outcomes.size() - succeeded;
+                int pending = total - outcomes.size();
+                String detail = "targets=" + total + "; succeeded=" + succeeded + "; failed="
+                        + failed + "; pending=" + pending
+                        + (failures.isEmpty() ? "" : "; retry=" + TextUtils.join(" | ", failures));
+                boolean success = failed == 0 && pending == 0;
+                try {
+                    SingleAppActionHistoryItem item = new SingleAppActionHistoryItem(
+                            SingleAppActionHistoryItem.ACTION_COMPONENT_RULE_RESET,
+                            getApplication().getString(R.string.pref_remove_all_rules),
+                            plan.getPackageName(), userId,
+                            getApplication().getString(R.string.rules), detail);
+                    OpHistoryManager.addHistoryItem(OpHistoryManager.HISTORY_TYPE_SINGLE_APP_ACTION,
+                            item, success, OperationJournalMetadata.forSingleAppAction(getApplication(),
+                                    item, success, OperationJournalMetadata.RISK_HIGH, false, null));
+                } catch (Exception e) {
+                    Log.e(TAG, "Could not record component-rule reset history.", e);
+                }
+            }
+        }
+    }
+
+    public LiveData<ArrayMap<String, Uri>> getStorageVolumesLiveData() {
+        return mStorageVolumesLiveData;
+    }
+
+    public void loadStorageVolumes() {
+        ThreadUtils.postOnBackgroundThread(() -> {
+            ArrayMap<String, Uri> locations = StorageUtils.getAllStorageLocations(getApplication());
+            ArrayMap<String, Uri> newLocations = new ArrayMap<>(locations.size());
+            PackageManager pm = getApplication().getPackageManager();
+            for (int i = 0; i < locations.size(); ++i) {
+                Uri uri = locations.valueAt(i);
+                String authority = uri.getAuthority();
+                if (authority != null) {
+                    ResolveInfo resolveInfo = DocumentFileUtils.getUriSource(getApplication(), uri);
+                    String readableName = resolveInfo != null
+                            ? resolveInfo.loadLabel(pm).toString()
+                            : locations.keyAt(i);
+                    newLocations.put(readableName, locations.valueAt(i));
+                } else newLocations.put(locations.keyAt(i), locations.valueAt(i));
+            }
+            mStorageVolumesLiveData.postValue(newLocations);
+        });
+    }
+
+    public LiveData<String> getSigningKeySha256HashLiveData() {
+        return mSigningKeySha256HashLiveData;
+    }
+
+    public void loadSigningKeySha256Hash() {
+        mExecutor.submit(() -> {
+            String hash = null;
+            try {
+                KeyStoreManager keyStoreManager = KeyStoreManager.getInstance();
+                if (keyStoreManager.containsKey(Signer.SIGNING_KEY_ALIAS)) {
+                    KeyPair keyPair = keyStoreManager.getKeyPair(Signer.SIGNING_KEY_ALIAS);
+                    if (keyPair != null) {
+                        Certificate certificate = keyPair.getCertificate();
+                        hash = DigestUtils.getHexDigest(DigestUtils.SHA_256, certificate.getEncoded());
+                        try {
+                            keyPair.destroy();
+                        } catch (Exception ignore) {
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, e);
+            }
+            mSigningKeySha256HashLiveData.postValue(hash);
+        });
+    }
+
+    public LiveData<List<Pair<String, CharSequence>>> getPackageNameLabelPairLiveData() {
+        return mPackageNameLabelPairLiveData;
+    }
+
+    public void loadPackageNameLabelPair() {
+        mExecutor.submit(() -> {
+            List<App> appList = new AppDb().getAllApplications();
+            Map<String, CharSequence> packageNameLabelMap = new HashMap<>(appList.size());
+            for (App app : appList) {
+                packageNameLabelMap.put(app.packageName, app.packageLabel);
+            }
+            List<Pair<String, CharSequence>> appInfo = new ArrayList<>();
+            for (String packageName : packageNameLabelMap.keySet()) {
+                appInfo.add(new Pair<>(packageName, packageNameLabelMap.get(packageName)));
+            }
+            Collections.sort(appInfo, (o1, o2) -> o1.second.toString().compareTo(o2.second.toString()));
+            mPackageNameLabelPairLiveData.postValue(appInfo);
+        });
+    }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    public void autoConnectWirelessDebugging() {
+        submitModeOperation(() -> Ops.autoConnectWirelessDebugging(getApplication()));
+    }
+
+    @Override
+    public void connectAdb(int port) {
+        submitModeOperation(() -> Ops.connectAdb(getApplication(), port, Ops.STATUS_FAILURE));
+    }
+
+    @Override
+    @RequiresApi(Build.VERSION_CODES.R)
+    public void pairAdb() {
+        submitModeOperation(() -> Ops.pairAdb(getApplication()));
+    }
+
+    @Override
+    public void onStatusReceived(int status) {
+        ThreadUtils.postOnMainThread(() -> publishModeStatus(status));
+    }
+
+    @Override
+    public void connectShizuku(@NonNull Context context) {
+        submitModeOperation(() -> Ops.connectShizuku(getApplication()));
+    }
+
+    /**
+     * Run one mode request at a time. A second request while one runs is dropped: interleaved,
+     * two of them tear down each other's server and services.
+     */
+    @VisibleForTesting
+    void submitModeOperation(@NonNull ModeOperation operation) {
+        if (!mModeOperationPending.compareAndSet(false, true)) {
+            Log.w(TAG, "Ignoring a mode request while another one is running.");
+            return;
+        }
+        // Any dialog on screen has been answered by now
+        mModeStatusDialogs.clear();
+        try {
+            mExecutor.execute(() -> {
+                int status;
+                try {
+                    status = operation.run();
+                } catch (Throwable e) {
+                    // Without this the screen waits forever for a status that never comes
+                    Log.e(TAG, "Mode request failed.", e);
+                    status = Ops.STATUS_FAILURE;
+                }
+                int finalStatus = status;
+                ThreadUtils.postOnMainThread(() -> {
+                    // Cleared in the same main-thread step that delivers the status, so the screen
+                    // can send the follow-up request (connect, pair) straight from its observer.
+                    mModeOperationPending.set(false);
+                    publishModeStatus(finalStatus);
+                });
+            });
+        } catch (RejectedExecutionException e) {
+            mModeOperationPending.set(false);
+            ThreadUtils.postOnMainThread(() -> publishModeStatus(Ops.STATUS_FAILURE));
+        }
+    }
+
+    @MainThread
+    private void publishModeStatus(@Ops.Status int status) {
+        mModeStatusDialogs.onPublished(status);
+        mModeOfOpsStatus.setValue(status);
+    }
+
+    @VisibleForTesting
+    interface ModeOperation {
+        @Ops.Status
+        int run();
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        // The screen rolls back an unfinished apply as it closes. This is for when it never got to,
+        // since a mode switch from outside the app waits for no apply to be open.
+        mModeApplyState.dismiss();
+        mRuleResetCancelled.set(true);
+        synchronized (mRuleResetLock) {
+            if (mRuleResetFuture != null) {
+                mRuleResetFuture.cancel(true);
+            }
+        }
+        mExecutor.shutdownNow();
+    }
+}

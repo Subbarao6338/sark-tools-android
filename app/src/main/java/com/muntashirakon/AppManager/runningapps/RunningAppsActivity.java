@@ -1,0 +1,684 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.runningapps;
+
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Process;
+import android.text.TextUtils;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.activity.OnBackPressedCallback;
+import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.appcompat.app.ActionBar;
+import androidx.core.content.ContextCompat;
+import androidx.lifecycle.ViewModelProvider;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import io.github.muntashirakon.AppManager.BaseActivity;
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.batchops.BatchOpsManager;
+import io.github.muntashirakon.AppManager.batchops.BatchOpsService;
+import io.github.muntashirakon.AppManager.batchops.BatchQueueItem;
+import io.github.muntashirakon.AppManager.compat.AppOpsManagerCompat;
+import io.github.muntashirakon.AppManager.history.ops.DestructiveActionConfirmation;
+import io.github.muntashirakon.AppManager.compat.ManifestCompat;
+import io.github.muntashirakon.AppManager.ipc.LocalServices;
+import io.github.muntashirakon.AppManager.logcat.LogViewerActivity;
+import io.github.muntashirakon.AppManager.logcat.struct.SearchCriteria;
+import io.github.muntashirakon.AppManager.misc.AdvancedSearchView;
+import io.github.muntashirakon.AppManager.misc.SearchViewDebouncer;
+import io.github.muntashirakon.AppManager.scanner.vt.VtFileReport;
+import io.github.muntashirakon.AppManager.safety.CriticalPackageGuard;
+import io.github.muntashirakon.AppManager.safety.AppOpsUidGuard;
+import io.github.muntashirakon.AppManager.self.SelfPermissions;
+import io.github.muntashirakon.AppManager.settings.FeatureController;
+import io.github.muntashirakon.AppManager.settings.Ops;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.utils.LiveDataChanges;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.multiselection.MultiSelectionActionsView;
+import io.github.muntashirakon.util.UiUtils;
+import io.github.muntashirakon.widget.MultiSelectionView;
+import io.github.muntashirakon.widget.MaterialAlertView;
+import io.github.muntashirakon.widget.RecyclerView;
+
+public class RunningAppsActivity extends BaseActivity implements MultiSelectionView.OnSelectionChangeListener,
+        MultiSelectionActionsView.OnItemSelectedListener, AdvancedSearchView.OnQueryTextListener,
+        MultiSelectionView.OnSelectionModeChangeListener {
+
+    @IntDef(value = {
+            SORT_BY_PID,
+            SORT_BY_PROCESS_NAME,
+            SORT_BY_APPS_FIRST,
+            SORT_BY_MEMORY_USAGE,
+            SORT_BY_CPU_TIME,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface SortOrder {
+    }
+
+    public static final int SORT_BY_PID = 0;
+    public static final int SORT_BY_PROCESS_NAME = 1;
+    public static final int SORT_BY_APPS_FIRST = 2;
+    public static final int SORT_BY_MEMORY_USAGE = 3;
+    public static final int SORT_BY_CPU_TIME = 4;
+
+    @IntDef(value = {
+            FILTER_NONE,
+            FILTER_APPS,
+            FILTER_USER_APPS
+    }, flag = true)
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Filter {
+    }
+
+    public static final int FILTER_NONE = 0;
+    public static final int FILTER_APPS = 1;
+    public static final int FILTER_USER_APPS = 1 << 1;
+
+    public static final int REFRESH_INTERVAL_MANUAL = 0;
+    public static final int REFRESH_INTERVAL_5_SECONDS = 5;
+    public static final int REFRESH_INTERVAL_10_SECONDS = 10;
+    public static final int REFRESH_INTERVAL_30_SECONDS = 30;
+
+    private static final int[] SORT_ORDER_IDS = new int[]{
+            R.id.action_sort_by_pid,
+            R.id.action_sort_by_process_name,
+            R.id.action_sort_by_apps_first,
+            R.id.action_sort_by_memory_usage,
+            R.id.action_sort_by_cpu_time,
+    };
+    private static final int[] REFRESH_INTERVAL_IDS = new int[]{
+            R.id.action_refresh_manual,
+            R.id.action_refresh_5_seconds,
+            R.id.action_refresh_10_seconds,
+            R.id.action_refresh_30_seconds,
+    };
+
+    @Nullable
+    RunningAppsViewModel model;
+
+    private boolean mEnableKillForSystem = false;
+    @Nullable
+    private RunningAppsAdapter mAdapter;
+    @Nullable
+    private LinearProgressIndicator mProgressIndicator;
+    @Nullable
+    private TextView mStatusView;
+    @Nullable
+    private MaterialAlertView mUidWarningView;
+    @Nullable
+    private MultiSelectionView mMultiSelectionView;
+    @Nullable
+    private AdvancedSearchView mSearchView;
+    @Nullable
+    private SearchViewDebouncer mSearchDebouncer;
+    @Nullable
+    private Menu mSelectionMenu;
+    @Nullable
+    private Timer mTimer;
+    private final OnBackPressedCallback mOnBackPressedCallback = new OnBackPressedCallback(false) {
+        @Override
+        public void handleOnBackPressed() {
+            if (mAdapter != null && mMultiSelectionView != null && mAdapter.isInSelectionMode()) {
+                mMultiSelectionView.cancel();
+                return;
+            }
+            setEnabled(false);
+            getOnBackPressedDispatcher().onBackPressed();
+        }
+    };
+
+    @Override
+    protected void onAuthenticated(Bundle savedInstanceState) {
+        setContentView(R.layout.activity_running_apps);
+        setSupportActionBar(findViewById(R.id.toolbar));
+        getOnBackPressedDispatcher().addCallback(this, mOnBackPressedCallback);
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayShowCustomEnabled(true);
+            mSearchView = UIUtils.setupAdvancedSearchView(actionBar, this);
+            if (mSearchView != null) {
+                mSearchDebouncer = new SearchViewDebouncer((query, type) -> {
+                    if (model != null) {
+                        model.setQuery(query, type);
+                    }
+                });
+            }
+        }
+        model = new ViewModelProvider(this).get(RunningAppsViewModel.class);
+        mProgressIndicator = findViewById(R.id.progress_linear);
+        mProgressIndicator.setVisibilityAfterHide(View.GONE);
+        mStatusView = findViewById(R.id.running_apps_status);
+        mUidWarningView = findViewById(R.id.running_apps_uid_warning);
+        RecyclerView recyclerView = findViewById(R.id.scrollView);
+        recyclerView.setLayoutManager(UIUtils.getGridLayoutAt450Dp(this));
+        View emptyState = findViewById(android.R.id.empty);
+        ImageView emptyIcon = emptyState.findViewById(R.id.empty_state_icon);
+        emptyIcon.setImageResource(R.drawable.ic_run_fast);
+        ((TextView) emptyState.findViewById(R.id.empty_state_title))
+                .setText(R.string.running_apps_empty_title);
+        ((TextView) emptyState.findViewById(R.id.empty_state_summary))
+                .setText(R.string.running_apps_empty_no_processes_summary);
+        emptyState.setVisibility(View.GONE);
+        recyclerView.setEmptyView(emptyState);
+        mAdapter = new RunningAppsAdapter(this);
+        mAdapter.setHasStableIds(false);
+        recyclerView.setAdapter(mAdapter);
+        // Recycler view is focused by default
+        recyclerView.requestFocus();
+        mMultiSelectionView = findViewById(R.id.selection_view);
+        mMultiSelectionView.setOnItemSelectedListener(this);
+        mMultiSelectionView.setOnSelectionModeChangeListener(this);
+        mMultiSelectionView.setOnSelectionChangeListener(this);
+        mMultiSelectionView.setAdapter(mAdapter);
+        mMultiSelectionView.updateCounter(true);
+        mSelectionMenu = mMultiSelectionView.getMenu();
+        mSelectionMenu.findItem(R.id.action_scan_vt).setVisible(false);
+        mSelectionMenu.findItem(R.id.action_restore_background).setVisible(false);
+        mEnableKillForSystem = Prefs.RunningApps.enableKillForSystemApps();
+
+        // Set observers
+        model.observeKillProcess().observe(this, processInfo -> {
+            if (processInfo.second /* is success */) {
+                refresh();
+            } else {
+                UIUtils.displayLongToast(R.string.failed_to_stop, processInfo.first.name /* process name */);
+            }
+        });
+        model.observeKillSelectedProcess().observe(this, processInfoList -> {
+            if (!processInfoList.isEmpty()) {
+                List<String> processNames = new ArrayList<String>() {{
+                    for (ProcessItem processItem : processInfoList) {
+                        add(processItem.name);
+                    }
+                }};
+                UIUtils.displayLongToast(R.string.failed_to_stop, TextUtils.join(", ", processNames));
+            }
+            refresh();
+        });
+        model.observeForceStop().observe(this, applicationInfoBooleanPair -> {
+            if (applicationInfoBooleanPair.second /* is success */) {
+                refresh();
+            } else {
+                UIUtils.displayLongToast(R.string.failed_to_stop, applicationInfoBooleanPair.first
+                        .loadLabel(getPackageManager()));
+            }
+        });
+        model.observePreventBackgroundRun().observe(this, result -> {
+            if (result.success) {
+                hideUidWarning();
+                refresh();
+            } else if (result.uidImpact != null) {
+                showUidWarning(result.uidImpact);
+            } else {
+                UIUtils.displayLongToast(R.string.failed_to_prevent_background_run, result.applicationInfo
+                        .loadLabel(getPackageManager()));
+            }
+        });
+        model.observeRestoreBackgroundRun().observe(this, result -> {
+            if (result.success) {
+                hideUidWarning();
+                refresh();
+            } else if (result.uidImpact != null) {
+                showUidWarning(result.uidImpact);
+            } else {
+                UIUtils.displayLongToast(R.string.failed_to_restore_background_run, result.applicationInfo
+                        .loadLabel(getPackageManager()));
+            }
+        });
+        model.observeProcessDetails().observe(this, processItem -> {
+            // The value is delivered via postValue() on a later main-loop turn, so it
+            // can arrive in the STARTED-but-state-already-saved window (between
+            // onSaveInstanceState and onStop). DialogFragment.show() does a
+            // non-state-loss commit that throws IllegalStateException there. Drop the
+            // show on that rare race — the user can simply re-tap the process.
+            if (getSupportFragmentManager().isStateSaved()) {
+                return;
+            }
+            RunningAppDetails fragment = RunningAppDetails.getInstance(processItem);
+            fragment.show(getSupportFragmentManager(), RunningAppDetails.TAG);
+        });
+        model.getVtFileUpload().observe(this, processItemVtFilePermalinkPair -> {
+            ProcessItem processItem = processItemVtFilePermalinkPair.first;
+            String permalink = processItemVtFilePermalinkPair.second;
+            if (permalink == null) {
+                // Started uploading
+                UIUtils.displayShortToast(R.string.vt_uploading);
+                if (Prefs.VirusTotal.promptBeforeUpload()) {
+                    new MaterialAlertDialogBuilder(this)
+                            .setTitle(R.string.scan_in_vt)
+                            .setMessage(R.string.vt_confirm_uploading_file)
+                            .setCancelable(false)
+                            .setPositiveButton(R.string.vt_confirm_upload_and_scan, (dialog, which) -> model.enableUploading())
+                            .setNegativeButton(R.string.no, (dialog, which) -> model.disableUploading())
+                            .show();
+                } else model.enableUploading();
+            } else {
+                UIUtils.displayShortToast(R.string.vt_queued);
+            }
+            // TODO: 7/1/22 Use a separate fragment
+        });
+        model.getVtFileReport().observe(this, processItemVtFileReportPair -> {
+            ProcessItem processItem = processItemVtFileReportPair.first;
+            VtFileReport vtFileReport = processItemVtFileReportPair.second;
+            if (vtFileReport == null) {
+                UIUtils.displayShortToast(R.string.vt_failed);
+            } else {
+                UIUtils.displayLongToast(getString(R.string.vt_success, vtFileReport.getPositives(), vtFileReport.getTotal()));
+            }
+            // TODO: 7/1/22 Use a separate fragment
+        });
+        // What can be listed and done here depends on the privileged services
+        LiveDataChanges.observe(LocalServices.state(), this, () -> {
+            refresh();
+            invalidateOptionsMenu();
+        });
+        model.getProcessLiveData().observe(this, processList -> {
+            if (mProgressIndicator != null) {
+                mProgressIndicator.hide();
+            }
+            if (mAdapter != null) {
+                mAdapter.setDefaultList(processList);
+            }
+            updateRunningAppsStatus(processList);
+        });
+        model.getDeviceMemoryInfo().observe(this, deviceMemoryInfo -> {
+            if (mAdapter != null) {
+                mAdapter.setDeviceMemoryInfo(deviceMemoryInfo);
+            }
+        });
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.activity_running_apps_actions, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(@NonNull Menu menu) {
+        if (model == null) return super.onPrepareOptionsMenu(menu);
+
+        menu.findItem(SORT_ORDER_IDS[model.getSortOrder()]).setChecked(true);
+        int refreshInterval = Prefs.RunningApps.getRefreshIntervalSeconds();
+        menu.findItem(getRefreshIntervalMenuId(refreshInterval)).setChecked(true);
+        menu.findItem(R.id.action_toggle_kill).setTitle(mEnableKillForSystem
+                ? R.string.running_apps_disable_system_kill
+                : R.string.running_apps_enable_system_kill);
+        int filter = model.getFilter();
+        if ((filter & FILTER_APPS) != 0) {
+            menu.findItem(R.id.action_filter_apps).setChecked(true);
+        }
+        if ((filter & FILTER_USER_APPS) != 0) {
+            menu.findItem(R.id.action_filter_user_apps).setChecked(true);
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == android.R.id.home) {
+            finish();
+            return true;
+        }
+        if (model == null) return true;
+        if (id == R.id.action_refresh) {
+            refresh();
+        } else if (isRefreshIntervalMenuId(id)) {
+            int intervalSeconds = getRefreshIntervalFromMenuId(id);
+            Prefs.RunningApps.setRefreshIntervalSeconds(intervalSeconds);
+            item.setChecked(true);
+            restartAutoRefresh();
+            UIUtils.displayShortToast(intervalSeconds == REFRESH_INTERVAL_MANUAL
+                    ? R.string.running_apps_refresh_rate_manual_selected
+                    : R.string.running_apps_refresh_rate_selected);
+        } else if (id == R.id.action_toggle_kill) {
+            mEnableKillForSystem = !mEnableKillForSystem;
+            Prefs.RunningApps.setEnableKillForSystemApps(mEnableKillForSystem);
+            UIUtils.displayShortToast(mEnableKillForSystem
+                    ? R.string.running_apps_system_kill_enabled
+                    : R.string.running_apps_system_kill_disabled);
+            invalidateOptionsMenu();
+            refresh();
+        } else if (id == R.id.action_sort_by_pid) {
+            model.setSortOrder(SORT_BY_PID);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_process_name) {
+            model.setSortOrder(SORT_BY_PROCESS_NAME);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_apps_first) {
+            model.setSortOrder(SORT_BY_APPS_FIRST);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_memory_usage) {
+            model.setSortOrder(SORT_BY_MEMORY_USAGE);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_cpu_time) {
+            model.setSortOrder(SORT_BY_CPU_TIME);
+            item.setChecked(true);
+            // Filter
+        } else if (id == R.id.action_filter_apps) {
+            if (!item.isChecked()) model.addFilter(FILTER_APPS);
+            else model.removeFilter(FILTER_APPS);
+            item.setChecked(!item.isChecked());
+        } else if (id == R.id.action_filter_user_apps) {
+            if (!item.isChecked()) model.addFilter(FILTER_USER_APPS);
+            else model.removeFilter(FILTER_USER_APPS);
+            item.setChecked(!item.isChecked());
+        } else return super.onOptionsItemSelected(item);
+        return true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        restartAutoRefresh();
+    }
+
+    @Override
+    protected void onPause() {
+        stopAutoRefresh();
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        // Drop any pending debounced search so it cannot fire into a destroyed activity.
+        if (mSearchDebouncer != null) {
+            mSearchDebouncer.cancel();
+        }
+        super.onDestroy();
+    }
+
+    private void restartAutoRefresh() {
+        stopAutoRefresh();
+        int intervalSeconds = normalizeRefreshIntervalSeconds(Prefs.RunningApps.getRefreshIntervalSeconds());
+        if (intervalSeconds == REFRESH_INTERVAL_MANUAL) {
+            refresh();
+            return;
+        }
+        mTimer = new Timer("running_apps");
+        mTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                ThreadUtils.postOnMainThread(() -> {
+                    if (model != null) {
+                        model.loadProcesses();
+                        model.loadMemoryInfo();
+                    }
+                });
+            }
+        }, 0, intervalSeconds * 1000L);
+    }
+
+    private void stopAutoRefresh() {
+        if (mTimer != null) {
+            mTimer.cancel();
+            mTimer.purge();
+            mTimer = null;
+        }
+    }
+
+    @Override
+    public boolean onQueryTextSubmit(String query, int type) {
+        return false;
+    }
+
+    @Override
+    public boolean onQueryTextChange(String newText, int type) {
+        if (model == null) {
+            return false;
+        }
+        if (mSearchDebouncer != null) {
+            mSearchDebouncer.onQueryTextChange(newText, type);
+        } else model.setQuery(newText, type);
+        return true;
+    }
+
+    @Override
+    public void onSelectionModeEnabled() {
+        mOnBackPressedCallback.setEnabled(true);
+    }
+
+    @Override
+    public void onSelectionModeDisabled() {
+        mOnBackPressedCallback.setEnabled(false);
+    }
+
+    @Override
+    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+        if (model == null || mAdapter == null) return true;
+        ArrayList<ProcessItem> selectedItems = mAdapter.getSelectedItems();
+        int id = item.getItemId();
+        if (id == R.id.action_kill) {
+            int processCount = mAdapter != null ? mAdapter.getSelectedItems().size() : 0;
+            if (processCount == 0) return true;
+            DestructiveActionConfirmation.forKill(this, processCount)
+                    .setPositiveButton(R.string.kill_process, (dialog, which) -> {
+                        if (model != null) model.killSelectedProcesses();
+                    })
+                    .show();
+        } else if (id == R.id.action_force_stop) {
+            handleBatchOpWithWarning(BatchOpsManager.OP_FORCE_STOP);
+        } else if (id == R.id.action_disable_background) {
+            handleBatchOpWithWarning(BatchOpsManager.OP_DISABLE_BACKGROUND);
+        } else if (id == R.id.action_view_logs) {
+            // Should be a singleton list
+            if (selectedItems.size() == 1) {
+                ProcessItem processItem = selectedItems.get(0);
+                Intent logViewerIntent = new Intent(getApplicationContext(), LogViewerActivity.class)
+                        .putExtra(LogViewerActivity.EXTRA_FILTER, SearchCriteria.PID_KEYWORD + processItem.pid)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(logViewerIntent);
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onSelectionChange(int selectionCount) {
+        if (mSelectionMenu == null || mAdapter == null) {
+            return false;
+        }
+        ArrayList<ProcessItem> selectedItems = mAdapter.getSelectedItems();
+        MenuItem kill = mSelectionMenu.findItem(R.id.action_kill);
+        MenuItem forceStop = mSelectionMenu.findItem(R.id.action_force_stop);
+        MenuItem preventBackground = mSelectionMenu.findItem(R.id.action_disable_background);
+        MenuItem restoreBackground = mSelectionMenu.findItem(R.id.action_restore_background);
+        MenuItem viewLogs = mSelectionMenu.findItem(R.id.action_view_logs);
+        restoreBackground.setVisible(false);
+        viewLogs.setEnabled(FeatureController.isLogViewerEnabled() && selectedItems.size() == 1);
+        int appsCount = 0;
+        for (Object item : selectedItems) {
+            if (item instanceof AppProcessItem) {
+                ++appsCount;
+            } else break;
+        }
+        forceStop.setEnabled(appsCount != 0 && appsCount == selectedItems.size());
+        forceStop.setVisible(SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.FORCE_STOP_PACKAGES));
+        boolean canPreventBackground = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && SelfPermissions.canModifyAppOpMode();
+        preventBackground.setVisible(canPreventBackground);
+        preventBackground.setEnabled(canPreventBackground && appsCount != 0 && appsCount == selectedItems.size());
+        boolean killEnabled = Ops.isWorkingUidRoot();
+        if (killEnabled && !mEnableKillForSystem) {
+            for (ProcessItem item : selectedItems) {
+                if (item.uid < Process.FIRST_APPLICATION_UID) {
+                    killEnabled = false;
+                    break;
+                }
+            }
+        }
+        kill.setEnabled(!selectedItems.isEmpty() && killEnabled);
+        return true;
+    }
+
+    private void handleBatchOp(@BatchOpsManager.OpType int op) {
+        if (model == null) return;
+        if (mProgressIndicator != null) {
+            mProgressIndicator.show();
+        }
+        BatchOpsManager.Result input = new BatchOpsManager.Result(model.getSelectedPackagesWithUsers());
+        BatchQueueItem item = BatchQueueItem.getBatchOpQueue(op, input.getFailedPackages(), input.getAssociatedUsers(), null);
+        Intent intent = BatchOpsService.getServiceIntent(this, item);
+        ContextCompat.startForegroundService(this, intent);
+    }
+
+    private void handleBatchOpWithWarning(@BatchOpsManager.OpType int op) {
+        if (model == null) return;
+        int selectedAppCount = model.getSelectedPackagesWithUsers().size();
+        if (selectedAppCount == 0) {
+            UIUtils.displayShortToast(R.string.no_packages_selected);
+            return;
+        }
+        String selectedAppCountText = getResources().getQuantityString(R.plurals.batch_selected_app_count,
+                selectedAppCount, selectedAppCount);
+        DestructiveActionConfirmation.forBatchOp(this, op, selectedAppCountText,
+                (dialog, which) -> handleBatchOp(op)).show();
+    }
+
+    void refresh() {
+        if (mProgressIndicator == null || model == null) return;
+        mProgressIndicator.show();
+        model.loadProcesses();
+        model.loadMemoryInfo();
+    }
+
+    private void showUidWarning(@NonNull AppOpsUidGuard.Impact impact) {
+        if (mUidWarningView == null) return;
+        List<String> operationNames = new ArrayList<>(impact.getOperations().size());
+        for (int operation : impact.getOperations()) {
+            operationNames.add(operation == AppOpsManagerCompat.OP_NONE
+                    ? getString(R.string.reset_to_default)
+                    : AppOpsManagerCompat.getKnownOpName(operation));
+        }
+        mUidWarningView.setAlertType(MaterialAlertView.ALERT_TYPE_WARN);
+        mUidWarningView.setText(getString(R.string.app_ops_uid_interlock_message,
+                TextUtils.join(", ", impact.getAffectedPackages()),
+                TextUtils.join(", ", operationNames)));
+        mUidWarningView.show();
+    }
+
+    private void hideUidWarning() {
+        if (mUidWarningView != null) {
+            mUidWarningView.hide();
+        }
+    }
+
+    void requestForceStop(@NonNull ApplicationInfo applicationInfo) {
+        if (model == null) return;
+        if (!requiresCriticalForceStopConfirmation(applicationInfo.packageName)) {
+            model.forceStop(applicationInfo);
+            return;
+        }
+        CharSequence appLabel = applicationInfo.loadLabel(getPackageManager());
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.running_apps_critical_force_stop_title)
+                .setMessage(getString(R.string.running_apps_critical_force_stop_message,
+                        appLabel, applicationInfo.packageName))
+                .setPositiveButton(R.string.force_stop, (dialog, which) -> {
+                    if (model != null) {
+                        model.forceStop(applicationInfo);
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    @VisibleForTesting
+    static boolean requiresCriticalForceStopConfirmation(@NonNull String packageName) {
+        return CriticalPackageGuard.isCriticalPackage(packageName);
+    }
+
+    public static int normalizeRefreshIntervalSeconds(int intervalSeconds) {
+        switch (intervalSeconds) {
+            case REFRESH_INTERVAL_MANUAL:
+            case REFRESH_INTERVAL_5_SECONDS:
+            case REFRESH_INTERVAL_10_SECONDS:
+            case REFRESH_INTERVAL_30_SECONDS:
+                return intervalSeconds;
+            default:
+                return REFRESH_INTERVAL_10_SECONDS;
+        }
+    }
+
+    private static boolean isRefreshIntervalMenuId(int id) {
+        for (int refreshIntervalId : REFRESH_INTERVAL_IDS) {
+            if (refreshIntervalId == id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int getRefreshIntervalFromMenuId(int id) {
+        if (id == R.id.action_refresh_manual) {
+            return REFRESH_INTERVAL_MANUAL;
+        } else if (id == R.id.action_refresh_5_seconds) {
+            return REFRESH_INTERVAL_5_SECONDS;
+        } else if (id == R.id.action_refresh_30_seconds) {
+            return REFRESH_INTERVAL_30_SECONDS;
+        }
+        return REFRESH_INTERVAL_10_SECONDS;
+    }
+
+    private static int getRefreshIntervalMenuId(int intervalSeconds) {
+        switch (normalizeRefreshIntervalSeconds(intervalSeconds)) {
+            case REFRESH_INTERVAL_MANUAL:
+                return R.id.action_refresh_manual;
+            case REFRESH_INTERVAL_5_SECONDS:
+                return R.id.action_refresh_5_seconds;
+            case REFRESH_INTERVAL_30_SECONDS:
+                return R.id.action_refresh_30_seconds;
+            case REFRESH_INTERVAL_10_SECONDS:
+            default:
+                return R.id.action_refresh_10_seconds;
+        }
+    }
+
+    void clearSearchAndFilters() {
+        if (mSearchView != null && !TextUtils.isEmpty(mSearchView.getQuery())) {
+            mSearchView.setQuery("", false);
+            mSearchView.clearFocus();
+            UiUtils.hideKeyboard(mSearchView);
+        }
+        if (model != null) {
+            model.clearFiltersAndQuery();
+        }
+        invalidateOptionsMenu();
+    }
+
+    private void updateRunningAppsStatus(@NonNull List<ProcessItem> processList) {
+        if (mStatusView == null || model == null) return;
+        int shownCount = processList.size();
+        int totalCount = Math.max(model.getTotalCount(), shownCount);
+        if (shownCount > 0) {
+            mStatusView.setText(getResources().getQuantityString(R.plurals.running_apps_status_summary,
+                    totalCount, shownCount, totalCount));
+        } else if (totalCount > 0 || model.getFilter() != FILTER_NONE || !TextUtils.isEmpty(model.getQuery())) {
+            mStatusView.setText(R.string.running_apps_status_empty_filtered);
+        } else {
+            mStatusView.setText(R.string.running_apps_status_empty_no_processes);
+        }
+        mStatusView.setContentDescription(mStatusView.getText());
+    }
+}

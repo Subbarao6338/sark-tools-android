@@ -1,0 +1,361 @@
+// SPDX-License-Identifier: MIT AND GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.servermanager;
+
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.provider.Settings;
+import android.text.TextUtils;
+
+import androidx.annotation.AnyThread;
+import androidx.annotation.IntRange;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import androidx.annotation.WorkerThread;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.Inet4Address;
+import java.security.SecureRandom;
+
+import io.github.muntashirakon.AppManager.adb.AdbTcpipProbe;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.misc.NoOps;
+import io.github.muntashirakon.AppManager.server.common.Constants;
+import io.github.muntashirakon.AppManager.server.common.DataTransmission;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
+import io.github.muntashirakon.AppManager.utils.FileUtils;
+
+// Copyright 2016 Zheng Li
+public final class ServerConfig {
+    public static final String TAG = ServerConfig.class.getSimpleName();
+
+    public static final int DEFAULT_ADB_PORT = 5555;
+    /**
+     * The local server listens on this plus the user id unless the user picked a port. Upstream
+     * App Manager, which installs beside this app, uses 60001 plus the user id, and this range also
+     * stays above Linux's default ephemeral ports (32768 to 60999).
+     */
+    public static final int DEFAULT_LOCAL_SERVER_PORT_BASE = 62001;
+    public static final String SECRET_PREFS_NAME = "server_secrets";
+    static final String SERVER_RUNNER_EXEC_NAME = "run_server.sh";
+    /**
+     * Where root runs am.jar from. Upstream's server runs /data/local/tmp/am.jar, which a shared
+     * name would overwrite under it.
+     */
+    static final String ROOT_EXEC_JAR = "/data/local/tmp/" + Constants.SERVER_NAME + ".jar";
+    private static final String LOCAL_TOKEN = "l_token";
+    /**
+     * The handshake protocol the token was made for. Protocols up to 1.3.0 sent the token to
+     * whatever listened on the port, so a token from before 1.4.0 may be known to another app.
+     */
+    private static final String LOCAL_TOKEN_PROTOCOL = "l_token_protocol";
+    private static final String ADB_LAST_PAIRING_HOST = "adb_last_pairing_host";
+    private static final String ADB_LAST_PAIRING_PORT = "adb_last_pairing_port";
+    private static final String ADB_LAST_PAIRING_TIME = "adb_last_pairing_time";
+    private static final String ADB_LAST_FAILURE = "adb_last_failure";
+    private static final File[] SERVER_RUNNER_EXEC = new File[2];
+    private static final File[] SERVER_RUNNER_JAR = new File[2];
+    private static volatile boolean sInitialised = false;
+
+    @WorkerThread
+    @NoOps
+    public static void init(@NonNull Context context) throws IOException {
+        if (sInitialised) {
+            return;
+        }
+
+        // Setup paths
+        File deStorage = ContextUtils.getDeContext(context).getCacheDir();
+        File serverRunnerExec = new File(deStorage, SERVER_RUNNER_EXEC_NAME);
+        File serverRunnerJar = new File(deStorage, Constants.JAR_NAME);
+        SERVER_RUNNER_EXEC[0] = serverRunnerExec;
+        SERVER_RUNNER_EXEC[1] = serverRunnerExec;
+        SERVER_RUNNER_JAR[0] = serverRunnerJar;
+        SERVER_RUNNER_JAR[1] = serverRunnerJar;
+        // Copy JAR
+        AssetsUtils.copyFile(context, Constants.JAR_NAME, serverRunnerJar, true);
+        // Write script
+        AssetsUtils.writeServerExecScript(context, serverRunnerExec, serverRunnerJar.getAbsolutePath(), ROOT_EXEC_JAR);
+        // Update permission
+        File deStorageRoot = deStorage.getParentFile();
+        if (deStorageRoot != null) {
+            FileUtils.chmod711(deStorageRoot);
+        }
+        FileUtils.chmod711(deStorage);
+        FileUtils.chmod644(serverRunnerJar);
+        FileUtils.chmod644(serverRunnerExec);
+
+        sInitialised = true;
+    }
+
+    @AnyThread
+    @NonNull
+    public static File getDestJarFile() {
+        // For compatibility only
+        return SERVER_RUNNER_JAR[0];
+    }
+
+    @AnyThread
+    @NonNull
+    public static String getServerRunnerCommand(int index) throws IndexOutOfBoundsException {
+        return getServerRunnerCommand(index, getLocalServerPort());
+    }
+
+    @AnyThread
+    @NonNull
+    public static String getServerRunnerCommand(int index,
+                                                @IntRange(from = 1, to = 65535) int localServerPort)
+            throws IndexOutOfBoundsException {
+        Log.e(TAG, "Classpath: %s", SERVER_RUNNER_JAR[index]);
+        Log.e(TAG, "Exec path: %s", SERVER_RUNNER_EXEC[index]);
+        return "sh " + SERVER_RUNNER_EXEC[index] + " " + localServerPort + " " + getLocalToken();
+    }
+
+    @AnyThread
+    @NonNull
+    public static String getServerRunnerAdbCommand() {
+        return getServerRunnerAdbCommand(getLocalServerPort());
+    }
+
+    /**
+     * The command ADB mode sends to the shell. It runs the launcher {@link AdbLaunchFiles} staged
+     * in /data/local/tmp, since the shell user can't read the copy in the app's own cache. The
+     * fallback echo ends the wait at once when the launcher can't run at all.
+     */
+    @AnyThread
+    @NonNull
+    public static String getServerRunnerAdbCommand(@IntRange(from = 1, to = 65535) int localServerPort) {
+        return "sh " + AdbLaunchFiles.SERVER_SCRIPT + " " + localServerPort + " " + getLocalToken()
+                + " || echo \"Error! Could not run the server launcher.\"";
+    }
+
+    /**
+     * The command a user can paste into {@code adb shell} on a computer to start the server by hand.
+     * It copies the server into the folder picked under Mode of operation.
+     */
+    @WorkerThread
+    @NonNull
+    public static String getManualAdbCommand(@NonNull Context context) throws IOException {
+        String stagingDir = AdbLaunchFiles.stagingDirIn(Prefs.Misc.getAdbManualStagingParent());
+        // The screen never saves a folder the command can't use, but an imported setting might
+        return AdbLaunchFiles.manualShellCommand(context, getLocalServerPort(), getLocalToken(),
+                stagingDir != null ? stagingDir : AdbLaunchFiles.STAGING_DIR);
+    }
+
+    /**
+     * Get the existing device-local token or generate a new 256-bit token for the client session.
+     *
+     * @return Existing or new token
+     */
+    @AnyThread
+    @NonNull
+    public static synchronized String getLocalToken() {
+        SharedPreferences preferences = getPreferences();
+        SharedPreferences secretPreferences = getSecretPreferences();
+        // The legacy preference is Android-backup eligible in older releases. Never migrate its
+        // value: a restored authenticator must not remain valid on another device.
+        if (preferences.contains(LOCAL_TOKEN)) {
+            if (!preferences.edit().remove(LOCAL_TOKEN).commit()) {
+                Log.w(TAG, "Could not remove the legacy local-server token.");
+            }
+        }
+        String token = secretPreferences.getString(LOCAL_TOKEN, null);
+        boolean madeForThisProtocol = DataTransmission.PROTOCOL_VERSION.equals(
+                secretPreferences.getString(LOCAL_TOKEN_PROTOCOL, null));
+        if (TextUtils.isEmpty(token) || !madeForThisProtocol) {
+            // A server still running with the old token can't talk to this protocol anyway
+            token = generateToken();
+            if (!secretPreferences.edit()
+                    .putString(LOCAL_TOKEN, token)
+                    .putString(LOCAL_TOKEN_PROTOCOL, DataTransmission.PROTOCOL_VERSION)
+                    .commit()) {
+                Log.w(TAG, "Could not persist the local-server token.");
+            }
+        }
+        return token;
+    }
+
+    @AnyThread
+    public static boolean getAllowBgRunning() {
+        return getPreferences().getBoolean("allow_bg_running", true);
+    }
+
+    @AnyThread
+    @IntRange(from = 1, to = 65535)
+    @NoOps
+    public static int getAdbPort() {
+        // A bad port stored by an older version would otherwise be tried on every start
+        int port = getPreferences().getInt("adb_port", DEFAULT_ADB_PORT);
+        return isValidAdbPort(port) ? port : DEFAULT_ADB_PORT;
+    }
+
+    @AnyThread
+    @NoOps
+    public static void setAdbPort(@IntRange(from = 1, to = 65535) int port) {
+        if (!isValidAdbPort(port)) {
+            throw new IllegalArgumentException("Invalid ADB port: " + port);
+        }
+        getPreferences().edit().putInt("adb_port", port).apply();
+    }
+
+    @AnyThread
+    public static boolean isValidAdbPort(int port) {
+        return port >= 1 && port <= 65535;
+    }
+
+    @AnyThread
+    @NoOps
+    public static void setLastAdbPairing(@NonNull String host, @IntRange(from = 0, to = 65535) int port) {
+        getPreferences().edit()
+                .putString(ADB_LAST_PAIRING_HOST, host)
+                .putInt(ADB_LAST_PAIRING_PORT, port)
+                .putLong(ADB_LAST_PAIRING_TIME, System.currentTimeMillis())
+                .apply();
+    }
+
+    @AnyThread
+    @NoOps
+    public static boolean hasPairedAdbDevice() {
+        return getPreferences().getLong(ADB_LAST_PAIRING_TIME, 0) > 0;
+    }
+
+    @AnyThread
+    @NoOps
+    public static int getLastAdbPairingPort() {
+        return getPreferences().getInt(ADB_LAST_PAIRING_PORT, DEFAULT_ADB_PORT);
+    }
+
+    /**
+     * {@link AdbFailure#serialize()} of the last ADB-mode connect failure, or {@code null} once a
+     * connect worked.
+     */
+    @AnyThread
+    @NoOps
+    @Nullable
+    static String getLastAdbFailure() {
+        return getPreferences().getString(ADB_LAST_FAILURE, null);
+    }
+
+    @AnyThread
+    @NoOps
+    static void setLastAdbFailure(@Nullable String failure) {
+        SharedPreferences.Editor editor = getPreferences().edit();
+        if (failure == null) {
+            editor.remove(ADB_LAST_FAILURE);
+        } else {
+            editor.putString(ADB_LAST_FAILURE, failure);
+        }
+        editor.apply();
+    }
+
+    @NonNull
+    private static SharedPreferences getPreferences() {
+        return ContextUtils.getContext().getSharedPreferences("server_config", Context.MODE_PRIVATE);
+    }
+
+    @NonNull
+    private static SharedPreferences getSecretPreferences() {
+        return ContextUtils.getContext().getSharedPreferences(SECRET_PREFS_NAME, Context.MODE_PRIVATE);
+    }
+
+    @AnyThread
+    public static int getLocalServerPort() {
+        return Prefs.Misc.getAdbLocalServerPort();
+    }
+
+    /**
+     * Where adbd answers on {@code port}. Wireless debugging's ports, and ADB over TCP once
+     * {@code adb tcpip} ran, are on the device itself. On an emulator the computer's own loopback
+     * (10.0.2.2) also reaches adbd, through the port the computer forwards to it, so that's tried
+     * when nothing answers on the device. Always using 10.0.2.2 there failed every Wireless
+     * debugging connect, since those ports only exist on the device.
+     */
+    @WorkerThread
+    @NonNull
+    public static String getAdbHost(@NonNull Context context, @IntRange(from = 0, to = 65535) int port) {
+        return chooseAdbHost(isEmulator(context), port);
+    }
+
+    @VisibleForTesting
+    @WorkerThread
+    @NonNull
+    static String chooseAdbHost(boolean emulator, @IntRange(from = 0, to = 65535) int port) {
+        String loopback = getLoopbackHost();
+        if (!emulator || AdbTcpipProbe.isPortReachable(loopback, port, AdbTcpipProbe.DEFAULT_TIMEOUT_MILLIS)) {
+            return loopback;
+        }
+        return EMULATOR_HOST_LOOPBACK;
+    }
+
+    /**
+     * Where Wireless debugging's pairing port is. It's always on the device, emulators included.
+     */
+    @AnyThread
+    @NonNull
+    public static String getAdbPairingHost() {
+        return getLoopbackHost();
+    }
+
+    @AnyThread
+    @NonNull
+    public static String getLocalServerHost(Context context) {
+        return getLoopbackHost();
+    }
+
+    // Reads the loopback address only, no lookup
+    @AnyThread
+    @NonNull
+    private static String getLoopbackHost() {
+        String ipAddress = Inet4Address.getLoopbackAddress().getHostAddress();
+        if (ipAddress == null || ipAddress.equals("::1")) return "127.0.0.1";
+        return ipAddress;
+    }
+
+    /**
+     * The computer running the emulator, as the emulator sees it.
+     */
+    @VisibleForTesting
+    static final String EMULATOR_HOST_LOOPBACK = "10.0.2.2";
+
+    // https://github.com/firebase/firebase-android-sdk/blob/7d86138304a6573cbe2c61b66b247e930fa05767/firebase-crashlytics/src/main/java/com/google/firebase/crashlytics/internal/common/CommonUtils.java#L402
+    private static final String GOLDFISH = "goldfish";
+    private static final String RANCHU = "ranchu";
+    private static final String SDK = "sdk";
+
+    private static boolean isEmulator(@NonNull Context context) {
+        @SuppressLint("HardwareIds")
+        String androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+        return Build.PRODUCT.contains(SDK)
+                || Build.HARDWARE.contains(GOLDFISH)
+                || Build.HARDWARE.contains(RANCHU)
+                || androidId == null;
+    }
+
+
+    @AnyThread
+    @NonNull
+    private static String generateToken() {
+        // The token is the SOLE authenticator for the privileged command
+        // channel (DataTransmission#shakeHands). The previous 3-5 word phrase
+        // drawn from a ~1300-entry word list was only ~31-51 bits of entropy —
+        // brute-forceable by a same-device app that can reach the loopback
+        // listener, since a failed handshake just drops the connection and the
+        // server keeps accepting. Use a 256-bit cryptographically-random hex
+        // token instead. Hex contains no ',' (the handshake splits on comma)
+        // and no whitespace (the token is passed as a shell argument).
+        SecureRandom secureRandom = new SecureRandom();
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+            sb.append(Character.forDigit(b & 0xF, 16));
+        }
+        return sb.toString();
+    }
+}

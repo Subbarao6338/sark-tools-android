@@ -1,0 +1,619 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.terminal;
+
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.os.Bundle;
+import android.os.PowerManager;
+import android.text.Editable;
+import android.text.Spanned;
+import android.text.style.BackgroundColorSpan;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StrikethroughSpan;
+import android.text.style.StyleSpan;
+import android.text.style.UnderlineSpan;
+import android.view.KeyEvent;
+import android.view.MenuItem;
+import android.view.inputmethod.EditorInfo;
+import android.widget.TextView;
+
+import androidx.annotation.ColorInt;
+import androidx.annotation.MainThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.UiThread;
+import androidx.appcompat.widget.AppCompatEditText;
+import androidx.appcompat.widget.AppCompatTextView;
+
+import com.google.android.material.color.MaterialColors;
+
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import io.github.muntashirakon.AppManager.BaseActivity;
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.compat.ProcessCompat;
+import io.github.muntashirakon.AppManager.ipc.LocalServices;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.settings.Ops;
+import io.github.muntashirakon.AppManager.users.Users;
+import io.github.muntashirakon.AppManager.utils.CpuUtils;
+
+public class TermActivity extends BaseActivity {
+    public static final String TAG = TermActivity.class.getSimpleName();
+    private static final String[] SHELL_COMMAND = new String[]{"sh", "-i"};
+    private static final String[] SHELL_ENV = new String[]{"TERM=xterm-256color", "HOME=/"};
+
+    private final Object mLock = new Object();
+    private AppCompatEditText mCommandInput;
+    private AppCompatTextView mRouteStatusView;
+    private AppCompatTextView mCommandOutput;
+    private Process mProc;
+    private OutputStream mProcessOutputStream;
+    private PowerManager.WakeLock mWakeLock;
+    private final ExecutorService mExecutor = Executors.newFixedThreadPool(3);
+    private int mDefaultForegroundColor;
+    private int mDefaultBackgroundColor;
+    private final AnsiState mAnsiState = new AnsiState();
+    private CommandHistory mHistory;
+
+    @Override
+    protected void onAuthenticated(@Nullable Bundle savedInstanceState) {
+        setContentView(R.layout.activity_term);
+        setSupportActionBar(findViewById(R.id.toolbar));
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setSubtitle(R.string.terminal_preview_notice);
+        }
+        mCommandInput = findViewById(R.id.command_input);
+        mRouteStatusView = findViewById(R.id.route_status);
+        mCommandOutput = findViewById(R.id.command_output);
+        mCommandOutput.setText("", TextView.BufferType.EDITABLE);
+        mDefaultForegroundColor = mCommandInput.getCurrentTextColor();
+        mDefaultBackgroundColor = MaterialColors.getColor(mCommandInput, com.google.android.material.R.attr.colorSurface);
+        mHistory = new CommandHistory(this);
+        mCommandInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                String command = Objects.requireNonNull(mCommandInput.getText()).toString();
+                mHistory.add(command);
+                mCommandInput.setText("");
+                appendBoldOutput(command);
+                appendOutput("\n");
+                mAnsiState.homePosition = mCommandOutput.getEditableText().length();
+                return sendToStdin(command, true);
+            }
+            return false;
+        });
+        mCommandInput.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN) {
+                // Only handle key down
+                return false;
+            }
+
+            // TAB — send tab character to the shell for built-in completion
+            if (keyCode == KeyEvent.KEYCODE_TAB) {
+                sendToStdin("\t", false);
+                return true;
+            }
+
+            // Arrow Keys (UP/DOWN) — local history navigation
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_PAGE_UP) {
+                String prev = mHistory.navigateUp();
+                if (prev != null) {
+                    mCommandInput.setText(prev);
+                    mCommandInput.setSelection(prev.length());
+                }
+                return true;
+            }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_PAGE_DOWN) {
+                String next = mHistory.navigateDown();
+                if (next != null) {
+                    mCommandInput.setText(next);
+                    mCommandInput.setSelection(next.length());
+                }
+                return true;
+            }
+
+            // CTRL + KEY
+            if (event.isCtrlPressed()) {
+                int c = event.getUnicodeChar();
+                char ctrlChar;
+                if (c >= 'a' && c <= 'z') {
+                    ctrlChar = (char)(c - 'a' + 1);
+                } else if (c >= 'A' && c <= 'Z') {
+                    ctrlChar = (char)(c - 'A' + 1);
+                } else return false;
+                appendBoldOutput("^" + Character.toUpperCase((char) c));
+                appendOutput("\n");
+                sendToStdin(String.valueOf(ctrlChar), true);
+                return true;
+            }
+            return false;
+        });
+        initShell();
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onDestroy() {
+        CpuUtils.releaseWakeLock(mWakeLock);
+        if (mProc != null) {
+            mProc.destroy();
+        }
+        mExecutor.shutdownNow();
+        if (mHistory != null) {
+            mHistory.shutdown();
+        }
+        super.onDestroy();
+    }
+
+    private void initShell() {
+        mWakeLock = CpuUtils.getPartialWakeLock("term");
+        mWakeLock.acquire(2 * 60 * 60 * 1000L);
+        mExecutor.submit(() -> {
+            TerminalRoute route = resolveRoute();
+            try {
+                route = startShell(route);
+                TerminalRoute processRoute = route;
+                mProcessOutputStream = new BufferedOutputStream(mProc.getOutputStream());
+                mExecutor.submit(() -> {
+                    try (InputStream in = mProc.getInputStream()) {
+                        byte[] buffer = new byte[1024];
+                        int len;
+                        while ((len = in.read(buffer)) != -1) {
+                            synchronized (mLock) {
+                                String chunk = new String(buffer, 0, len, StandardCharsets.UTF_8);
+                                runOnUiThread(() -> processChunk(chunk, mAnsiState));
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "stdout reader terminated", e);
+                    }
+                });
+                mExecutor.submit(() -> {
+                    try (InputStream in = mProc.getErrorStream()) {
+                        byte[] buffer = new byte[1024];
+                        int len;
+                        while ((len = in.read(buffer)) != -1) {
+                            synchronized (mLock) {
+                                String chunk = new String(buffer, 0, len, StandardCharsets.UTF_8);
+                                runOnUiThread(() -> processChunk(chunk, mAnsiState));
+                            }
+                        }
+                    } catch (Exception e) {
+                        Log.w(TAG, "stderr reader terminated", e);
+                    }
+                });
+                loadInitScript();
+                int exitCode = mProc.waitFor();
+                TerminalRoute finalRoute = processRoute;
+                runOnUiThread(() -> {
+                    appendOutput("\n" + finalRoute.getProcessEndedText(this, exitCode) + "\n");
+                    mCommandInput.setEnabled(false);
+                });
+            } catch (Exception e) {
+                Log.e(TAG, e);
+                TerminalRoute finalRoute = route;
+                runOnUiThread(() -> {
+                    appendOutput("\n" + getString(R.string.terminal_process_start_failed,
+                            finalRoute.getLabel(this), TerminalRoute.getThrowableMessage(e)) + "\n");
+                    mCommandInput.setEnabled(false);
+                });
+            }
+        });
+    }
+
+    @NonNull
+    private TerminalRoute resolveRoute() {
+        TerminalRoute route = TerminalRoute.resolve(LocalServices.alive(), Ops.isDirectRoot(), Ops.isShizuku(),
+                Ops.isAdb(), Users.getSelfOrRemoteUid());
+        if (route.isLocalFallback()) {
+            try {
+                LocalServices.bindServicesIfNotAlready();
+                route = TerminalRoute.resolve(LocalServices.alive(), Ops.isDirectRoot(), Ops.isShizuku(),
+                        Ops.isAdb(), Users.getSelfOrRemoteUid());
+            } catch (Exception e) {
+                Log.e(TAG, e);
+            }
+        }
+        TerminalRoute finalRoute = route;
+        runOnUiThread(() -> updateRouteStatus(finalRoute));
+        return route;
+    }
+
+    @NonNull
+    private TerminalRoute startShell(@NonNull TerminalRoute route) throws Exception {
+        if (route.usesLocalProcess()) {
+            if (route.isLocalFallback()) {
+                TerminalRoute fallbackRoute = route;
+                runOnUiThread(() -> appendOutput(getString(R.string.terminal_route_status_fallback,
+                        fallbackRoute.getUnavailableLabel(this)) + "\n"));
+            }
+            mProc = ProcessCompat.execLocal(SHELL_COMMAND, SHELL_ENV, null);
+            return route;
+        }
+        try {
+            mProc = ProcessCompat.exec(SHELL_COMMAND, SHELL_ENV);
+            return route;
+        } catch (Exception e) {
+            Log.e(TAG, e);
+            TerminalRoute fallbackRoute = route.withLocalFallback();
+            runOnUiThread(() -> {
+                updateRouteStatus(fallbackRoute);
+                appendOutput(getString(R.string.terminal_remote_fallback_notice,
+                        route.getLabel(this), TerminalRoute.getThrowableMessage(e)) + "\n");
+            });
+            mProc = ProcessCompat.execLocal(SHELL_COMMAND, SHELL_ENV, null);
+            return fallbackRoute;
+        }
+    }
+
+    private void loadInitScript() {
+        File initFile = new File(getFilesDir(), "terminal_init.sh");
+        if (!initFile.exists() || !initFile.canRead()) return;
+        try (BufferedReader reader = new BufferedReader(new FileReader(initFile))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String trimmed = line.trim();
+                if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
+                    sendToStdin(trimmed, true);
+                }
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "Failed to load terminal init script", e);
+        }
+    }
+
+    @UiThread
+    private void updateRouteStatus(@NonNull TerminalRoute route) {
+        mRouteStatusView.setText(route.getStatusText(this));
+    }
+
+    static class AnsiState {
+        @ColorInt
+        int foreground = -1;
+        @ColorInt
+        int background = -1;
+        boolean bold = false;
+        boolean underline = false;
+        boolean italic = false;
+        boolean strike = false;
+        boolean reverse = false;
+        boolean hide = false;
+        int savedPosition = -1;
+        boolean navigateToHome = false;
+        int homePosition = 0;
+
+        void reset() {
+            foreground = -1;
+            background = -1;
+            bold = false;
+            underline = false;
+            italic = false;
+            strike = false;
+            reverse = false;
+            hide = false;
+            savedPosition = -1;
+            navigateToHome = false;
+        }
+    }
+
+    @UiThread
+    private void processChunk(@NonNull String chunk, @NonNull AnsiState state) {
+        StringBuilder plainTextBuffer = new StringBuilder();
+        for (int i = 0; i < chunk.length(); ++i) {
+            char ch = chunk.charAt(i);
+            if (ch == '\u001b') {
+                // Start escape sequence
+                // Flush plain text
+                if (plainTextBuffer.length() > 0) {
+                    appendOutput(plainTextBuffer.toString(), state);
+                    plainTextBuffer.setLength(0);
+                }
+                ++i;
+                if (i >= chunk.length()) {
+                    // Invalid sequence
+                    break;
+                }
+                ch = chunk.charAt(i);
+                if (ch == '[') {
+                    // Start of special sequences
+                    StringBuilder numberBuilder = new StringBuilder();
+                    numberBuilder.append(ch);
+                    for (++i; i < chunk.length(); ++i) {
+                        char c = chunk.charAt(i);
+                        if (c >= '0' && c <= '9') {
+                            // A number
+                            numberBuilder.append(c);
+                        } else if (c == ';' || c == '?') {
+                            // Separator
+                            numberBuilder.append(c);
+                        } else {
+                            // Any other ANSI character
+                            numberBuilder.append(c);
+                            processAnsiSeq(numberBuilder.toString(), state);
+                            // We're done
+                            break;
+                        }
+                    }
+                } else if (ch == 'M') {
+                    // ENTER
+                    processAnsiSeq("M", state);
+                } // else Invalid sequence
+            } else {
+                plainTextBuffer.append(ch);
+            }
+        }
+        if (plainTextBuffer.length() > 0) {
+            appendOutput(plainTextBuffer.toString(), state);
+        }
+    }
+
+    @MainThread
+    void processAnsiSeq(@NonNull String seq, @NonNull AnsiState state) {
+        if (seq.matches("\\[[0-2]?J")) {
+            String code = seq.substring(1, seq.length() - 1);
+            switch (code) {
+                case "2": // Clear entire screen
+                    resetOutput(state);
+                    break;
+                case "1": // Clear screen from cursor up
+                    Log.i(TAG, "Unhandled escape sequence: " + seq);
+                    break;
+                case "0": // Clear screen from cursor down
+                default:
+                    if (state.navigateToHome) {
+                        resetOutputToPosition(state.homePosition);
+                    } // else Not handled
+            }
+        } else if (seq.equals("[H") || seq.equals("[;H") || seq.equals("[f")) {
+            state.navigateToHome = true;
+        } else if (seq.equals("[2K")) {
+            clearLastLine();
+        } else if (seq.equals("[s")) {
+            Editable editable = mCommandOutput.getEditableText();
+            state.savedPosition = editable.length();
+        } else if (seq.equals("[u")) {
+            Editable editable = mCommandOutput.getEditableText();
+            if (state.savedPosition >= 0 && state.savedPosition <= editable.length()) {
+                editable.delete(state.savedPosition, editable.length());
+            }
+        } else if (seq.matches("\\[[0-9;]*m")) {
+            // Parse the numbers
+            String params = seq.substring(1, seq.length() - 1);
+            String[] codes = params.split(";");
+            for (String code : codes) {
+                int value;
+                try {
+                    value = Integer.parseInt(code);
+                } catch (Exception e) {
+                    if (code.isEmpty()) {
+                        value = 0; // Same as RESET
+                    } else continue;
+                }
+                switch (value) {
+                    case 0: // RESET
+                        state.reset();
+                        break;
+                    case 1: // BOLD
+                        state.bold = true;
+                        break;
+                    case 22: // RESET BOLD
+                        state.bold = false;
+                        break;
+                    case 3: // ITALIC
+                        state.italic = true;
+                        break;
+                    case 23: // RESET ITALIC
+                        state.italic = false;
+                        break;
+                    case 4: // UNDERLINE
+                        state.underline = true;
+                        break;
+                    case 24: // RESET UNDERLINE
+                        state.underline = false;
+                        break;
+                    case 7: // REVERSE VIDEO
+                        state.reverse = true;
+                        break;
+                    case 27: // RESET REVERSE VIDEO
+                        state.reverse = false;
+                        break;
+                    case 8: // HIDE
+                        state.hide = true;
+                        break;
+                    case 28: // RESET HIDE
+                        state.hide = false;
+                        break;
+                    case 9: // STRIKETHROUGH
+                        state.strike = true;
+                        break;
+                    case 29: // RESET STRIKETHROUGH
+                        state.strike = false;
+                        break;
+                    case 39: // RESET FOREGROUND
+                        state.foreground = -1;
+                        break;
+                    case 30:
+                        state.foreground = Color.BLACK;
+                        break;
+                    case 31:
+                        state.foreground = Color.RED;
+                        break;
+                    case 32:
+                        state.foreground = Color.GREEN;
+                        break;
+                    case 33:
+                        state.foreground = Color.YELLOW;
+                        break;
+                    case 34:
+                        state.foreground = Color.BLUE;
+                        break;
+                    case 35:
+                        state.foreground = Color.MAGENTA;
+                        break;
+                    case 36:
+                        state.foreground = Color.CYAN;
+                        break;
+                    case 37:
+                        state.foreground = Color.WHITE;
+                        break;
+                    case 49: // RESET BACKGROUND
+                        state.background = -1;
+                        break;
+                    case 40:
+                        state.background = Color.BLACK;
+                        break;
+                    case 41:
+                        state.background = Color.RED;
+                        break;
+                    case 42:
+                        state.background = Color.GREEN;
+                        break;
+                    case 43:
+                        state.background = Color.YELLOW;
+                        break;
+                    case 44:
+                        state.background = Color.BLUE;
+                        break;
+                    case 45:
+                        state.background = Color.MAGENTA;
+                        break;
+                    case 46:
+                        state.background = Color.CYAN;
+                        break;
+                    case 47:
+                        state.background = Color.WHITE;
+                        break;
+                    default:
+                        Log.i(TAG, "Unhandled escape sequence: " + seq);
+                }
+            }
+        } else {
+            Log.i(TAG, "Unhandled escape sequence: " + seq);
+        }
+    }
+
+    @MainThread
+    private void resetOutput(@NonNull AnsiState state) {
+        mCommandOutput.getEditableText().clear();
+        state.homePosition = 0;
+    }
+
+    @MainThread
+    private void resetOutputToPosition(int position) {
+        Editable editable = mCommandOutput.getEditableText();
+        if (position <= 0) {
+            editable.clear();
+        } else {
+            int length = editable.length();
+            if (position < length) {
+                editable.delete(position, length);
+            }
+        }
+    }
+
+    private void clearLastLine() {
+        Editable editable = mCommandOutput.getEditableText();
+        int length = editable.length();
+        if (length > 0) {
+            // Find the index of the last newline character
+            int lastNewline = editable.toString().lastIndexOf('\n', length - 2);
+            // If no newline found, delete everything
+            resetOutputToPosition(lastNewline + 1);
+        }
+    }
+
+    @MainThread
+    private void appendOutput(@NonNull String text) {
+        mCommandOutput.getEditableText().append(text);
+    }
+
+    @MainThread
+    private void appendOutput(@NonNull String text, @NonNull AnsiState state) {
+        state.navigateToHome = false;
+        if (state.hide) {
+            // Replace with spaces
+            char[] blank = new char[text.length()];
+            Arrays.fill(blank, ' ');
+            text = new String(blank);
+        }
+        Editable editable = mCommandOutput.getEditableText();
+        int start = editable.length();
+        editable.append(text);
+        int end = editable.length();
+        if (start == end) {
+            return;
+        }
+        if (state.bold) {
+            editable.setSpan(new StyleSpan(Typeface.BOLD), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        if (state.italic) {
+            editable.setSpan(new StyleSpan(Typeface.ITALIC), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        if (state.underline) {
+            editable.setSpan(new UnderlineSpan(), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        if (state.strike) {
+            editable.setSpan(new StrikethroughSpan(), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        int foregroundColor = state.foreground != -1 ? state.foreground : mDefaultForegroundColor;
+        int backgroundColor = state.background != -1 ? state.background : mDefaultBackgroundColor;
+        editable.setSpan(new ForegroundColorSpan(state.reverse ? backgroundColor : foregroundColor),
+                start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        editable.setSpan(new BackgroundColorSpan(state.reverse ? foregroundColor : backgroundColor),
+                start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+
+    @MainThread
+    private void appendBoldOutput(@NonNull String boldText) {
+        Editable editable = mCommandOutput.getEditableText();
+        int start = editable.length();
+        editable.append(boldText);
+        editable.setSpan(new StyleSpan(Typeface.BOLD), start, editable.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+
+    private boolean sendToStdin(@NonNull String command, boolean newLine) {
+        // Called from the UI thread and from the init-script loader on the executor
+        // thread; appendOutput touches the live Editable, so marshal failure feedback
+        // back to the main thread.
+        if (mProcessOutputStream != null) {
+            if (!ProcessCompat.isAlive(mProc)) {
+                // Process is dead
+                runOnUiThread(() ->
+                        appendOutput("\n" + getString(R.string.terminal_process_not_running) + "\n"));
+                return false;
+            }
+            try {
+                mProcessOutputStream.write(command.getBytes(StandardCharsets.UTF_8));
+                if (newLine) {
+                    mProcessOutputStream.write("\n".getBytes(StandardCharsets.UTF_8));
+                }
+                mProcessOutputStream.flush();
+            } catch (Exception e) {
+                Log.e(TAG, e);
+                runOnUiThread(() ->
+                        appendOutput("\n" + getString(R.string.terminal_process_not_running) + "\n"));
+            }
+        }
+        return true;
+    }
+}

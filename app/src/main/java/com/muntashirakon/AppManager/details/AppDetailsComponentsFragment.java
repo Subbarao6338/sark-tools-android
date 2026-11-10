@@ -1,0 +1,1251 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.details;
+
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PathPermission;
+import android.content.pm.ProviderInfo;
+import android.content.pm.ServiceInfo;
+import android.graphics.Color;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.PatternMatcher;
+import android.os.UserHandleHidden;
+import android.text.TextUtils;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.annotation.IntDef;
+import androidx.annotation.MainThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.UiThread;
+import androidx.annotation.VisibleForTesting;
+import androidx.appcompat.widget.PopupMenu;
+import androidx.appcompat.widget.TooltipCompat;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.snackbar.Snackbar;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.util.ArrayList;
+import java.util.ConcurrentModificationException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.compat.ActivityManagerCompat;
+import io.github.muntashirakon.AppManager.compat.ManifestCompat;
+import io.github.muntashirakon.AppManager.details.components.BroadcastSendDialogFragment;
+import io.github.muntashirakon.AppManager.details.components.ProviderQueryDialogFragment;
+import io.github.muntashirakon.AppManager.details.components.ProviderQueryUtils;
+import io.github.muntashirakon.AppManager.details.components.ServiceActionUtils;
+import io.github.muntashirakon.AppManager.details.struct.AppDetailsActivityItem;
+import io.github.muntashirakon.AppManager.details.struct.AppDetailsComponentItem;
+import io.github.muntashirakon.AppManager.details.struct.AppDetailsItem;
+import io.github.muntashirakon.AppManager.details.struct.AppDetailsServiceItem;
+import io.github.muntashirakon.AppManager.intercept.ActivityInterceptor;
+import io.github.muntashirakon.AppManager.rules.RuleType;
+import io.github.muntashirakon.AppManager.rules.compontents.ComponentUtils;
+import io.github.muntashirakon.AppManager.rules.struct.ComponentRule;
+import io.github.muntashirakon.AppManager.self.SelfPermissions;
+import io.github.muntashirakon.AppManager.self.imagecache.ImageLoader;
+import io.github.muntashirakon.AppManager.settings.FeatureController;
+import io.github.muntashirakon.AppManager.settings.Prefs;
+import io.github.muntashirakon.AppManager.shortcut.CreateShortcutDialogFragment;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.AppManager.utils.Utils;
+import io.github.muntashirakon.AppManager.utils.appearance.ColorCodes;
+import io.github.muntashirakon.util.AdapterUtils;
+import io.github.muntashirakon.view.ProgressIndicatorCompat;
+import io.github.muntashirakon.widget.MaterialAlertView;
+import io.github.muntashirakon.widget.RecyclerView;
+
+public class AppDetailsComponentsFragment extends AppDetailsFragment {
+    @IntDef(value = {
+            ACTIVITIES,
+            SERVICES,
+            RECEIVERS,
+            PROVIDERS,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface ComponentProperty {
+    }
+
+    /**
+     * A selectable TextView lays out with DynamicLayout, which ignores maxLines: the text wraps
+     * anyway, the view stays one line tall, and the top of the second line shows cut in half. A
+     * collapsed row gets one real line with an ellipsis, and a tap on it opens the whole name, which
+     * can be selected there.
+     */
+    @VisibleForTesting
+    static void bindNameExpansion(@NonNull TextView nameView, boolean expanded) {
+        nameView.setTextIsSelectable(expanded);
+        nameView.setMaxLines(expanded ? Integer.MAX_VALUE : 1);
+        nameView.setEllipsize(expanded ? null : TextUtils.TruncateAt.MIDDLE);
+    }
+
+    private String mPackageName;
+    private AppDetailsRecyclerAdapter mAdapter;
+    private MenuItem mBlockingToggler;
+    private boolean mIsExternalApk;
+    @ComponentProperty
+    private int mNeededProperty;
+    private int mSortOrder;
+    private String mSearchQuery;
+    @Nullable
+    private com.google.android.material.button.MaterialButton mTrackerBlockInTabButton;
+    @Nullable
+    private com.google.android.material.button.MaterialButton mComponentGuideButton;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        mNeededProperty = requireArguments().getInt(ARG_TYPE);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        configureEmptyState();
+        mAdapter = new AppDetailsRecyclerAdapter();
+        recyclerView.setAdapter(mAdapter);
+        alertView.setEndIconOnClickListener(v -> alertView.hide());
+        int helpStringRes = R.string.rules_not_applied;
+        alertView.setText(helpStringRes);
+        alertView.setVisibility(View.GONE);
+        if (viewModel == null) return;
+        mSortOrder = viewModel.getSortOrder(mNeededProperty);
+        mSearchQuery = viewModel.getSearchQuery();
+        mPackageName = viewModel.getPackageName();
+        mTrackerBlockInTabButton = view.findViewById(R.id.tracker_block_in_tab);
+        mComponentGuideButton = view.findViewById(R.id.component_guide);
+        if (mComponentGuideButton != null) {
+            mComponentGuideButton.setOnClickListener(v -> showComponentGuideDialog());
+            TooltipCompat.setTooltipText(mComponentGuideButton,
+                    getString(R.string.app_details_component_guide_tooltip));
+        }
+        refreshComponentGuideButton();
+        viewModel.get(mNeededProperty).observe(getViewLifecycleOwner(), appDetailsItems -> {
+            if (appDetailsItems != null && mAdapter != null && viewModel.isPackageExist()) {
+                mPackageName = viewModel.getPackageName();
+                mIsExternalApk = viewModel.isExternalApk();
+                configureEmptyState();
+                mAdapter.setDefaultList(appDetailsItems);
+                refreshComponentGuideButton();
+                refreshTabTrackerBlockButton(appDetailsItems);
+            } else ProgressIndicatorCompat.setVisibility(progressIndicator, false);
+        });
+        viewModel.getRuleApplicationStatus().observe(getViewLifecycleOwner(), status -> {
+            alertView.setAlertType(MaterialAlertView.ALERT_TYPE_WARN);
+            if (status == AppDetailsViewModel.RULE_NOT_APPLIED) {
+                alertView.show();
+            } else alertView.hide();
+            updateBlockMenuItem(status);
+        });
+    }
+
+    @Override
+    public void onRefresh() {
+        refreshDetails();
+        swipeRefresh.setRefreshing(false);
+    }
+
+    @Override
+    public void onCreateMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {
+        if (viewModel != null && !viewModel.isExternalApk() && SelfPermissions.canModifyAppComponentStates(
+                viewModel.getUserId(), viewModel.getPackageName(), viewModel.isTestOnlyApp())) {
+            menuInflater.inflate(R.menu.fragment_app_details_components_actions, menu);
+            mBlockingToggler = menu.findItem(R.id.action_toggle_blocking);
+        } else menuInflater.inflate(R.menu.fragment_app_details_refresh_actions, menu);
+    }
+
+    @Override
+    public void onPrepareMenu(@NonNull Menu menu) {
+        if (viewModel == null || viewModel.isExternalApk()) {
+            return;
+        }
+        MenuItem sortItem = menu.findItem(AppDetailsFragment.sSortMenuItemIdsMap[viewModel.getSortOrder(mNeededProperty)]);
+        if (sortItem != null) {
+            sortItem.setChecked(true);
+        }
+        Integer status = viewModel.getRuleApplicationStatus().getValue();
+        if (status != null) {
+            updateBlockMenuItem(status);
+        }
+    }
+
+    @Override
+    public boolean onMenuItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_refresh_details) {
+            refreshDetails();
+        } else if (id == R.id.action_toggle_blocking) {  // Components
+            if (viewModel != null) {
+                viewModel.applyRules();
+            }
+        } else if (id == R.id.action_block_unblock_trackers) {  // Components
+            showTrackerReviewDialog();
+        } else if (id == R.id.action_component_guide) {  // Components
+            showComponentGuideDialog();
+        } else if (id == R.id.action_sort_by_name) {  // All
+            setSortBy(AppDetailsFragment.SORT_BY_NAME);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_blocked_components) {  // Components
+            setSortBy(AppDetailsFragment.SORT_BY_BLOCKED);
+            item.setChecked(true);
+        } else if (id == R.id.action_sort_by_tracker_components) {  // Components
+            setSortBy(AppDetailsFragment.SORT_BY_TRACKERS);
+            item.setChecked(true);
+        } else return false;
+        return true;
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (viewModel != null) {
+            mSortOrder = viewModel.getSortOrder(mNeededProperty);
+            mSearchQuery = viewModel.getSearchQuery();
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (activity.searchView != null) {
+            if (!activity.searchView.isShown()) {
+                activity.searchView.setVisibility(View.VISIBLE);
+            }
+            activity.searchView.setOnQueryTextListener(this);
+            if (viewModel != null) {
+                int sortOrder = viewModel.getSortOrder(mNeededProperty);
+                String searchQuery = viewModel.getSearchQuery();
+                if (sortOrder != mSortOrder || !Objects.equals(searchQuery, mSearchQuery)) {
+                    viewModel.filterAndSortItems(mNeededProperty);
+                }
+            }
+        }
+        refreshComponentGuideButton();
+    }
+
+    @Override
+    public boolean onQueryTextChange(String searchQuery, int type) {
+        if (viewModel != null) {
+            viewModel.setSearchQuery(searchQuery, type, mNeededProperty);
+            updateEmptyState();
+        }
+        return true;
+    }
+
+    @Override
+    protected int getProperty() {
+        return mNeededProperty;
+    }
+
+    private void updateBlockMenuItem(int status) {
+        if (mBlockingToggler != null) {
+            switch (status) {
+                case AppDetailsViewModel.RULE_APPLIED:
+                    mBlockingToggler.setVisible(!Prefs.Blocking.globalBlockingEnabled());
+                    mBlockingToggler.setTitle(R.string.menu_remove_rules);
+                    break;
+                case AppDetailsViewModel.RULE_NOT_APPLIED:
+                    mBlockingToggler.setVisible(!Prefs.Blocking.globalBlockingEnabled());
+                    mBlockingToggler.setTitle(R.string.menu_apply_rules);
+                    break;
+                case AppDetailsViewModel.RULE_NO_RULE:
+                    mBlockingToggler.setVisible(false);
+            }
+        }
+    }
+
+    private void showTrackerReviewDialog() {
+        if (mAdapter == null) return;
+        List<AppDetailsComponentItem> unblockedTrackers = getTrackerItems(mAdapter.getSnapshot(), true);
+        List<AppDetailsComponentItem> blockedTrackers = getTrackerItems(mAdapter.getSnapshot(), false);
+        if (unblockedTrackers.isEmpty() && blockedTrackers.isEmpty()) {
+            UIUtils.displayShortToast(R.string.app_details_tracker_no_trackers_in_tab);
+            return;
+        }
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(activity)
+                .setTitle(R.string.block_unblock_trackers)
+                .setMessage(getString(R.string.app_details_tracker_review_message,
+                        unblockedTrackers.size(), blockedTrackers.size()))
+                .setNegativeButton(R.string.cancel, null);
+        if (!unblockedTrackers.isEmpty()) {
+            builder.setPositiveButton(R.string.block, (dialog, which) -> applyScopedTrackerRules(true, unblockedTrackers, true));
+        } else {
+            builder.setPositiveButton(R.string.unblock, (dialog, which) -> applyScopedTrackerRules(false, blockedTrackers, true));
+        }
+        if (!unblockedTrackers.isEmpty() && !blockedTrackers.isEmpty()) {
+            builder.setNeutralButton(R.string.unblock, (dialog, which) -> applyScopedTrackerRules(false, blockedTrackers, true));
+        }
+        builder.show();
+    }
+
+    private void showComponentGuideDialog() {
+        boolean canModify = viewModel != null && !mIsExternalApk && SelfPermissions.canModifyAppComponentStates(
+                viewModel.getUserId(), viewModel.getPackageName(), viewModel.isTestOnlyApp());
+        new MaterialAlertDialogBuilder(activity)
+                .setIcon(R.drawable.ic_information_circle)
+                .setTitle(R.string.app_details_component_guide_title)
+                .setMessage(canModify
+                        ? R.string.app_details_component_guide_message
+                        : R.string.app_details_component_guide_read_only_message)
+                .setPositiveButton(R.string.got_it, null)
+                .show();
+    }
+
+    @MainThread
+    private void refreshComponentGuideButton() {
+        if (mComponentGuideButton == null) return;
+        mComponentGuideButton.setVisibility(Prefs.Experience.isGuidedModeEnabled() ? View.VISIBLE : View.GONE);
+    }
+
+    @NonNull
+    private List<AppDetailsComponentItem> getTrackerItems(@NonNull List<AppDetailsItem<?>> source, boolean onlyUnblocked) {
+        List<AppDetailsComponentItem> trackerItems = new ArrayList<>();
+        for (AppDetailsItem<?> di : source) {
+            if (!(di instanceof AppDetailsComponentItem)) continue;
+            AppDetailsComponentItem ci = (AppDetailsComponentItem) di;
+            if (!ci.isTracker()) continue;
+            if (onlyUnblocked && ci.isBlocked()) continue;
+            if (!onlyUnblocked && !ci.isBlocked()) continue;
+            trackerItems.add(ci);
+        }
+        return trackerItems;
+    }
+
+    private void applyScopedTrackerRules(boolean block, @NonNull List<AppDetailsComponentItem> trackerItems,
+                                         boolean showUndo) {
+        if (viewModel == null || trackerItems.isEmpty()) return;
+        List<AppDetailsComponentItem> snapshot = new ArrayList<>(trackerItems);
+        ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+        if (mTrackerBlockInTabButton != null) {
+            mTrackerBlockInTabButton.setEnabled(false);
+        }
+        String componentStatus = block
+                ? ComponentRule.COMPONENT_TO_BE_BLOCKED_IFW_DISABLE
+                : ComponentRule.COMPONENT_TO_BE_DEFAULTED;
+        viewModel.updateRulesForComponents(snapshot, ruleTypeForCurrentTab(), componentStatus, mNeededProperty);
+        if (!showUndo || getView() == null) {
+            return;
+        }
+        int count = snapshot.size();
+        String message = getResources().getQuantityString(block
+                ? R.plurals.app_details_trackers_blocked_snackbar
+                : R.plurals.app_details_trackers_unblocked_snackbar, count, count);
+        Snackbar.make(requireView(), message, Snackbar.LENGTH_LONG)
+                .setAction(R.string.undo, v -> applyScopedTrackerRules(!block, snapshot, false))
+                .show();
+    }
+
+    private void configureEmptyState() {
+        setEmptyState(getNotFoundString(mNeededProperty), getEmptySummaryString(mNeededProperty), !mIsExternalApk);
+    }
+
+    private int getNotFoundString(@ComponentProperty int index) {
+        switch (index) {
+            case SERVICES:
+                return R.string.no_service;
+            case RECEIVERS:
+                return R.string.no_receivers;
+            case PROVIDERS:
+                return R.string.no_providers;
+            case ACTIVITIES:
+            default:
+                return R.string.no_activities;
+        }
+    }
+
+    private int getEmptySummaryString(@ComponentProperty int index) {
+        switch (index) {
+            case SERVICES:
+                return R.string.app_details_empty_message_no_services;
+            case RECEIVERS:
+                return R.string.app_details_empty_message_no_receivers;
+            case PROVIDERS:
+                return R.string.app_details_empty_message_no_providers;
+            case ACTIVITIES:
+            default:
+                return R.string.app_details_empty_message_no_activities;
+        }
+    }
+
+    private void setSortBy(@SortOrder int sortBy) {
+        ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+        if (viewModel == null) return;
+        viewModel.setSortOrder(sortBy, mNeededProperty);
+    }
+
+    @MainThread
+    private void refreshDetails() {
+        if (viewModel == null || mIsExternalApk) return;
+        ProgressIndicatorCompat.setVisibility(progressIndicator, true);
+        viewModel.triggerPackageChange();
+    }
+
+    private void applyRules(@NonNull AppDetailsComponentItem componentItem, @NonNull RuleType type,
+                            @NonNull @ComponentRule.ComponentStatus String componentStatus) {
+        if (viewModel != null) {
+            viewModel.updateRulesForComponent(componentItem, type, componentStatus);
+        }
+    }
+
+    /**
+     * Show a one-tap "Block N trackers in this group" button at the top of the tab
+     * when the current component list contains unblocked tracker items. Scoped to
+     * the current tab so users can curate (e.g. "block trackers in receivers but
+     * keep activities") rather than the all-or-nothing CTA on the App Info tab.
+     *
+     * Hidden when:
+     *   - the user can't modify component states (no privilege),
+     *   - the app is an external APK,
+     *   - no unblocked tracker items in this tab.
+     */
+    @MainThread
+    private void refreshTabTrackerBlockButton(@NonNull List<AppDetailsItem<?>> appDetailsItems) {
+        if (mTrackerBlockInTabButton == null || viewModel == null) return;
+        if (mIsExternalApk || !SelfPermissions.canModifyAppComponentStates(
+                viewModel.getUserId(), viewModel.getPackageName(), viewModel.isTestOnlyApp())) {
+            mTrackerBlockInTabButton.setVisibility(View.GONE);
+            mTrackerBlockInTabButton.setOnClickListener(null);
+            return;
+        }
+        List<AppDetailsItem<?>> snapshot;
+        try {
+            snapshot = new ArrayList<>(appDetailsItems);
+        } catch (ConcurrentModificationException e) {
+            return;
+        }
+        List<AppDetailsComponentItem> unblockedTrackers = new ArrayList<>();
+        for (AppDetailsItem<?> di : snapshot) {
+            if (!(di instanceof AppDetailsComponentItem)) continue;
+            AppDetailsComponentItem ci = (AppDetailsComponentItem) di;
+            if (ci.isTracker() && !ci.isBlocked()) {
+                unblockedTrackers.add(ci);
+            }
+        }
+        if (unblockedTrackers.isEmpty()) {
+            mTrackerBlockInTabButton.setVisibility(View.GONE);
+            mTrackerBlockInTabButton.setOnClickListener(null);
+            return;
+        }
+        int count = unblockedTrackers.size();
+        int labelRes;
+        switch (mNeededProperty) {
+            case SERVICES:  labelRes = R.plurals.tracker_block_in_tab_services;  break;
+            case RECEIVERS: labelRes = R.plurals.tracker_block_in_tab_receivers; break;
+            case PROVIDERS: labelRes = R.plurals.tracker_block_in_tab_providers; break;
+            case ACTIVITIES:
+            default:        labelRes = R.plurals.tracker_block_in_tab_activities; break;
+        }
+        mTrackerBlockInTabButton.setText(getResources().getQuantityString(labelRes, count, count));
+        mTrackerBlockInTabButton.setContentDescription(mTrackerBlockInTabButton.getText());
+        mTrackerBlockInTabButton.setEnabled(true);
+        mTrackerBlockInTabButton.setVisibility(View.VISIBLE);
+        mTrackerBlockInTabButton.setOnClickListener(v -> showScopedTrackerBlockDialog(unblockedTrackers));
+    }
+
+    private void showScopedTrackerBlockDialog(@NonNull List<AppDetailsComponentItem> unblockedTrackers) {
+        int count = unblockedTrackers.size();
+        new MaterialAlertDialogBuilder(activity)
+                .setTitle(getResources().getQuantityString(R.plurals.app_details_tracker_block_review_title, count, count))
+                .setMessage(R.string.app_details_tracker_block_review_message)
+                .setPositiveButton(R.string.block, (dialog, which) -> applyScopedTrackerRules(true, unblockedTrackers, true))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    @NonNull
+    private RuleType ruleTypeForCurrentTab() {
+        switch (mNeededProperty) {
+            case SERVICES:  return RuleType.SERVICE;
+            case RECEIVERS: return RuleType.RECEIVER;
+            case PROVIDERS: return RuleType.PROVIDER;
+            case ACTIVITIES:
+            default:        return RuleType.ACTIVITY;
+        }
+    }
+
+    /**
+     * Show the tracker chip with the matched vendor name and a heuristic category
+     * suffix (e.g. "Google AdMob · Ad", "Firebase Analytics · Analytics") when both
+     * are known. The category is derived in {@link io.github.muntashirakon.AppManager
+     * .rules.compontents.TrackerCategory#categorize(String)} from substring matches
+     * against the vendor name; OTHER trackers render the vendor name alone. Tooltip
+     * confirms safety to disable.
+     */
+    private void applyTrackerChip(@NonNull Chip chip, @NonNull AppDetailsComponentItem item) {
+        if (!item.isTracker()) {
+            chip.setVisibility(View.GONE);
+            TooltipCompat.setTooltipText(chip, null);
+            return;
+        }
+        String label = item.getTrackerLabel();
+        if (label == null || label.isEmpty()) {
+            chip.setText(R.string.tracker);
+            TooltipCompat.setTooltipText(chip,
+                    getString(R.string.tracker_chip_safe_to_block_hint));
+        } else {
+            io.github.muntashirakon.AppManager.rules.compontents.TrackerCategory category =
+                    io.github.muntashirakon.AppManager.rules.compontents.TrackerCategory.categorize(label);
+            if (category == io.github.muntashirakon.AppManager.rules.compontents.TrackerCategory.OTHER) {
+                chip.setText(label);
+            } else {
+                chip.setText(getString(R.string.tracker_chip_with_category, label, getString(category.getLabelRes())));
+            }
+            TooltipCompat.setTooltipText(chip,
+                    getString(R.string.tracker_chip_safe_to_block_hint_with_name, label));
+        }
+        chip.setVisibility(View.VISIBLE);
+    }
+
+    @UiThread
+    private class AppDetailsRecyclerAdapter extends RecyclerView.Adapter<AppDetailsRecyclerAdapter.ViewHolder> {
+        @NonNull
+        private final List<AppDetailsItem<?>> mAdapterList;
+        @ComponentProperty
+        private int mRequestedProperty;
+        @Nullable
+        private String mConstraint;
+        private int mUserId;
+        private boolean mCanModifyComponentStates;
+        private boolean mCanStartAnyActivity;
+        private final int mBlockedIndicatorColor;
+        private final int mBlockedExternallyIndicatorColor;
+        private final int mTrackerIndicatorColor;
+        private final int mRunningIndicatorColor;
+        @NonNull
+        private final Set<String> mExpandedComponents = new HashSet<>();
+
+        AppDetailsRecyclerAdapter() {
+            mAdapterList = new ArrayList<>();
+            mBlockedIndicatorColor = ColorCodes.getComponentBlockedIndicatorColor(activity);
+            mBlockedExternallyIndicatorColor = ColorCodes.getComponentExternallyBlockedIndicatorColor(activity);
+            mTrackerIndicatorColor = ColorCodes.getComponentTrackerIndicatorColor(activity);
+            mRunningIndicatorColor = ColorCodes.getComponentRunningIndicatorColor(activity);
+        }
+
+        @UiThread
+        void setDefaultList(@NonNull List<AppDetailsItem<?>> list) {
+            ThreadUtils.postOnBackgroundThread(() -> {
+                mRequestedProperty = mNeededProperty;
+                mCanStartAnyActivity = SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.START_ANY_ACTIVITY);
+                if (viewModel != null) {
+                    mCanModifyComponentStates = !mIsExternalApk && SelfPermissions.canModifyAppComponentStates(mUserId, viewModel.getPackageName(), viewModel.isTestOnlyApp());
+                    mConstraint = viewModel.getSearchQuery();
+                    mUserId = viewModel.getUserId();
+                } else {
+                    mCanModifyComponentStates = false;
+                    mConstraint = null;
+                    mUserId = UserHandleHidden.myUserId();
+                }
+                ThreadUtils.postOnMainThread(() -> {
+                    if (!isAdded()) return;
+                    ProgressIndicatorCompat.setVisibility(progressIndicator, false);
+                    synchronized (mAdapterList) {
+                        AdapterUtils.notifyDataSetChanged(this, mAdapterList, list);
+                    }
+                });
+            });
+        }
+
+        @NonNull
+        List<AppDetailsItem<?>> getSnapshot() {
+            synchronized (mAdapterList) {
+                return new ArrayList<>(mAdapterList);
+            }
+        }
+
+        /**
+         * ViewHolder to use recycled views efficiently. Fields names are not expressive because we use
+         * the same holder for any kind of view, and view are not all sames.
+         */
+        class ViewHolder extends RecyclerView.ViewHolder {
+            MaterialCardView itemView;
+            TextView labelView;
+            TextView nameView;
+            TextView textView1;
+            TextView textView2;
+            TextView textView3;
+            TextView textView4;
+            TextView processNameView;
+            TextView launchModeView;
+            TextView taskAffinityView;
+            ImageView imageView;
+            MaterialButton shortcutBtn;
+            MaterialButton launchBtn;
+            MaterialSwitch toggleSwitch;
+            TextView blockingMethod;
+            Chip chipType;
+            View detailsContainer;
+            MaterialButton detailsToggle;
+
+            public ViewHolder(@NonNull View itemView) {
+                super(itemView);
+                this.itemView = (MaterialCardView) itemView;
+                imageView = itemView.findViewById(R.id.icon);
+                imageView.setContentDescription(itemView.getContext().getString(R.string.icon));
+                labelView = itemView.findViewById(R.id.label);
+                nameView = itemView.findViewById(R.id.name);
+                processNameView = itemView.findViewById(R.id.process_name);
+                launchModeView = itemView.findViewById(R.id.launchMode);
+                taskAffinityView = itemView.findViewById(R.id.taskAffinity);
+
+                shortcutBtn = itemView.findViewById(R.id.edit_shortcut_btn);
+                toggleSwitch = itemView.findViewById(R.id.toggle_button);
+                blockingMethod = itemView.findViewById(R.id.method);
+                chipType = itemView.findViewById(R.id.type);
+                launchBtn = itemView.findViewById(R.id.launch);
+                detailsContainer = itemView.findViewById(R.id.details_container);
+                detailsToggle = itemView.findViewById(R.id.details_toggle);
+
+                if (mRequestedProperty == ACTIVITIES) {
+                    textView1 = itemView.findViewById(R.id.taskAffinity);
+                    textView2 = itemView.findViewById(R.id.launchMode);
+                    textView3 = itemView.findViewById(R.id.orientation);
+                    textView4 = itemView.findViewById(R.id.softInput);
+                } else if (mRequestedProperty == SERVICES) {
+                    textView1 = itemView.findViewById(R.id.orientation);
+                    itemView.findViewById(R.id.taskAffinity).setVisibility(View.GONE);
+                    itemView.findViewById(R.id.launchMode).setVisibility(View.GONE);
+                    itemView.findViewById(R.id.softInput).setVisibility(View.GONE);
+                    shortcutBtn.setVisibility(View.GONE);
+                } else if (mRequestedProperty == RECEIVERS) {
+                    textView1 = itemView.findViewById(R.id.taskAffinity);
+                    textView2 = itemView.findViewById(R.id.launchMode);
+                    textView3 = itemView.findViewById(R.id.orientation);
+                    textView4 = itemView.findViewById(R.id.softInput);
+                    launchBtn.setVisibility(View.GONE);
+                    shortcutBtn.setVisibility(View.GONE);
+                } else if (mRequestedProperty == PROVIDERS) {
+                    textView1 = itemView.findViewById(R.id.launchMode);
+                    textView2 = itemView.findViewById(R.id.orientation);
+                    textView3 = itemView.findViewById(R.id.softInput);
+                    textView4 = itemView.findViewById(R.id.taskAffinity);
+                    launchBtn.setVisibility(View.GONE);
+                    shortcutBtn.setVisibility(View.GONE);
+                }
+            }
+        }
+
+        @NonNull
+        @Override
+        public AppDetailsRecyclerAdapter.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_app_details_primary, parent, false);
+            return new AppDetailsRecyclerAdapter.ViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull AppDetailsRecyclerAdapter.ViewHolder holder, int position) {
+            Context context = holder.itemView.getContext();
+            if (mRequestedProperty == SERVICES) {
+                getServicesView(context, holder, position);
+            } else if (mRequestedProperty == RECEIVERS) {
+                getReceiverView(holder, position);
+            } else if (mRequestedProperty == PROVIDERS) {
+                getProviderView(holder, position);
+            } else if (mRequestedProperty == ACTIVITIES) {
+                getActivityView(holder, position);
+            }
+            bindExpansion(holder, position);
+        }
+
+        private void bindExpansion(@NonNull ViewHolder holder, int position) {
+            final AppDetailsItem<?> item;
+            synchronized (mAdapterList) {
+                item = mAdapterList.get(position);
+            }
+            boolean expanded = mExpandedComponents.contains(item.name);
+            bindNameExpansion(holder.nameView, expanded);
+            holder.detailsContainer.setVisibility(expanded ? View.VISIBLE : View.GONE);
+            boolean supportsActivityMetadata = mRequestedProperty != SERVICES;
+            holder.launchModeView.setVisibility(expanded && supportsActivityMetadata ? View.VISIBLE : View.GONE);
+            holder.taskAffinityView.setVisibility(expanded && supportsActivityMetadata ? View.VISIBLE : View.GONE);
+            if (!expanded) {
+                holder.processNameView.setVisibility(View.GONE);
+                holder.launchBtn.setVisibility(View.GONE);
+                holder.shortcutBtn.setVisibility(View.GONE);
+            }
+            holder.detailsToggle.setIconResource(expanded ? R.drawable.ic_expand_less : R.drawable.ic_expand_more);
+            holder.detailsToggle.setContentDescription(getString(expanded
+                    ? R.string.hide_component_details
+                    : R.string.show_component_details));
+            View.OnClickListener toggleDetails = v -> {
+                int currentPosition = holder.getBindingAdapterPosition();
+                if (currentPosition == RecyclerView.NO_POSITION) return;
+                final String componentName;
+                synchronized (mAdapterList) {
+                    componentName = mAdapterList.get(currentPosition).name;
+                }
+                if (!mExpandedComponents.remove(componentName)) {
+                    mExpandedComponents.add(componentName);
+                }
+                notifyItemChanged(currentPosition);
+            };
+            holder.itemView.setOnClickListener(toggleDetails);
+            holder.detailsToggle.setOnClickListener(toggleDetails);
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return position;
+        }
+
+        @Override
+        public int getItemCount() {
+            synchronized (mAdapterList) {
+                return mAdapterList.size();
+            }
+        }
+
+        private void handleBlock(@NonNull ViewHolder holder, @NonNull AppDetailsComponentItem item, RuleType ruleType) {
+            ComponentRule rule = item.getRule();
+            boolean isBlocked = item.isBlocked();
+            if (isBlocked) {
+                Objects.requireNonNull(rule);
+                holder.blockingMethod.setVisibility(View.VISIBLE);
+                String method;
+                if (rule.isIfw()) {
+                    if (item.isDisabled()) {
+                        method = "IFW+Dis";
+                    } else method = "IFW";
+                } else {
+                    method = "Dis";
+                }
+                holder.blockingMethod.setText(method);
+            } else {
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
+            holder.toggleSwitch.setChecked(!isBlocked);
+            holder.toggleSwitch.setContentDescription(getString(isBlocked
+                    ? R.string.component_switch_blocked_a11y
+                    : R.string.component_switch_allowed_a11y, item.name));
+            holder.toggleSwitch.setVisibility(View.VISIBLE);
+            holder.toggleSwitch.setOnClickListener(buttonView -> {
+                String componentStatus = item.isBlocked()
+                        ? ComponentRule.COMPONENT_TO_BE_DEFAULTED
+                        : Prefs.Blocking.getDefaultBlockingMethod();
+                applyRules(item, ruleType, componentStatus);
+            });
+            holder.toggleSwitch.setOnLongClickListener(v -> {
+                PopupMenu popupMenu = new PopupMenu(activity, holder.toggleSwitch);
+                Menu menu = popupMenu.getMenu();
+                boolean canBlockByIfw = !(item.item instanceof ProviderInfo) && SelfPermissions.canBlockByIFW();
+                popupMenu.inflate(R.menu.fragment_app_details_components_selection_actions);
+                menu.findItem(R.id.action_ifw_and_disable).setEnabled(canBlockByIfw);
+                menu.findItem(R.id.action_ifw).setEnabled(canBlockByIfw);
+                popupMenu.setOnMenuItemClickListener(item1 -> {
+                    int id = item1.getItemId();
+                    String componentStatus;
+                    if (id == R.id.action_ifw_and_disable) {
+                        componentStatus = ComponentRule.COMPONENT_TO_BE_BLOCKED_IFW_DISABLE;
+                    } else if (id == R.id.action_ifw) {
+                        componentStatus = ComponentRule.COMPONENT_TO_BE_BLOCKED_IFW;
+                    } else if (id == R.id.action_disable) {
+                        componentStatus = ComponentRule.COMPONENT_TO_BE_DISABLED;
+                    } else if (id == R.id.action_enable) {
+                        componentStatus = ComponentRule.COMPONENT_TO_BE_ENABLED;
+                    } else if (id == R.id.action_default) {
+                        componentStatus = ComponentRule.COMPONENT_TO_BE_DEFAULTED;
+                    } else {
+                        componentStatus = ComponentRule.COMPONENT_TO_BE_BLOCKED_IFW_DISABLE;
+                    }
+                    applyRules(item, ruleType, componentStatus);
+                    return true;
+                });
+                popupMenu.show();
+                return true;
+            });
+        }
+
+        private void getActivityView(@NonNull ViewHolder holder, int index) {
+            final AppDetailsActivityItem componentItem;
+            synchronized (mAdapterList) {
+                componentItem = (AppDetailsActivityItem) mAdapterList.get(index);
+            }
+            final ActivityInfo activityInfo = (ActivityInfo) componentItem.item;
+            final String activityName = componentItem.name;
+            final boolean isDisabled = !mIsExternalApk && componentItem.isDisabled();
+            // Background color: regular < tracker < disabled < blocked
+            if (!mIsExternalApk && componentItem.isBlocked()) {
+                holder.itemView.setStrokeColor(mBlockedIndicatorColor);
+            } else if (isDisabled) {
+                holder.itemView.setStrokeColor(mBlockedExternallyIndicatorColor);
+            } else if (componentItem.isTracker()) {
+                holder.itemView.setStrokeColor(mTrackerIndicatorColor);
+            } else {
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
+            }
+            applyTrackerChip(holder.chipType, componentItem);
+            // Name
+            if (mConstraint != null && activityName.toLowerCase(Locale.ROOT).contains(mConstraint)) {
+                // Highlight searched query
+                holder.nameView.setText(UIUtils.getHighlightedText(activityName, mConstraint, colorQueryStringHighlight));
+            } else {
+                holder.nameView.setText(activityName.startsWith(mPackageName) ?
+                        activityName.replaceFirst(mPackageName, "") : activityName);
+            }
+            // Icon
+            String tag = mPackageName + "_" + activityName;
+            holder.imageView.setTag(tag);
+            ImageLoader.getInstance().displayImage(tag, activityInfo, holder.imageView);
+            // TaskAffinity
+            holder.textView1.setText(String.format(Locale.ROOT, "%s: %s",
+                    getString(R.string.task_affinity), activityInfo.taskAffinity));
+            // LaunchMode
+            holder.textView2.setText(String.format(Locale.ROOT, "%s: %s | %s: %s",
+                    getString(R.string.launch_mode), getString(Utils.getLaunchMode(activityInfo.launchMode)),
+                    getString(R.string.orientation), getString(Utils.getOrientationString(activityInfo.screenOrientation))));
+            // Orientation
+            holder.textView3.setText(Utils.getActivitiesFlagsString(activityInfo.flags));
+            // SoftInput
+            holder.textView4.setText(String.format(Locale.ROOT, "%s: %s | %s",
+                    getString(R.string.soft_input), Utils.getSoftInputString(activityInfo.softInputMode),
+                    (activityInfo.permission == null ? getString(R.string.require_no_permission) : activityInfo.permission)));
+            // Label
+            holder.labelView.setText(componentItem.label);
+            // Process name
+            String processName = activityInfo.processName;
+            if (processName != null && !processName.equals(mPackageName)) {
+                holder.processNameView.setVisibility(View.VISIBLE);
+                holder.processNameView.setText(String.format(Locale.ROOT, "%s: %s",
+                        getString(R.string.process_name), processName));
+            } else holder.processNameView.setVisibility(View.GONE);
+            boolean isExported = activityInfo.exported;
+            if (componentItem.canLaunch || componentItem.canLaunchAssist) {
+                holder.launchBtn.setOnClickListener(v -> {
+                    ComponentName cn = new ComponentName(mPackageName, activityName);
+                    if (componentItem.canLaunch) {
+                        Intent intent = new Intent();
+                        intent.setComponent(cn);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        try {
+                            ActivityManagerCompat.startActivity(intent, mUserId);
+                        } catch (Throwable e) {
+                            UIUtils.displayLongToast(e.getLocalizedMessage());
+                        }
+                    } else if (componentItem.canLaunchAssist) {
+                        ActivityManagerCompat.startActivityViaAssist(ContextUtils.getContext(), cn, () -> {
+                            CountDownLatch waitForInteraction = new CountDownLatch(1);
+                            ThreadUtils.postOnMainThread(() -> new MaterialAlertDialogBuilder(holder.itemView.getContext())
+                                    .setTitle(R.string.launch_activity_dialog_title)
+                                    .setMessage(R.string.launch_activity_dialog_message)
+                                    .setCancelable(false)
+                                    .setOnDismissListener((dialog) -> waitForInteraction.countDown())
+                                    .setNegativeButton(R.string.close, null)
+                                    .show());
+                            try {
+                                waitForInteraction.await(10, TimeUnit.MINUTES);
+                            } catch (InterruptedException ignore) {
+                            }
+                        });
+                    }
+                });
+                if (FeatureController.isInterceptorEnabled()) {
+                    holder.launchBtn.setOnLongClickListener(v -> {
+                        boolean needRoot = mCanStartAnyActivity && (!isExported || !SelfPermissions.checkSelfOrRemotePermission(activityInfo.permission));
+                        Intent intent = ActivityInterceptor.getLaunchIntent(activity, mPackageName, activityName,
+                                mUserId, needRoot, null, Intent.FLAG_ACTIVITY_NEW_TASK, null);
+                        startActivity(intent);
+                        return true;
+                    });
+                }
+                holder.shortcutBtn.setOnClickListener(v -> {
+                    PackageItemShortcutInfo<ActivityInfo> shortcutInfo = new PackageItemShortcutInfo<>(activityInfo, ActivityInfo.class, mUserId, componentItem.canLaunchAssist);
+                    shortcutInfo.setName(componentItem.label);
+                    shortcutInfo.setIcon(UIUtils.getBitmapFromDrawable(activityInfo.loadIcon(packageManager)));
+                    CreateShortcutDialogFragment dialog = CreateShortcutDialogFragment.getInstance(shortcutInfo);
+                    dialog.show(getParentFragmentManager(), CreateShortcutDialogFragment.TAG);
+                });
+                holder.shortcutBtn.setVisibility(View.VISIBLE);
+                holder.launchBtn.setVisibility(View.VISIBLE);
+            } else {
+                holder.shortcutBtn.setVisibility(View.GONE);
+                holder.launchBtn.setVisibility(View.GONE);
+            }
+            // Blocking
+            if (mCanModifyComponentStates) {
+                handleBlock(holder, componentItem, RuleType.ACTIVITY);
+            } else {
+                holder.toggleSwitch.setVisibility(View.GONE);
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
+        }
+
+        private void getServicesView(@NonNull Context context, @NonNull ViewHolder holder, int index) {
+            final AppDetailsServiceItem serviceItem;
+            synchronized (mAdapterList) {
+                serviceItem = (AppDetailsServiceItem) mAdapterList.get(index);
+            }
+            final ServiceInfo serviceInfo = (ServiceInfo) serviceItem.item;
+            final boolean isDisabled = !mIsExternalApk && serviceItem.isDisabled();
+            // Background color: regular < tracker < disabled < blocked < running
+            if (serviceItem.isRunning()) {
+                holder.itemView.setStrokeColor(mRunningIndicatorColor);
+            } else if (!mIsExternalApk && serviceItem.isBlocked()) {
+                holder.itemView.setStrokeColor(mBlockedIndicatorColor);
+            } else if (isDisabled) {
+                holder.itemView.setStrokeColor(mBlockedExternallyIndicatorColor);
+            } else if (serviceItem.isTracker()) {
+                holder.itemView.setStrokeColor(mTrackerIndicatorColor);
+            } else {
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
+            }
+            applyTrackerChip(holder.chipType, serviceItem);
+            // Label
+            holder.labelView.setText(serviceItem.label);
+            // Name
+            if (mConstraint != null && serviceInfo.name.toLowerCase(Locale.ROOT).contains(mConstraint)) {
+                // Highlight searched query
+                holder.nameView.setText(UIUtils.getHighlightedText(serviceInfo.name, mConstraint, colorQueryStringHighlight));
+            } else {
+                holder.nameView.setText(serviceInfo.name.startsWith(mPackageName) ?
+                        serviceInfo.name.replaceFirst(mPackageName, "") : serviceInfo.name);
+            }
+            // Icon
+            String tag = mPackageName + "_" + serviceInfo.name;
+            holder.imageView.setTag(tag);
+            ImageLoader.getInstance().displayImage(tag, serviceInfo, holder.imageView);
+            // Flags and Permission
+            StringBuilder flagsAndPermission = new StringBuilder(Utils.getServiceFlagsString(serviceInfo.flags));
+            if (flagsAndPermission.length() != 0) {
+                flagsAndPermission.append("\n");
+            }
+            flagsAndPermission.append(serviceInfo.permission != null ? serviceInfo.permission : getString(R.string.require_no_permission));
+            holder.textView1.setText(flagsAndPermission);
+            // Process name
+            String processName = serviceInfo.processName;
+            if (processName != null && !processName.equals(mPackageName)) {
+                holder.processNameView.setVisibility(View.VISIBLE);
+                holder.processNameView.setText(String.format(Locale.ROOT, "%s: %s",
+                        getString(R.string.process_name), processName));
+            } else holder.processNameView.setVisibility(View.GONE);
+            if (!mIsExternalApk) {
+                holder.launchBtn.setText(R.string.start_service);
+                holder.launchBtn.setIconResource(R.drawable.ic_play_arrow);
+                holder.launchBtn.setEnabled(serviceItem.canLaunch);
+                holder.launchBtn.setOnClickListener(v -> {
+                    if (serviceItem.canLaunch) {
+                        confirmServiceAction(context, serviceInfo, true);
+                    }
+                });
+                TooltipCompat.setTooltipText(holder.launchBtn, getString(serviceItem.canLaunch
+                        ? R.string.start_service
+                        : R.string.service_action_start_unavailable));
+                holder.launchBtn.setVisibility(View.VISIBLE);
+            } else {
+                holder.launchBtn.setOnClickListener(null);
+                holder.launchBtn.setVisibility(View.GONE);
+            }
+            boolean canStop = canStopService(serviceInfo);
+            if (!mIsExternalApk && serviceItem.isRunning()) {
+                holder.shortcutBtn.setText(R.string.stop_service);
+                holder.shortcutBtn.setIconResource(R.drawable.ic_stop);
+                holder.shortcutBtn.setEnabled(canStop);
+                holder.shortcutBtn.setOnClickListener(v -> {
+                    if (canStop) {
+                        confirmServiceAction(context, serviceInfo, false);
+                    }
+                });
+                TooltipCompat.setTooltipText(holder.shortcutBtn, getString(canStop
+                        ? R.string.stop_service
+                        : R.string.service_action_stop_unavailable));
+                holder.shortcutBtn.setVisibility(View.VISIBLE);
+            } else {
+                holder.shortcutBtn.setOnClickListener(null);
+                holder.shortcutBtn.setVisibility(View.GONE);
+            }
+            // Blocking
+            if (mCanModifyComponentStates) {
+                handleBlock(holder, serviceItem, RuleType.SERVICE);
+            } else {
+                holder.toggleSwitch.setVisibility(View.GONE);
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
+        }
+
+        private boolean canStopService(@NonNull ServiceInfo serviceInfo) {
+            if (SelfPermissions.isSystemOrRootOrShell()) {
+                return true;
+            }
+            boolean hasPermission = serviceInfo.permission == null
+                    || SelfPermissions.checkSelfOrRemotePermission(serviceInfo.permission);
+            return ServiceActionUtils.canUseUnprivilegedRoute(serviceInfo.exported, serviceInfo.permission,
+                    hasPermission, mUserId, UserHandleHidden.myUserId());
+        }
+
+        private void confirmServiceAction(@NonNull Context context, @NonNull ServiceInfo serviceInfo, boolean start) {
+            boolean hasPermission = serviceInfo.permission == null
+                    || SelfPermissions.checkSelfOrRemotePermission(serviceInfo.permission);
+            boolean privileged = ServiceActionUtils.needsPrivilegedDispatch(serviceInfo.exported, serviceInfo.permission,
+                    hasPermission, mUserId, UserHandleHidden.myUserId());
+            if (privileged && !SelfPermissions.isSystemOrRootOrShell()) {
+                UIUtils.displayLongToast(R.string.service_action_requires_privilege);
+                return;
+            }
+            String route = getString(privileged
+                    ? R.string.receiver_broadcast_route_privileged
+                    : R.string.receiver_broadcast_route_unprivileged);
+            new MaterialAlertDialogBuilder(context)
+                    .setTitle(start ? R.string.start_service : R.string.stop_service)
+                    .setMessage(getString(R.string.service_action_confirm_message, serviceInfo.name, mUserId, route))
+                    .setNegativeButton(R.string.cancel, null)
+                    .setPositiveButton(start ? R.string.start_service : R.string.stop_service,
+                            (dialog, which) -> dispatchServiceAction(context.getApplicationContext(), serviceInfo, start, privileged))
+                    .show();
+        }
+
+        private void dispatchServiceAction(@NonNull Context context, @NonNull ServiceInfo serviceInfo,
+                                           boolean start, boolean privileged) {
+            Intent intent = ServiceActionUtils.buildServiceIntent(mPackageName, serviceInfo.name);
+            ThreadUtils.postOnBackgroundThread(() -> {
+                try {
+                    if (start) {
+                        if (privileged) {
+                            ActivityManagerCompat.startService(intent, mUserId, true);
+                        } else {
+                            context.startService(intent);
+                        }
+                        ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(R.string.service_action_started));
+                    } else {
+                        boolean stopped;
+                        if (privileged) {
+                            stopped = ActivityManagerCompat.stopService(intent, mUserId) != 0;
+                        } else {
+                            stopped = context.stopService(intent);
+                        }
+                        ThreadUtils.postOnMainThread(() -> UIUtils.displayShortToast(stopped
+                                ? R.string.service_action_stopped
+                                : R.string.service_action_stop_no_match));
+                    }
+                } catch (Throwable e) {
+                    String message = getServiceActionFailureMessage(context, start, e);
+                    ThreadUtils.postOnMainThread(() -> UIUtils.displayLongToast(message));
+                }
+            });
+        }
+
+        @NonNull
+        private String getServiceActionFailureMessage(@NonNull Context context, boolean start,
+                                                      @NonNull Throwable throwable) {
+            String message = throwable.getLocalizedMessage();
+            if (message == null || message.trim().isEmpty()) {
+                message = throwable.getClass().getSimpleName();
+            }
+            if (start && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                return context.getString(R.string.service_action_start_failed_android_o, message);
+            }
+            return context.getString(R.string.service_action_failed,
+                    context.getString(start ? R.string.start_service : R.string.stop_service), message);
+        }
+
+        private void getReceiverView(@NonNull ViewHolder holder, int index) {
+            final AppDetailsComponentItem componentItem;
+            synchronized (mAdapterList) {
+                componentItem = (AppDetailsComponentItem) mAdapterList.get(index);
+            }
+            final ActivityInfo activityInfo = (ActivityInfo) componentItem.item;
+            // Background color: regular < tracker < disabled < blocked
+            if (!mIsExternalApk && componentItem.isBlocked()) {
+                holder.itemView.setStrokeColor(mBlockedIndicatorColor);
+            } else if (!mIsExternalApk && componentItem.isDisabled()) {
+                holder.itemView.setStrokeColor(mBlockedExternallyIndicatorColor);
+            } else if (componentItem.isTracker()) {
+                holder.itemView.setStrokeColor(mTrackerIndicatorColor);
+            } else {
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
+            }
+            applyTrackerChip(holder.chipType, componentItem);
+            // Label
+            holder.labelView.setText(componentItem.label);
+            // Name
+            if (mConstraint != null && activityInfo.name.toLowerCase(Locale.ROOT).contains(mConstraint)) {
+                // Highlight searched query
+                holder.nameView.setText(UIUtils.getHighlightedText(activityInfo.name, mConstraint, colorQueryStringHighlight));
+            } else {
+                holder.nameView.setText(activityInfo.name.startsWith(mPackageName) ?
+                        activityInfo.name.replaceFirst(mPackageName, "")
+                        : activityInfo.name);
+            }
+            // Icon
+            String tag = mPackageName + "_" + activityInfo.name;
+            holder.imageView.setTag(tag);
+            ImageLoader.getInstance().displayImage(tag, activityInfo, holder.imageView);
+            // TaskAffinity
+            holder.textView1.setText(String.format(Locale.ROOT, "%s: %s",
+                    getString(R.string.task_affinity), activityInfo.taskAffinity));
+            // LaunchMode
+            holder.textView2.setText(String.format(Locale.ROOT, "%s: %s | %s: %s",
+                    getString(R.string.launch_mode), getString(Utils.getLaunchMode(activityInfo.launchMode)),
+                    getString(R.string.orientation), getString(Utils.getOrientationString(activityInfo.screenOrientation))));
+            // Orientation
+            holder.textView3.setText(activityInfo.permission == null ? getString(R.string.require_no_permission) : activityInfo.permission);
+            // SoftInput
+            holder.textView4.setText(String.format(Locale.ROOT, "%s: %s",
+                    getString(R.string.soft_input), Utils.getSoftInputString(activityInfo.softInputMode)));
+            // Process name
+            String processName = activityInfo.processName;
+            if (processName != null && !processName.equals(mPackageName)) {
+                holder.processNameView.setVisibility(View.VISIBLE);
+                holder.processNameView.setText(String.format(Locale.ROOT, "%s: %s",
+                        getString(R.string.process_name), processName));
+            } else holder.processNameView.setVisibility(View.GONE);
+            if (!mIsExternalApk) {
+                holder.launchBtn.setText(R.string.send_broadcast);
+                holder.launchBtn.setIconResource(R.drawable.ic_play_arrow);
+                holder.launchBtn.setOnClickListener(v -> BroadcastSendDialogFragment.show(getParentFragmentManager(),
+                        mPackageName, activityInfo.name, mUserId, activityInfo.exported, activityInfo.permission,
+                        componentItem.getIntentActions(), componentItem.getIntentCategories()));
+                holder.launchBtn.setVisibility(View.VISIBLE);
+            } else {
+                holder.launchBtn.setOnClickListener(null);
+                holder.launchBtn.setVisibility(View.GONE);
+            }
+            // Blocking
+            if (mCanModifyComponentStates) {
+                handleBlock(holder, componentItem, RuleType.RECEIVER);
+            } else {
+                holder.toggleSwitch.setVisibility(View.GONE);
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
+        }
+
+        private void getProviderView(@NonNull ViewHolder holder, int index) {
+            final AppDetailsComponentItem componentItem;
+            synchronized (mAdapterList) {
+                componentItem = (AppDetailsComponentItem) mAdapterList.get(index);
+            }
+            final ProviderInfo providerInfo = (ProviderInfo) componentItem.item;
+            final String providerName = providerInfo.name;
+            // Background color: regular < tracker < disabled < blocked
+            if (!mIsExternalApk && componentItem.isBlocked()) {
+                holder.itemView.setStrokeColor(mBlockedIndicatorColor);
+            } else if (!mIsExternalApk && componentItem.isDisabled()) {
+                holder.itemView.setStrokeColor(mBlockedExternallyIndicatorColor);
+            } else if (componentItem.isTracker()) {
+                holder.itemView.setStrokeColor(mTrackerIndicatorColor);
+            } else {
+                holder.itemView.setStrokeColor(Color.TRANSPARENT);
+            }
+            applyTrackerChip(holder.chipType, componentItem);
+            // Label
+            holder.labelView.setText(componentItem.label);
+            // Icon
+            String tag = mPackageName + "_" + providerName;
+            holder.imageView.setTag(tag);
+            ImageLoader.getInstance().displayImage(tag, providerInfo, holder.imageView);
+            // Uri permission
+            holder.textView1.setText(String.format(Locale.ROOT, "%s: %s", getString(R.string.grant_uri_permission), providerInfo.grantUriPermissions));
+            // Path permissions
+            PathPermission[] pathPermissions = providerInfo.pathPermissions;
+            String finalString;
+            if (pathPermissions != null) {
+                StringBuilder builder = new StringBuilder();
+                String read = getString(R.string.read);
+                String write = getString(R.string.write);
+                for (PathPermission permission : pathPermissions) {
+                    builder.append(read).append(": ").append(permission.getReadPermission());
+                    builder.append("/");
+                    builder.append(write).append(": ").append(permission.getWritePermission());
+                    builder.append(", ");
+                }
+                Utils.checkStringBuilderEnd(builder);
+                finalString = builder.toString();
+            } else finalString = "null";
+            holder.textView2.setText(String.format(Locale.ROOT, "%s: %s", getString(R.string.path_permissions), finalString)); // +"\n"+providerInfo.readPermission +"\n"+providerInfo.writePermission);
+            // Pattern matchers
+            PatternMatcher[] patternMatchers = providerInfo.uriPermissionPatterns;
+            String finalString1;
+            if (patternMatchers != null) {
+                StringBuilder builder = new StringBuilder();
+                for (PatternMatcher patternMatcher : patternMatchers) {
+                    builder.append(patternMatcher.toString());
+                    builder.append(", ");
+                }
+                Utils.checkStringBuilderEnd(builder);
+                finalString1 = builder.toString();
+            } else
+                finalString1 = "null";
+            holder.textView3.setText(String.format(Locale.ROOT, "%s: %s", getString(R.string.patterns_allowed), finalString1));
+            // Authority
+            holder.textView4.setText(String.format(Locale.ROOT, "%s: %s", getString(R.string.authority), providerInfo.authority));
+            // Name
+            if (mConstraint != null && providerName.toLowerCase(Locale.ROOT).contains(mConstraint)) {
+                // Highlight searched query
+                holder.nameView.setText(UIUtils.getHighlightedText(providerName, mConstraint, colorQueryStringHighlight));
+            } else {
+                holder.nameView.setText(providerName.startsWith(mPackageName) ?
+                        providerName.replaceFirst(mPackageName, "") : providerName);
+            }
+            // Process name
+            String processName = providerInfo.processName;
+            if (processName != null && !processName.equals(mPackageName)) {
+                holder.processNameView.setVisibility(View.VISIBLE);
+                holder.processNameView.setText(String.format(Locale.ROOT, "%s: %s",
+                        getString(R.string.process_name), processName));
+            } else holder.processNameView.setVisibility(View.GONE);
+            if (!mIsExternalApk) {
+                boolean canQuery = canQueryProvider(providerInfo);
+                holder.launchBtn.setText(R.string.query_provider);
+                holder.launchBtn.setIconResource(R.drawable.ic_database);
+                holder.launchBtn.setEnabled(canQuery);
+                holder.launchBtn.setOnClickListener(v -> {
+                    if (canQuery) {
+                        ProviderQueryDialogFragment.show(getParentFragmentManager(), mPackageName, providerInfo.name,
+                                providerInfo.authority, mUserId, providerInfo.readPermission);
+                    }
+                });
+                TooltipCompat.setTooltipText(holder.launchBtn, getString(canQuery
+                        ? R.string.query_provider
+                        : R.string.provider_query_unavailable));
+                holder.launchBtn.setVisibility(View.VISIBLE);
+            } else {
+                holder.launchBtn.setOnClickListener(null);
+                holder.launchBtn.setVisibility(View.GONE);
+            }
+            // Blocking
+            if (mCanModifyComponentStates) {
+                handleBlock(holder, componentItem, RuleType.PROVIDER);
+            } else {
+                holder.toggleSwitch.setVisibility(View.GONE);
+                holder.blockingMethod.setVisibility(View.GONE);
+            }
+        }
+
+        private boolean canQueryProvider(@NonNull ProviderInfo providerInfo) {
+            if (ProviderQueryUtils.parseAuthorities(providerInfo.authority).isEmpty()) {
+                return false;
+            }
+            boolean hasReadPermission = providerInfo.readPermission == null
+                    || SelfPermissions.checkSelfPermission(providerInfo.readPermission);
+            String providerPackageName = providerInfo.packageName == null ? mPackageName : providerInfo.packageName;
+            return ProviderQueryUtils.canUseUnprivilegedQuery(providerInfo.exported, providerInfo.readPermission,
+                    hasReadPermission, providerPackageName, ContextUtils.getContext().getPackageName(), mUserId,
+                    UserHandleHidden.myUserId());
+        }
+    }
+}

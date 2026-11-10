@@ -1,0 +1,328 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.backup.dialog;
+
+import android.content.Context;
+import android.graphics.Typeface;
+import android.os.Bundle;
+import android.text.InputType;
+import android.text.SpannableStringBuilder;
+import android.text.TextUtils;
+import android.text.format.Formatter;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.backup.BackupFlags;
+import io.github.muntashirakon.AppManager.backup.BackupPathExclusionPatterns;
+import io.github.muntashirakon.AppManager.backup.BackupStorageCheck;
+import io.github.muntashirakon.AppManager.backup.BackupTagPolicyStore;
+import io.github.muntashirakon.AppManager.backup.struct.BackupMetadataV5;
+import io.github.muntashirakon.AppManager.batchops.BatchOpsManager;
+import io.github.muntashirakon.AppManager.utils.DateUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.dialog.TextInputDialogBuilder;
+import io.github.muntashirakon.dialog.TextInputDropdownDialogBuilder;
+import io.github.muntashirakon.dialog.ScrollableDialogBuilder;
+import io.github.muntashirakon.widget.MaterialAlertView;
+
+public class BackupFragment extends Fragment {
+    public static final String ARG_ALLOW_CUSTOM_USERS = "allow_custom";
+
+    @NonNull
+    public static BackupFragment getInstance(boolean allowCustomUsers) {
+        BackupFragment fragment = new BackupFragment();
+        Bundle args = new Bundle();
+        args.putBoolean(ARG_ALLOW_CUSTOM_USERS, allowCustomUsers);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    private BackupRestoreDialogViewModel mViewModel;
+    private Context mContext;
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_dialog_backup, container, false);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        mViewModel = new ViewModelProvider(requireParentFragment()).get(BackupRestoreDialogViewModel.class);
+        mContext = requireContext();
+        boolean allowCustomUsers = requireArguments().getBoolean(ARG_ALLOW_CUSTOM_USERS);
+
+        MaterialAlertView messageView = view.findViewById(R.id.message);
+        TextView summaryTitle = view.findViewById(R.id.backup_restore_summary_title);
+        TextView summaryBody = view.findViewById(R.id.backup_restore_summary_body);
+        TextView summaryMeta = view.findViewById(R.id.backup_restore_summary_meta);
+        TextView actionStatus = view.findViewById(R.id.action_status);
+        MaterialButton backupButton = view.findViewById(R.id.action_backup);
+        MaterialButton exclusionsButton = view.findViewById(R.id.action_backup_exclusions);
+        MaterialButton noteButton = view.findViewById(R.id.action_backup_note);
+        View tagPolicyPreviewRow = view.findViewById(R.id.backup_tag_policy_preview_row);
+        MaterialButton tagPolicyPreviewButton = view.findViewById(R.id.action_backup_tag_policy_preview);
+        MaterialCheckBox protectCheckBox = view.findViewById(R.id.action_backup_protect);
+        RecyclerView recyclerView = view.findViewById(android.R.id.list);
+        AtomicReference<String[]> exclusionGlobs = new AtomicReference<>(new String[0]);
+        AtomicReference<String> backupNote = new AtomicReference<>(null);
+        recyclerView.setLayoutManager(new LinearLayoutManager(mContext, LinearLayoutManager.VERTICAL, false));
+        int supportedFlags = BackupFlags.getSupportedBackupFlags();
+        // Remove unsupported flags
+        supportedFlags &= ~BackupFlags.BACKUP_NO_SIGNATURE_CHECK;
+        if (!allowCustomUsers) {
+            supportedFlags &= ~BackupFlags.BACKUP_CUSTOM_USERS;
+        }
+        FlagsAdapter adapter = new FlagsAdapter(mContext, BackupFlags.fromPref().getFlags(), supportedFlags);
+        recyclerView.setAdapter(adapter);
+        BackupTagPolicyStore tagPolicyStore = new BackupTagPolicyStore(mContext);
+        if (!tagPolicyStore.getPolicies().isEmpty()) {
+            tagPolicyPreviewRow.setVisibility(View.VISIBLE);
+            tagPolicyPreviewButton.setOnClickListener(v ->
+                    showTagPolicyPreview(tagPolicyStore, adapter.getSelectedFlags()));
+        }
+        summaryTitle.setText(R.string.backup_dialog_summary_title);
+        summaryMeta.setText(getString(R.string.backup_dialog_meta,
+                getResources().getQuantityString(R.plurals.backup_dialog_installed_app_count,
+                        mViewModel.getInstalledAppCount(), mViewModel.getInstalledAppCount()),
+                getExistingBaseBackupSummary()));
+        adapter.setOnSelectionChangeListener((selectedFlags, selectedFlagCount) ->
+                updateActionState(backupButton, actionStatus, summaryBody, selectedFlags, selectedFlagCount));
+
+        Set<CharSequence> uninstalledApps = mViewModel.getUninstalledApps();
+        if (!uninstalledApps.isEmpty()) {
+            SpannableStringBuilder sb = new SpannableStringBuilder(getString(R.string.backup_apps_cannot_be_backed_up));
+            for (CharSequence appLabel : uninstalledApps) {
+                sb.append("\n● ").append(appLabel);
+            }
+            messageView.setText(sb);
+            messageView.setVisibility(View.VISIBLE);
+        }
+        mViewModel.getStoragePreflightLiveData().observe(getViewLifecycleOwner(), this::handleStoragePreflight);
+        backupButton.setOnClickListener(v -> {
+            BackupFlags newFlags = new BackupFlags(adapter.getSelectedFlags());
+            handleBackup(newFlags, exclusionGlobs.get(), protectCheckBox.isChecked(), backupNote.get());
+        });
+        exclusionsButton.setOnClickListener(v -> new TextInputDialogBuilder(requireContext(),
+                R.string.backup_exclusion_patterns)
+                .setTitle(R.string.backup_exclusion_patterns)
+                .setInputText(TextUtils.join("\n", exclusionGlobs.get()))
+                .setInputTypeface(Typeface.MONOSPACE)
+                .setInputInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                        | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)
+                .setHelperText(R.string.backup_exclusion_patterns_operation_helper)
+                .setPositiveButton(R.string.save, (dialog, which, inputText, isChecked) ->
+                        exclusionGlobs.set(BackupPathExclusionPatterns.parse(inputText)))
+                .setNeutralButton(R.string.clear, (dialog, which, inputText, isChecked) ->
+                        exclusionGlobs.set(new String[0]))
+                .setNegativeButton(R.string.cancel, null)
+                .show());
+        noteButton.setOnClickListener(v -> new TextInputDialogBuilder(requireContext(), R.string.backup_note)
+                .setTitle(R.string.backup_note)
+                .setInputText(backupNote.get() != null ? backupNote.get() : "")
+                .setInputInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                        | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES)
+                .setHelperText(R.string.backup_note_helper)
+                .setPositiveButton(R.string.save, (dialog, which, inputText, isChecked) ->
+                        backupNote.set(BackupMetadataV5.Metadata.normalizeNote(inputText)))
+                .setNeutralButton(R.string.clear, (dialog, which, inputText, isChecked) ->
+                        backupNote.set(null))
+                .setNegativeButton(R.string.cancel, null)
+                .show());
+    }
+
+    private void showTagPolicyPreview(@NonNull BackupTagPolicyStore store,
+                                      @BackupFlags.BackupFlag int defaultFlags) {
+        List<BackupInfo> backupInfos = new ArrayList<>(mViewModel.getBackupInfoList());
+        ThreadUtils.postOnBackgroundThread(() -> {
+            StringBuilder message = new StringBuilder();
+            for (BackupInfo info : backupInfos) {
+                if (!info.isInstalled()) continue;
+                BackupTagPolicyStore.Resolution resolution = store.resolve(info.packageName, defaultFlags);
+                String rule = resolution.policy != null ? "#" + resolution.policy.tag
+                        : mContext.getString(R.string.backup_tag_policy_default);
+                if (resolution.partsFallback) {
+                    rule += " · " + mContext.getString(R.string.backup_tag_policy_parts_warning);
+                }
+                if (resolution.cryptoFallback) {
+                    rule += " · " + mContext.getString(R.string.backup_tag_policy_crypto_warning);
+                }
+                if (resolution.destinationFallback) {
+                    rule += " · " + mContext.getString(R.string.backup_tag_policy_destination_warning);
+                }
+                if (message.length() > 0) message.append('\n');
+                message.append(mContext.getString(R.string.backup_tag_policy_manual_preview_line,
+                        info.packageName, rule,
+                        new BackupFlags(resolution.flags).toLocalisedString(mContext)));
+            }
+            ThreadUtils.postOnMainThread(() -> {
+                if (!isAdded()) return;
+                new ScrollableDialogBuilder(requireActivity())
+                        .setTitle(R.string.backup_tag_policy_manual_preview_title)
+                        .setMessage(message)
+                        .setPositiveButton(R.string.close, null)
+                        .show();
+            });
+        });
+    }
+
+    private void handleBackup(@NonNull BackupFlags flags, @Nullable String[] exclusionGlobs,
+                              boolean protectFromPrune, @Nullable String backupNote) {
+        BackupRestoreDialogViewModel.OperationInfo operationInfo = new BackupRestoreDialogViewModel.OperationInfo();
+        operationInfo.mode = BackupRestoreDialogFragment.MODE_BACKUP;
+        operationInfo.flags = flags.getFlags();
+        operationInfo.op = BatchOpsManager.OP_BACKUP;
+        operationInfo.exclusionGlobs = BackupPathExclusionPatterns.sanitize(exclusionGlobs);
+        operationInfo.protectFromPrune = protectFromPrune;
+        operationInfo.backupNote = BackupMetadataV5.Metadata.normalizeNote(backupNote);
+        mViewModel.runStoragePreflight(operationInfo);
+    }
+
+    private void handleStoragePreflight(@NonNull BackupStorageCheck.Result result) {
+        if (!isAdded()) return;
+        BackupRestoreDialogViewModel.OperationInfo operationInfo = mViewModel.consumePendingOperation();
+        if (operationInfo == null) return;
+
+        String sizeInfo = getString(R.string.backup_preflight_size_detail,
+                Formatter.formatFileSize(mContext, result.estimatedBytes),
+                Formatter.formatFileSize(mContext, result.freeBytes));
+
+        switch (result.status) {
+            case INSUFFICIENT:
+                new MaterialAlertDialogBuilder(mContext)
+                        .setTitle(R.string.backup_preflight_title)
+                        .setMessage(getString(R.string.backup_preflight_insufficient, sizeInfo))
+                        .setPositiveButton(R.string.close, null)
+                        .show();
+                return;
+            case WARN_LOW_HEADROOM:
+                showPreflightWarning(operationInfo,
+                        getString(R.string.backup_preflight_low_headroom, sizeInfo));
+                return;
+            case WARN_MAX_FILE_SIZE:
+                String detail = result.detail != null ? result.detail : "";
+                showPreflightWarning(operationInfo,
+                        getString(R.string.backup_preflight_max_file_size, sizeInfo, detail));
+                return;
+            default:
+                proceedWithBackup(operationInfo);
+        }
+    }
+
+    private void showPreflightWarning(@NonNull BackupRestoreDialogViewModel.OperationInfo operationInfo,
+                                      @NonNull String message) {
+        new MaterialAlertDialogBuilder(mContext)
+                .setTitle(R.string.backup_preflight_title)
+                .setMessage(message)
+                .setPositiveButton(R.string.backup_preflight_proceed, (d, w) -> proceedWithBackup(operationInfo))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void proceedWithBackup(@NonNull BackupRestoreDialogViewModel.OperationInfo operationInfo) {
+        BackupFlags flags = new BackupFlags(operationInfo.flags);
+        if (flags.backupMultiple()) {
+            // TODO(18/9/20): Add overwrite option
+            List<String> existingNames = collectExistingBackupNames();
+            TextInputDropdownDialogBuilder dialog = new TextInputDropdownDialogBuilder(requireActivity(),
+                    R.string.input_backup_name)
+                    .setTitle(R.string.backup)
+                    .setHelperText(R.string.input_backup_name_description);
+            if (!existingNames.isEmpty()) {
+                dialog.setDropdownItems(existingNames, -1, true);
+            }
+            dialog.setPositiveButton(R.string.ok, (d, which, input, isChecked) -> {
+                        String backupName;
+                        if (TextUtils.isEmpty(input)) {
+                            backupName = DateUtils.formatMediumDateTime(mContext, System.currentTimeMillis());
+                        } else {
+                            backupName = input.toString();
+                        }
+                        operationInfo.backupNames = new String[]{backupName};
+                        mViewModel.prepareForOperation(operationInfo);
+                    })
+                    .show();
+        } else {
+            int baseBackupCount = mViewModel.getBackupInfoList().size() - mViewModel.getAppsWithoutBackups().size();
+            if (baseBackupCount > 0) {
+                new MaterialAlertDialogBuilder(mContext)
+                        .setTitle(R.string.backup)
+                        .setMessage(getResources().getQuantityString(R.plurals.backup_exists_are_you_sure,
+                                baseBackupCount, baseBackupCount))
+                        .setPositiveButton(R.string.back_up, (dialog, which) -> mViewModel.prepareForOperation(operationInfo))
+                        .setNegativeButton(R.string.cancel, null)
+                        .show();
+            } else {
+                mViewModel.prepareForOperation(operationInfo);
+            }
+        }
+    }
+
+    private void updateActionState(@NonNull MaterialButton backupButton, @NonNull TextView actionStatus,
+                                   @NonNull TextView summaryBody, @BackupFlags.BackupFlag int selectedFlags,
+                                   int selectedFlagCount) {
+        boolean hasSelectedContent = selectedFlagCount > 0;
+        backupButton.setEnabled(hasSelectedContent);
+        if (hasSelectedContent) {
+            actionStatus.setText(getResources().getQuantityString(R.plurals.backup_restore_content_selected_count,
+                    selectedFlagCount, selectedFlagCount));
+        } else {
+            actionStatus.setText(R.string.backup_restore_no_content_selected);
+        }
+        summaryBody.setText((selectedFlags & BackupFlags.BACKUP_MULTIPLE) != 0
+                ? R.string.backup_dialog_summary_named
+                : R.string.backup_dialog_summary_base);
+    }
+
+    /**
+     * Walk every {@link BackupInfo} in scope and harvest the distinct
+     * non-empty {@code backupName} fields from prior backups so the
+     * "Multiple backup" name dialog can autocomplete from them. Order is
+     * insertion-stable (LinkedHashSet) so the dropdown matches the list
+     * the user already sees in Backup → Restore.
+     */
+    @NonNull
+    private List<String> collectExistingBackupNames() {
+        Set<String> names = new LinkedHashSet<>();
+        for (BackupInfo backupInfo : mViewModel.getBackupInfoList()) {
+            for (BackupMetadataV5 metadata : backupInfo.getBackupMetadataList()) {
+                String name = metadata.metadata == null ? null : metadata.metadata.backupName;
+                if (name != null && !name.isEmpty()) {
+                    names.add(name);
+                }
+            }
+        }
+        return names.isEmpty() ? Collections.emptyList() : new ArrayList<>(names);
+    }
+
+    @NonNull
+    private String getExistingBaseBackupSummary() {
+        int baseBackupCount = mViewModel.getBaseBackupCount();
+        if (baseBackupCount == 0) {
+            return getString(R.string.backup_dialog_no_existing_base_backups);
+        }
+        return getResources().getQuantityString(R.plurals.backup_dialog_existing_base_backup_count,
+                baseBackupCount, baseBackupCount);
+    }
+}

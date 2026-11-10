@@ -1,0 +1,2023 @@
+package com.sameerasw.essentials.island.ui
+
+import androidx.compose.animation.core.snap
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import com.sameerasw.essentials.island.service.islandDrawViewport
+import com.sameerasw.essentials.island.state.CameraGeometry
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
+import kotlin.math.hypot
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
+import kotlinx.coroutines.CancellationException
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.border
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.toRect
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import com.sameerasw.essentials.R
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.Spring
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.sameerasw.essentials.island.ui.components.LocalIslandIconColor
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntSizeAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import android.graphics.BlurMaskFilter
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.collectAsState
+import com.sameerasw.essentials.island.gestures.CompactGestures
+import com.sameerasw.essentials.island.gestures.IslandSlideFeedback
+import com.sameerasw.essentials.island.gestures.SlideFeedback
+import com.sameerasw.essentials.island.ui.components.SlideFeedbackCompact
+import com.sameerasw.essentials.island.model.IslandItem
+import com.sameerasw.essentials.island.model.ExpandedSurfaceStyle
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateMapOf
+import com.sameerasw.essentials.island.plugins.media.particles.MediaVisualGeometry
+import com.sameerasw.essentials.island.plugins.media.particles.MediaCameraGeometry
+import com.sameerasw.essentials.island.plugins.media.particles.GeminiParticlePill
+import com.sameerasw.essentials.island.plugins.media.MediaSurface
+import com.sameerasw.essentials.island.ui.components.islandAccent
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import com.sameerasw.essentials.island.model.SideBubble
+import com.sameerasw.essentials.island.model.StackIcon
+import com.sameerasw.essentials.island.model.IslandStage
+import com.sameerasw.essentials.island.state.IslandUiState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.sign
+import kotlinx.coroutines.coroutineScope
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import kotlin.math.roundToInt
+
+interface IslandActions {
+    fun onTap(itemKey: String?): Boolean
+    fun onLongPress(itemKey: String?)
+    fun onCollapse()
+    fun onDismiss(): Boolean
+    fun onOpenFocused()
+    fun onInteraction()
+    fun onHold(held: Boolean) {}
+    fun onTextInputChanged(active: Boolean)
+    fun onAdvance(): Boolean
+    val compactGestures: CompactGestures get() = CompactGestures.None
+}
+
+private val LocalLineInset = compositionLocalOf { 0.dp to 0.dp }
+private val LocalLineLeading = compositionLocalOf<LineLeading?> { null }
+
+private data class ContentKey(val stage: IslandStage, val itemKey: String?)
+
+private const val COLLAPSE_COMMIT = 0.2f
+
+private enum class SwipeIntent { Hide, Dismiss }
+
+// The window never moves; the surface is always horizontally centred in it (= on the camera).
+// Only the surface's width/height/corner animate, read in layout/draw so frames don't recompose.
+private fun readableOnDark(color: Color): Color {
+    var result = color
+    var steps = 0
+    while (result.luminance() < 0.4f && steps < 10) {
+        result = androidx.compose.ui.graphics.lerp(result, Color.White, 0.12f)
+        steps++
+    }
+    return result
+}
+
+
+private const val SURFACE_PULSE_DURATION_MS = 1450
+@Composable
+fun IslandRoot(
+    state: IslandUiState,
+    targetSpec: IslandLayoutSpec,
+    actions: IslandActions,
+    onTargetBoundsChanged: (IntRect) -> Unit,
+    registerCollapseAnimator: (((() -> Unit) -> Unit)?) -> Unit = {},
+    showCameraRing: Boolean = false,
+    cameraGeometry: CameraGeometry? = null,
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val iconBase = if (targetSpec.iconMaterialYou) primary else Color.White
+    fun iconFor(accent: Color?): Color =
+        readableOnDark(if (targetSpec.iconDynamic) accent ?: iconBase else targetSpec.iconColorCustom ?: iconBase)
+    val compactAccent = state.arrangement.visibleItems.firstNotNullOfOrNull { key -> state.items[key]?.accent }
+    IslandRootContent(
+        state, targetSpec, actions, onTargetBoundsChanged, registerCollapseAnimator, showCameraRing, cameraGeometry,
+        iconTarget = iconFor(state.items[state.focusedKey]?.accent ?: compactAccent),
+        collapsedIconTarget = iconFor(compactAccent),
+    )
+}
+
+@Composable
+private fun IslandRootContent(
+    state: IslandUiState,
+    targetSpec: IslandLayoutSpec,
+    actions: IslandActions,
+    onTargetBoundsChanged: (IntRect) -> Unit,
+    registerCollapseAnimator: (((() -> Unit) -> Unit)?) -> Unit = {},
+    showCameraRing: Boolean = false,
+    cameraGeometry: CameraGeometry? = null,
+    iconTarget: Color = Color.White,
+    collapsedIconTarget: Color = iconTarget,
+) {
+    val view = LocalView.current
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val stage = state.stage
+    val key = ContentKey(stage, state.focusedKey)
+    val currentState by rememberUpdatedState(state)
+    val inspection = LocalInspectionMode.current
+    val focusedLayered = state.items[state.focusedKey]?.expandedSurfaceStyle == ExpandedSurfaceStyle.Layered
+
+    val bondCandidate = targetSpec.bondEdge && stage == IslandStage.Compact
+    var bonded by remember { mutableStateOf(false) }
+    LaunchedEffect(bondCandidate) {
+        if (bondCandidate) {
+            delay(BOND_DELAY_MS)
+            bonded = true
+        } else {
+            bonded = false
+        }
+    }
+    val bond by animateFloatAsState(if (bonded) 1f else 0f, motionSpring(Spring.DampingRatioNoBouncy, 220f), label = "islandBond")
+    val presence by animateFloatAsState(targetSpec.cameraPresence, motionSpring(Spring.DampingRatioNoBouncy, 300f), label = "cameraPresence")
+    val spec = if (presence == 1f && bond == 0f) {
+        targetSpec
+    } else {
+        targetSpec.copy(
+            cameraPresence = presence,
+            cameraDiameter = targetSpec.cameraDiameter * (1f - 0.3f * bond),
+            verticalGap = targetSpec.verticalGap + (3.5.dp - targetSpec.verticalGap) * bond,
+            cameraGap = targetSpec.cameraGap * (1f - 0.2f * bond),
+        )
+    }
+
+    val lastItems = remember { HashMap<String, IslandItem>() }
+    state.items.forEach { (k, v) -> lastItems[k] = v }
+
+    val compactHeightPx = with(density) { spec.compactHeight.toPx() }
+    val surfaceTopPx = with(density) { spec.surfaceTop.roundToPx() }
+    val expandedCornerPx = with(density) { spec.expandedCorner.toPx() }
+    val surfaceShape = remember(compactHeightPx, expandedCornerPx) {
+        object : Shape {
+            override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+                val r = surfaceCornerPx(size.height, compactHeightPx, expandedCornerPx)
+                return Outline.Rounded(RoundRect(size.toRect(), CornerRadius(r)))
+            }
+        }
+    }
+
+    val collapse = remember { Animatable(0f) }
+    val collapsingStage = stage == IslandStage.Expanded || stage == IslandStage.Line
+    val collapseMix = if (collapsingStage) collapse.value.coerceIn(0f, 1f) else 0f
+    val justCollapsed = !collapsingStage && collapse.value >= 0.5f
+
+    val iconAnim = remember { androidx.compose.animation.Animatable(iconTarget) }
+    LaunchedEffect(iconTarget) {
+        if (justCollapsed) iconAnim.snapTo(iconTarget) else iconAnim.animateTo(iconTarget)
+    }
+    val iconColor = if (justCollapsed) iconTarget else lerp(iconAnim.value, collapsedIconTarget, collapseMix)
+
+    val outlineAlphaTarget = if (spec.outlineHiddenWhenExpanded && stage == IslandStage.Expanded) 0f else 1f
+    val outlineAlphaAnim = remember { Animatable(outlineAlphaTarget) }
+    LaunchedEffect(outlineAlphaTarget) {
+        if (justCollapsed) outlineAlphaAnim.snapTo(outlineAlphaTarget) else outlineAlphaAnim.animateTo(outlineAlphaTarget)
+    }
+    val outlineAlpha = when {
+        justCollapsed -> outlineAlphaTarget
+        stage == IslandStage.Expanded -> outlineAlphaAnim.value + (1f - outlineAlphaAnim.value) * collapseMix
+        else -> outlineAlphaAnim.value
+    }
+
+    val pulseAccent = state.items[state.focusedKey]?.accent
+    val pulsePaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
+    val pulseBlur = remember(spec.pulseBlur, density) {
+        with(density) { spec.pulseBlur.toPx() }.takeIf { it > 0f }?.let { BlurMaskFilter(it * 0.866f, BlurMaskFilter.Blur.NORMAL) }
+    }
+    val compactOutline = state.arrangement.visibleItems.firstNotNullOfOrNull { key -> state.items[key]?.let { it.outlineAccent ?: it.accent } }
+    val dynamicOutline: Color? = if (spec.outlineDynamic) {
+        val focused = state.items[state.focusedKey]
+        (focused?.outlineAccent ?: focused?.accent) ?: compactOutline
+    } else {
+        null
+    }
+    val animatedOutlineColor: Color? = spec.outlineColor?.let { base ->
+        val target = dynamicOutline ?: base
+        val collapsedTarget = (if (spec.outlineDynamic) compactOutline else null) ?: base
+        val outlineAnim = remember { androidx.compose.animation.Animatable(target) }
+        LaunchedEffect(target) {
+            if (justCollapsed) outlineAnim.snapTo(target) else outlineAnim.animateTo(target)
+        }
+        if (justCollapsed) target else lerp(outlineAnim.value, collapsedTarget, collapseMix)
+    }
+    fun outlineFor(fade: Float): Color? = animatedOutlineColor
+        ?.takeIf { outlineAlpha > 0f && fade > 0f }
+        ?.let { it.copy(alpha = it.alpha * outlineAlpha * fade) }
+    val pulse = remember { Animatable(0f) }
+    val surfacePulse = remember { Animatable(0f) }
+    var quietContentChange by remember { mutableStateOf(false) }
+    LaunchedEffect(state.focusedKey, state.items[state.focusedKey]?.contentId, spec.pulseShadow) {
+        pulse.snapTo(0f)
+        surfacePulse.snapTo(0f)
+        if (quietContentChange) {
+            quietContentChange = false
+            return@LaunchedEffect
+        }
+        if (state.focusedKey == null) return@LaunchedEffect
+        if (spec.pulseShadow) {
+            launch {
+                pulse.animateTo(1f, motionTween(250, easing = LinearEasing))
+                pulse.animateTo(0f, motionTween((spec.pulseDurationMs - 250).coerceAtLeast(100), easing = LinearEasing))
+            }
+        }
+        surfacePulse.animateTo(1f, motionTween(250, easing = LinearEasing))
+        surfacePulse.animateTo(0f, motionTween(SURFACE_PULSE_DURATION_MS - 250, easing = LinearEasing))
+    }
+    val minSurfaceWidth = with(density) { spec.cameraDiameter.roundToPx() }
+    val minSurfaceHeight = with(density) { spec.compactHeight.roundToPx() }
+    val fallbackCompact = with(density) {
+        IntSize((spec.cameraSlotWidth + spec.compactHeight * 2).roundToPx(), spec.compactHeight.roundToPx())
+    }
+
+    var surfaceSize by remember { mutableStateOf(IntSize.Zero) }
+    val growFrom = remember { IntArray(2) }
+    val growTarget = remember { IntArray(2) }
+    val growFlags = remember { BooleanArray(2) }
+    val growProgress = remember { mutableFloatStateOf(1f) }
+    val growKey = remember { arrayOfNulls<ContentKey>(1) }
+    if (growKey[0] != key) {
+        growKey[0] = key
+        growFrom[0] = surfaceSize.width
+        growFrom[1] = surfaceSize.height
+        growFlags[0] = false
+        growFlags[1] = false
+    }
+    fun growGate(start: Float, span: Float): Float =
+        if (!growFlags[1]) 1f else ((growProgress.floatValue - start) / span).coerceIn(0f, 1f)
+    fun leaveGate(end: Float): Float =
+        if (!growFlags[1]) 1f else (1f - growProgress.floatValue / end).coerceIn(0f, 1f)
+    fun pillGate(): Float = if (currentState.stage == IslandStage.Expanded) growGate(0.5f, 0.5f) else 1f
+    val backdropSlot = remember { IslandBackdropSlot() }
+    val backdropSink = remember { IslandBackdropSlot() }
+    val layeredSurface = stage == IslandStage.Expanded && focusedLayered
+    var visualRootCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var visualBounds by remember { mutableStateOf(Rect.Zero) }
+    var visualExpandedSize by remember { mutableStateOf(IntSize.Zero) }
+    val contentAlpha = remember { Animatable(1f) }
+    val contentMotion = remember { Animatable(0f) }
+    val wiggle = remember { Animatable(0f) }
+    val context = LocalContext.current
+    // Written while the expanded content is measured, so the surface reads it in the same frame (no stale height
+    // from a previously expanded card).
+    val expandedHeight = remember { IntArray(1) }
+    val edgeShift = remember { mutableFloatStateOf(0f) }
+    var previousStage by remember { mutableStateOf(stage) }
+    var lastKey by remember { mutableStateOf(key) }
+    var outgoing by remember { mutableStateOf<ContentKey?>(null) }
+    val outgoingAlpha = remember { Animatable(0f) }
+    val outgoingMotion = remember { Animatable(0f) }
+    val morph = remember { IslandMorph() }
+    val morphOrigin = remember { FloatArray(2) }
+    val contentShiftPx = with(density) { 10.dp.toPx() }
+    // Hidden: the width shrinks to a circle first, then the circle shrinks to nothing, so it never turns oval.
+    val squash = remember { Animatable(0f) }
+    val holdSize = remember { IntArray(2) }
+    val previewCompactSize = remember { IntArray(2) }
+    val dismissOffset = remember { Animatable(0f) }
+    val dropOffset = remember { Animatable(0f) }
+    val carouselSnapshot = rememberGraphicsLayer()
+    val carouselProgress = remember { Animatable(0f) }
+    var carouselDrag by remember { mutableStateOf(false) }
+    var carouselActive by remember { mutableStateOf(false) }
+    var carouselReady by remember { mutableStateOf(false) }
+    var carouselDir by remember { mutableFloatStateOf(0f) }
+    var carouselStart by remember { mutableFloatStateOf(0f) }
+    var target by remember { mutableStateOf(IntSize.Zero) }
+    var compactSize by remember { mutableStateOf(IntSize.Zero) }
+    var windowWidth by remember { mutableStateOf(0) }
+    var visible by remember { mutableStateOf(stage != IslandStage.Hidden) }
+    var dragCommitted by remember { mutableStateOf(false) }
+    // Set when a swipe threw the card away; the next transition must not replay it as outgoing content.
+    var dismissCommitted by remember { mutableStateOf(false) }
+    val showPreview by remember { derivedStateOf { collapse.value > 0f } }
+    var swipeIntent by remember { mutableStateOf<SwipeIntent?>(null) }
+    val showDismissReveal by remember { derivedStateOf { dismissOffset.value != 0f && !carouselDrag && !carouselActive } }
+    val revealDirection by remember { derivedStateOf { if (dismissOffset.value >= 0f) 1f else -1f } }
+    val dismissThresholdPx = with(density) { 48.dp.toPx() }
+    val jelly = rememberCompactJellyState()
+    val jellyRangePx = with(density) { 90.dp.toPx() }
+    var compactLongPressed by remember { mutableStateOf(false) }
+    var compactSettled by remember { mutableStateOf(false) }
+    var sizeFromStage by remember { mutableStateOf(stage) }
+
+    LaunchedEffect(stage) {
+        compactSettled = false
+        if (stage == IslandStage.Compact) {
+            if (sizeFromStage == IslandStage.Hidden) compactSettled = true
+            sizeFromStage = stage
+            delay(IslandMotion.COLLAPSE_MS.toLong())
+            compactSettled = true
+        } else {
+            sizeFromStage = stage
+        }
+    }
+
+    LaunchedEffect(key) {
+        if (inspection) return@LaunchedEffect
+        if (stage != IslandStage.Hidden) {
+            visible = true
+        }
+        if (stage != IslandStage.Compact) {
+            launch { jelly.press.animateTo(0f, CompactJellyState.JellySpring) }
+            launch { jelly.releaseStretch(0f, 0f) }
+        }
+        if (dismissCommitted) {
+            dismissOffset.snapTo(0f)
+        } else if (dismissOffset.value != 0f) {
+            scope.launch { dismissOffset.animateTo(0f, IslandMotion.release()) }
+        }
+        if (dragCommitted && (stage == IslandStage.Expanded || stage == IslandStage.Line)) {
+            dragCommitted = false
+        }
+        if (!dragCommitted && collapse.value != 0f) {
+            launch { collapse.animateTo(0f, IslandMotion.collapseFloat()) }
+        }
+        if (dragCommitted) {
+            previousStage = stage
+            lastKey = key
+            outgoing = null
+            launch { contentAlpha.animateTo(1f, motionTween(durationMillis = 180)) }
+            launch { contentMotion.animateTo(0f, IslandMotion.contentSpring()) }
+            delay(IslandMotion.COLLAPSE_MS + 400L)
+            if (dragCommitted) {
+                dragCommitted = false
+                collapse.animateTo(0f, IslandMotion.settle())
+            }
+            return@LaunchedEffect
+        }
+        val growing = stage.rank >= previousStage.rank
+        previousStage = stage
+        val leaving = lastKey
+        val thrownAway = dismissCommitted
+        dismissCommitted = false
+        val handOver = leaving != key && leaving.stage != IslandStage.Hidden && !thrownAway
+        morph.end()
+        val morphing = handOver && leaving.itemKey != null && leaving.itemKey == key.itemKey &&
+            setOf(leaving.stage, key.stage) == setOf(IslandStage.Line, IslandStage.Expanded)
+        if (morphing) {
+            outgoingAlpha.snapTo(contentAlpha.value)
+            outgoingMotion.snapTo(0f)
+            contentMotion.snapTo(0f)
+            contentAlpha.snapTo(0f)
+            outgoing = leaving
+            morph.begin(leaving, key)
+            morph.progress.snapTo(0f)
+            lastKey = key
+            launch { outgoingAlpha.animateTo(0f, motionTween(durationMillis = 140)) }
+            launch { contentAlpha.animateTo(1f, motionTween(durationMillis = 220, delayMillis = 80)) }
+            morph.progress.animateTo(1f, IslandMotion.contentSpring())
+            morph.end()
+            if (outgoing == leaving) outgoing = null
+            return@LaunchedEffect
+        }
+        // Snap before lastKey is published: until then the pending frame override below keeps drawing the handover.
+        if (handOver) {
+            outgoingAlpha.snapTo(contentAlpha.value)
+            outgoingMotion.snapTo(contentMotion.value)
+        }
+        // Shrinking content mirrors the outgoing layer: it rises from below while fading in, once that layer is mostly gone.
+        contentMotion.snapTo(if (growing) -1f else 1f)
+        contentAlpha.snapTo(0f)
+        if (handOver) {
+            outgoing = leaving
+            launch {
+                launch { outgoingMotion.animateTo(if (growing) 1f else -1f, IslandMotion.collapseFloat()) }
+                outgoingAlpha.animateTo(0f, motionTween(durationMillis = if (key.stage == IslandStage.Hidden) 320 else 90))
+                if (outgoing == leaving) outgoing = null
+            }
+        }
+        lastKey = key
+        launch { contentMotion.animateTo(0f, if (growing) IslandMotion.contentSpring() else IslandMotion.collapseFloat()) }
+        contentAlpha.animateTo(1f, motionTween(durationMillis = if (growing) 200 else 160, delayMillis = if (handOver) 60 else 0))
+    }
+    val outsetPx = with(density) { spec.expandedOutset.toPx() }
+    val cameraSlotPx = with(density) { spec.cameraSlotWidth.roundToPx() }
+    val layerSizes = remember { HashMap<Any, IntSize>() }
+    val contentOriginX = when {
+        spec.growDirection > 0 -> 0f
+        spec.growDirection < 0 -> 1f
+        else -> 0.5f
+    }
+
+    fun rejectTap() {
+        scope.launch {
+            val px = with(density) { 4.dp.toPx() }
+            for ((i, x) in listOf(-px, px, -px * 0.5f, 0f).withIndex()) {
+                wiggle.animateTo(x, motionTween(durationMillis = if (i == 0) 60 else 80))
+                if (x != 0f) IslandHaptics.wiggle(context)
+            }
+        }
+    }
+
+    fun handleTap(itemKey: String?) {
+        if (actions.onTap(itemKey)) IslandHaptics.tap(context) else rejectTap()
+    }
+
+    fun handleLongPress(itemKey: String?) {
+        val gestures = actions.compactGestures
+        if (currentState.stage == IslandStage.Compact && gestures.hasLongPress) {
+            compactLongPressed = true
+            if (gestures.longPressOpensBrief) IslandHaptics.openClick(context) else IslandHaptics.commit(context)
+            gestures.longPress()
+            return
+        }
+        IslandHaptics.longPress(context)
+        actions.onLongPress(itemKey)
+    }
+
+    // Non-gesture collapses replay the swipe path: scrub progress to 1, then hand over to compact.
+    DisposableEffect(Unit) {
+        registerCollapseAnimator { commit ->
+            scope.launch {
+                if (dismissOffset.value != 0f) launch { dismissOffset.animateTo(0f, IslandMotion.release()) }
+                val finished = try {
+                    collapse.animateTo(1f, IslandMotion.collapseProgress())
+                    true
+                } catch (_: CancellationException) {
+                    // Interrupted by another animation (a drag, or the stage already changed): still hand over.
+                    false
+                }
+                dragCommitted = finished
+                commit()
+            }
+        }
+        onDispose { registerCollapseAnimator(null) }
+    }
+
+    fun edgeCorrection(layerStage: IslandStage): Float =
+        edgeShift.floatValue - if (layerStage == IslandStage.Expanded) outsetPx else 0f
+    val sideBubble = state.sideBubble
+    val catchUpShown = sideBubble != null && stage == IslandStage.Compact
+    val knownBubbles = remember { HashMap<String, SideBubble>() }
+    var lastBubbleKey by remember { mutableStateOf<String?>(null) }
+    if (sideBubble != null && state.sideBubbleKey != null) {
+        knownBubbles[state.sideBubbleKey] = sideBubble
+        lastBubbleKey = state.sideBubbleKey
+    }
+    val lastCatchUp = lastBubbleKey?.let { knownBubbles[it] }
+    val hasCompactCells = state.arrangement.before.isNotEmpty() || state.arrangement.after.isNotEmpty()
+    val bubbleOnlyLayout = !hasCompactCells && spec.cameraPresence <= 0f
+    val catchUpAnim = remember { Animatable(0f) }
+    val liquidField = remember { LiquidField() }
+    liquidField.reach = with(density) { spec.cameraGap.toPx() } * 0.8f
+    val surfaceBond = remember(compactHeightPx, expandedCornerPx, bubbleOnlyLayout) {
+        LiquidBond(
+            id = "surface",
+            radius = { surfaceCornerPx(it.height, compactHeightPx, expandedCornerPx) },
+            presence = { if (!visible) 0f else if (bubbleOnlyLayout) 1f - catchUpAnim.value.coerceIn(0f, 1f) else 1f },
+        )
+    }
+    val surfaceLiquid = rememberLiquidBody(bond = surfaceBond, field = liquidField)
+    var bubbleTucking by remember { mutableStateOf(false) }
+    var bubbleAbsorbing by remember { mutableStateOf(false) }
+    val bubbleAnchorWidth = remember { IntArray(1) }
+    if (stage == IslandStage.Line || stage == IslandStage.Expanded) bubbleTucking = true
+    LaunchedEffect(catchUpShown) {
+        if (inspection) {
+            catchUpAnim.snapTo(if (catchUpShown) 1f else 0f)
+            return@LaunchedEffect
+        }
+        if (catchUpShown) {
+            withTimeoutOrNull(IslandMotion.COLLAPSE_MS * 2L) {
+                snapshotFlow { surfaceSize.width to compactSize.width }
+                    .first { (live, target) -> target > 0 && abs(live - target) <= 6 }
+            }
+            catchUpAnim.animateTo(1f, IslandMotion.showBubble())
+            bubbleTucking = false
+            bubbleAbsorbing = false
+        } else {
+            catchUpAnim.animateTo(
+                0f,
+                when (stage) {
+                    IslandStage.Hidden -> IslandMotion.squash()
+                    IslandStage.Line, IslandStage.Expanded -> IslandMotion.sizeFloat()
+                    else -> IslandMotion.hideBubble()
+                },
+            )
+        }
+    }
+    LaunchedEffect(stage) {
+        if (inspection || (stage != IslandStage.Line && stage != IslandStage.Expanded)) return@LaunchedEffect
+        var driven = false
+        snapshotFlow { collapse.value }.collect { c ->
+            if (c > 0.001f && currentState.sideBubble != null) {
+                driven = true
+                catchUpAnim.snapTo(((c - 0.2f) / 0.5f).coerceIn(0f, 1f))
+            } else if (driven) {
+                driven = false
+                catchUpAnim.snapTo(0f)
+            }
+        }
+    }
+    LaunchedEffect(stage == IslandStage.Hidden) {
+        if (inspection) return@LaunchedEffect
+        if (stage != IslandStage.Hidden) {
+            squash.animateTo(0f, IslandMotion.sizeFloat())
+            return@LaunchedEffect
+        }
+        squash.animateTo(1f, IslandMotion.squash())
+        withTimeoutOrNull(IslandMotion.HIDE_BUBBLE_MS.toLong()) {
+            snapshotFlow { catchUpAnim.value }.first { it <= 0.02f }
+        }
+        visible = false
+    }
+    fun hideLift(): Float = if (spec.landscape) squash.value.coerceIn(0f, 1f) * (surfaceTopPx + compactHeightPx * 1.5f) else 0f
+
+    val bubbleSizePx = with(density) { spec.compactHeight.roundToPx() }
+    val compactSlack = remember { mutableIntStateOf(0) }
+    val slideFeedback by IslandSlideFeedback.state.collectAsState()
+    val feedbackTakeover = slideFeedback.let {
+        it is SlideFeedback.Level || it is SlideFeedback.Sound || (it != null && state.arrangement.visibleItems.isEmpty())
+    }
+    val slackTarget = if (feedbackTakeover && stage == IslandStage.Compact) 0 else compactSlack.intValue
+    val compactBaseWidth = remember { mutableIntStateOf(0) }
+    val compactNeedLeft = remember { mutableIntStateOf(-1) }
+    val bubbleMaxIcons = lastCatchUp?.maxIcons?.let { chosen ->
+        if (chosen > 0) {
+            chosen
+        } else {
+            val sizePx = with(density) { spec.compactHeight.toPx() }
+            val budget = with(density) { spec.lineWidth.toPx() }
+            val gap = with(density) { spec.cameraGap.toPx() }
+            val needLeft = compactNeedLeft.intValue
+            // Balanced, the bubble's room grows the pill on the far side, so only the near side's content eats into the budget
+            val room = if (needLeft >= 0) {
+                (budget - cameraSlotPx) / 2f - needLeft - gap
+            } else {
+                (budget - maxOf(fallbackCompact.width, compactBaseWidth.intValue)) - gap
+            }
+            (((room - sizePx) / (sizePx * 0.55f)).toInt() + 1).coerceIn(1, 8)
+        }
+    } ?: OVERLAP_MAX
+    val sideBubbleWidth = lastCatchUp
+        ?.takeIf { spec.queueStyle == QueueStyle.Overlap && it.content == null && it.icons.isNotEmpty() }
+        ?.let {
+            stackOverlapWidth(it.icons.size, spec.compactHeight, overlapSlots(it.icons, bubbleMaxIcons), it.overflow) +
+                overlapExtraWidth(it.icons, spec.compactHeight, bubbleMaxIcons, it.overflow)
+        }
+        ?: spec.compactHeight
+    val sideWidthPx = with(density) { sideBubbleWidth.roundToPx() }
+    val sideWidthAnim = remember { Animatable(sideWidthPx.toFloat()) }
+    LaunchedEffect(sideWidthPx) {
+        if (inspection) sideWidthAnim.snapTo(sideWidthPx.toFloat()) else sideWidthAnim.animateTo(sideWidthPx.toFloat(), IslandMotion.showBubble())
+    }
+    fun sideWidthLive(): Int = sideWidthAnim.value.roundToInt()
+    val bubbleGapPx = with(density) { spec.cameraGap.roundToPx() }
+    fun sideBubbleProgress(): Float =
+        if (spec.growDirection == 0 && (hasCompactCells || stage == IslandStage.Hidden)) catchUpAnim.value.coerceIn(0f, 1f) else 0f
+    val slackAnim = remember { Animatable(slackTarget.toFloat()) }
+    LaunchedEffect(slackTarget) {
+        if (inspection) slackAnim.snapTo(slackTarget.toFloat()) else slackAnim.animateTo(slackTarget.toFloat(), IslandMotion.smoothSpatial())
+    }
+    fun catchShiftPx(): Float = sideBubbleProgress() * slackAnim.value / 2f
+    val lineShift = remember { Animatable(0f) }
+    val liveSurfaceHeight = remember { mutableIntStateOf(0) }
+    val liveSurfaceWidth = remember { mutableIntStateOf(0) }
+    fun visibleWidth(): Int =
+        if ((collapse.value > 0f || squash.value > 0f) && liveSurfaceWidth.intValue > 0) liveSurfaceWidth.intValue else surfaceSize.width
+    fun surfaceShiftFor(width: Int): Int = spec.growDirection * (width - cameraSlotPx) / 2
+    fun surfaceLeft(width: Int): Int = windowWidth / 2 - width / 2 + surfaceShiftFor(width) +
+        lineShift.value.roundToInt() + catchShiftPx().roundToInt()
+    // Bonded to the edge, the bubble closes the gap and slightly overlaps, so the liquid neck merges both into one body
+    fun bondedGapPx(): Int = (bubbleGapPx * (1f - bond) - compactHeightPx * 0.08f * bond).roundToInt()
+    fun bubbleX(width: Int): Int =
+        if (spec.growDirection > 0) surfaceLeft(width) + width + bondedGapPx() else surfaceLeft(width) - bondedGapPx() - sideWidthLive()
+    fun liveBubbleX(width: Int): Int {
+        if (stage == IslandStage.Compact) bubbleAnchorWidth[0] = width
+        val anchorW = if (bubbleTucking && bubbleAnchorWidth[0] > 0 && collapse.value <= 0f) bubbleAnchorWidth[0] else width
+        val endX = bubbleX(anchorW)
+        val cameraX = if (spec.growDirection <= 0) {
+            windowWidth / 2 - sideWidthLive() + bubbleSizePx / 2
+        } else {
+            windowWidth / 2 - bubbleSizePx / 2
+        }
+        val startX = when {
+            bubbleTucking && bubbleAbsorbing -> endX
+            bubbleTucking || stage == IslandStage.Hidden -> cameraX
+            spec.growDirection > 0 -> surfaceLeft(width) + width - sideWidthLive()
+            else -> surfaceLeft(width)
+        }
+        val x = (startX + (endX - startX) * catchUpAnim.value.coerceIn(0f, 1f)).roundToInt()
+        return if (spec.growDirection > 0) {
+            maxOf(x, windowWidth / 2 - bubbleSizePx / 2)
+        } else {
+            minOf(x, windowWidth / 2 + bubbleSizePx / 2 - sideWidthLive())
+        }
+    }
+    val focusedItem = state.focused
+    
+    val foreignStack = if (focusedItem != null && focusedItem.stack.isEmpty()) {
+        state.items.values.firstOrNull { it.key != focusedItem.key && it.stack.isNotEmpty() && !it.expandedQueueOnly }?.stack.orEmpty()
+    } else {
+        emptyList()
+    }
+    val fullStack = focusedItem?.stack?.takeIf { it.isNotEmpty() } ?: foreignStack.map { StackIcon(it.key, current = false, onSelect = it.onSelect, content = it.content) }
+    val queuedIcons = when {
+        stage == IslandStage.Expanded && focusedItem?.hideExpandedQueue == true -> emptyList()
+        stage != IslandStage.Expanded && focusedItem?.expandedQueueOnly == true -> emptyList()
+        foreignStack.isNotEmpty() -> fullStack
+        else -> focusedItem?.queued ?: fullStack.filterNot { it.current }
+    }
+    val inlineLineQueue = spec.queueInline && stage == IslandStage.Line && queuedIcons.isNotEmpty()
+    val queueShown = (stage == IslandStage.Expanded || (stage == IslandStage.Line && !spec.queueInline)) && queuedIcons.isNotEmpty()
+    var lastFullStack by remember { mutableStateOf(emptyList<StackIcon>()) }
+    if (queuedIcons.isNotEmpty()) lastFullStack = fullStack
+    var pillSize by remember { mutableStateOf(IntSize.Zero) }
+    var lastQueuedIcons by remember { mutableStateOf(emptyList<StackIcon>()) }
+    if (queuedIcons.isNotEmpty()) lastQueuedIcons = queuedIcons
+    val queueWidth = spec.compactHeight
+    val queueWidthPx = with(density) { queueWidth.roundToPx() }
+    val queueWidthAnim = remember { Animatable(queueWidthPx.toFloat()) }
+    LaunchedEffect(queueWidthPx) {
+        if (inspection) queueWidthAnim.snapTo(queueWidthPx.toFloat()) else queueWidthAnim.animateTo(queueWidthPx.toFloat(), IslandMotion.smoothSpatial())
+    }
+    fun queueWidthLive(): Int = queueWidthAnim.value.roundToInt()
+    fun queueX(width: Int): Int =
+        if (spec.growDirection > 0) surfaceLeft(width) + width + bubbleGapPx else surfaceLeft(width) - bubbleGapPx - queueWidthLive()
+    val inlineQueueIcons = queuedIcons.ifEmpty { lastQueuedIcons }
+    val inlineQueue = LineLeading(
+        width = when (spec.queueStyle) {
+            QueueStyle.Stack -> spec.cellSize
+            QueueStyle.Overlap -> stackOverlapWidth(inlineQueueIcons.size, spec.cellSize)
+        },
+    ) {
+        val tapToAdvance = Modifier.pointerInput(Unit) {
+            detectTapGestures {
+                IslandHaptics.tap(context)
+                if (currentState.focused?.queue != null) actions.onAdvance() else lastQueuedIcons.firstOrNull()?.onSelect?.invoke()
+            }
+        }
+        when (spec.queueStyle) {
+            QueueStyle.Stack -> IslandStackBubble(inlineQueueIcons, spec.cellSize, modifier = tapToAdvance)
+            QueueStyle.Overlap -> IslandStackOverlap(inlineQueueIcons, spec.cellSize, modifier = tapToAdvance)
+        }
+    }
+    val lineInsetActive = queueShown && stage == IslandStage.Line
+    val lineInset = if (lineInsetActive) queueWidth + spec.cameraGap else 0.dp
+    val lineInsets = if (spec.growDirection > 0) 0.dp to lineInset else lineInset to 0.dp
+    val condensedLineActive = spec.growDirection == 0 && stage == IslandStage.Line && focusedItem?.line?.condensed == true
+    LaunchedEffect(lineInsetActive, spec.growDirection, condensedLineActive, queueWidthPx) {
+        val shift = if (lineInsetActive && spec.growDirection == 0 && !condensedLineActive) {
+            (queueWidthPx + bubbleGapPx) / 2f
+        } else {
+            0f
+        }
+        if (inspection) lineShift.snapTo(shift) else lineShift.animateTo(shift, IslandMotion.smoothSpatial())
+    }
+    val queueBelow = remember { Animatable(0f) }
+    
+    val pillReveal = remember { Animatable(0f) }
+    LaunchedEffect(queueShown) {
+        when {
+            queueShown -> pillReveal.animateTo(1f, IslandMotion.collapseFloat())
+            collapse.value > 0.5f -> pillReveal.snapTo(0f)
+            else -> pillReveal.animateTo(0f, IslandMotion.collapseFloat())
+        }
+    }
+    LaunchedEffect(stage) {
+        if (inspection) {
+            queueBelow.snapTo(if (stage == IslandStage.Expanded) 1f else 0f)
+            return@LaunchedEffect
+        }
+        when (stage) {
+            IslandStage.Expanded ->
+                if (pillReveal.value > 0.5f) queueBelow.animateTo(1f, IslandMotion.float()) else queueBelow.snapTo(1f)
+            IslandStage.Line -> queueBelow.animateTo(0f, IslandMotion.float())
+            else -> Unit
+        }
+    }
+
+    LaunchedEffect(
+        target, windowWidth, stage, queueShown, pillSize, lineInsetActive, catchUpShown, hasCompactCells,
+        bubbleOnlyLayout, condensedLineActive, queueWidthPx, sideWidthPx, slackTarget,
+    ) {
+        if (target == IntSize.Zero || windowWidth == 0) return@LaunchedEffect
+        val g = if (stage == IslandStage.Expanded) outsetPx.roundToInt() else 0
+        val shift = when {
+            spec.growDirection != 0 || condensedLineActive -> 0
+            lineInsetActive -> (queueWidthPx + bubbleGapPx) / 2
+            catchUpShown && hasCompactCells -> slackTarget / 2
+            else -> 0
+        }
+        val left = windowWidth / 2 - target.width / 2 + surfaceShiftFor(target.width) + shift
+        val top = (surfaceTopPx - g).coerceAtLeast(0)
+        var bounds = IntRect(left, top, left + target.width, surfaceTopPx - g + target.height)
+        if (queueShown && stage == IslandStage.Line) {
+            val bx = if (spec.growDirection > 0) left + target.width + bubbleGapPx else left - bubbleGapPx - queueWidthPx
+            bounds = IntRect(minOf(bounds.left, bx), bounds.top, maxOf(bounds.right, bx + queueWidthPx), maxOf(bounds.bottom, surfaceTopPx + bubbleSizePx))
+        }
+        if (catchUpShown && bubbleOnlyLayout) {
+            val bx = windowWidth / 2 - sideWidthPx / 2
+            bounds = IntRect(bx, surfaceTopPx, bx + sideWidthPx, surfaceTopPx + bubbleSizePx)
+        } else if (catchUpShown) {
+            val bx = if (spec.growDirection > 0) left + target.width + bubbleGapPx else left - bubbleGapPx - sideWidthPx
+            bounds = IntRect(minOf(bounds.left, bx), bounds.top, maxOf(bounds.right, bx + sideWidthPx), maxOf(bounds.bottom, surfaceTopPx + bubbleSizePx))
+        }
+        if (queueShown && stage == IslandStage.Expanded && pillSize != IntSize.Zero) {
+            val pillLeft = left + (target.width - pillSize.width) / 2
+            bounds = IntRect(
+                minOf(bounds.left, pillLeft),
+                bounds.top,
+                maxOf(bounds.right, pillLeft + pillSize.width),
+                bounds.bottom + with(density) { 2.dp.roundToPx() } + pillSize.height,
+            )
+        }
+        onTargetBoundsChanged(bounds)
+    }
+
+    val queuePresence = animateFloatAsState(if (queueShown) 1f else 0f, IslandMotion.expressiveFastEffects(), label = "queuePresence")
+    val queueBond = remember {
+        LiquidBond("queue", presence = {
+            queuePresence.value * (1f - queueBelow.value * 2f).coerceIn(0f, 1f) * (1f - collapse.value).coerceIn(0f, 1f)
+        })
+    }
+    val pillBond = remember {
+        LiquidBond("pill", presence = {
+            queuePresence.value * ((queueBelow.value - 0.3f) / 0.7f).coerceIn(0f, 1f) * (1f - collapse.value).coerceIn(0f, 1f) * pillGate()
+        })
+    }
+
+    var surfaceOwner by remember { mutableStateOf<String?>(null) }
+    val activeOwner = if (layeredSurface) state.focusedKey else surfaceOwner
+    SideEffect { if (layeredSurface) surfaceOwner = state.focusedKey }
+    val reportedAccents = remember { mutableStateMapOf<String, Color>() }
+    LaunchedEffect(surfaceOwner, key, state.items.keys) {
+        val owner = surfaceOwner ?: return@LaunchedEffect
+        val replaced = (stage == IslandStage.Expanded || stage == IslandStage.Line) && key.itemKey != owner
+        if (!replaced && stage != IslandStage.Hidden && owner in state.items) return@LaunchedEffect
+        if (!replaced) {
+            snapshotFlow { !visible || liveSurfaceHeight.intValue <= compactSize.height.coerceAtLeast(minSurfaceHeight) + 1 }
+                .first { it }
+        }
+        if (surfaceOwner == owner) surfaceOwner = null
+    }
+
+    fun hasDetachedSurface(): Boolean {
+        val owner = activeOwner ?: return false
+        return when (key.stage) {
+            IslandStage.Expanded, IslandStage.Line -> key.itemKey == owner
+            IslandStage.Compact, IslandStage.Hidden -> true
+        }
+    }
+    fun detachedAmount(): Float = if (hasDetachedSurface()) {
+        visualExpansionAmount(
+            IntSize(liveSurfaceWidth.intValue, liveSurfaceHeight.intValue),
+            IntSize(compactSize.width.coerceAtLeast(minSurfaceWidth), compactSize.height.coerceAtLeast(minSurfaceHeight)),
+            visualExpandedSize,
+        )
+    } else {
+        0f
+    }
+    fun visualFrame(): IslandVisualFrame {
+        val bounds = visualBounds
+        val shellAlpha = (if (visible) 1f else 0f) *
+            (1f - if (bubbleOnlyLayout) catchUpAnim.value.coerceIn(0f, 1f) else 0f)
+        val cameraCenter = cameraGeometry?.let {
+            Offset(it.centerX - islandDrawViewport(it).left, it.centerY)
+        } ?: Offset(windowWidth / 2f, with(density) { (targetSpec.surfaceTop + targetSpec.compactHeight / 2).toPx() })
+        val cameraRadius = cameraGeometry?.let { if (it.hasCamera) it.radius else 0f }
+            ?: with(density) { targetSpec.cameraDiameter.toPx() / 2f }
+        return IslandVisualFrame(
+            bounds,
+            surfaceCornerPx(bounds.height, compactHeightPx, expandedCornerPx),
+            if (bounds.width > 0f && bounds.height > 0f && hasDetachedSurface()) shellAlpha else 0f,
+            if (layeredSurface) surfacePulse.value else 0f,
+            cameraCenter,
+            cameraRadius,
+        )
+    }
+
+    CompositionLocalProvider(
+        LocalLiquidField provides liquidField,
+        LocalIslandIconColor provides iconColor,
+        LocalIslandTextColor provides if (targetSpec.themedText) pastelOf(iconColor) else null,
+    ) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .onSizeChanged { windowWidth = it.width }
+            .onGloballyPositioned { visualRootCoordinates = it }
+            .pointerInput(stage) {
+                if (stage != IslandStage.Expanded) return@pointerInput
+                detectTapGestures { actions.onCollapse() }
+            },
+    ) {
+        activeOwner?.let { owner ->
+            val ownerItem = state.items[owner] ?: lastItems[owner]
+            val glow by animateColorAsState(
+                reportedAccents[owner] ?: ownerItem?.accent ?: islandAccent(),
+                label = "islandSurfaceGlow",
+            )
+            val geometry = { visualFrame().let { MediaVisualGeometry(it.bounds, it.cornerRadius) } }
+            val camera = { visualFrame().let { MediaCameraGeometry(it.cameraCenter, it.cameraRadius) } }
+            Box(
+                Modifier.fillMaxSize().graphicsLayer {
+                    alpha = visualFrame().alpha
+                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                },
+            ) {
+                MediaSurface(glow, spec.expandedCorner, { visualFrame().pulse }, geometry, camera, Modifier.matchParentSize(), transparent = spec.transparency, glowIntensity = spec.glowIntensity)
+                if (spec.neuralExpressive && (spec.neuralExpressiveAlways || ownerItem?.expandedParticles == true)) {
+                    GeminiParticlePill(
+                        modifier = Modifier.matchParentSize(),
+                        color = glow,
+                        cornerRadius = spec.expandedCorner,
+                        activation = { visualFrame().pulse },
+                        geometry = geometry,
+                        protectedCamera = camera,
+                    )
+                }
+            }
+        }
+        LiquidBridges(liquidField)
+        val pillGapPx = with(density) { 2.dp.roundToPx() }
+        AnimatedVisibility(
+            visible = queueShown,
+            enter = if (stage == IslandStage.Expanded) EnterTransition.None else fadeIn(IslandMotion.contentIn()),
+            exit = if (stage == IslandStage.Expanded || queueBelow.value > 0.5f) {
+                fadeOut(motionTween(1, delayMillis = 460))
+            } else {
+                fadeOut(IslandMotion.contentOut())
+            },
+        ) {
+            
+            Box(Modifier.fillMaxSize()) {
+                val t = { queueBelow.value.coerceIn(0f, 1f) }
+                fun Modifier.queueSlot(fromScale: Float, toScale: Float, slides: Boolean = false, alphaOf: (Float) -> Float) =
+                    layout { measurable, constraints ->
+                        val p = measurable.measure(Constraints())
+                        layout(constraints.maxWidth, constraints.maxHeight) {
+                            val w = visibleWidth()
+                            val sideX = queueX(w) + queueWidthLive() / 2f
+                            val sideY = surfaceTopPx + bubbleSizePx / 2f
+                            val belowX = surfaceLeft(w) + w / 2f
+                            val belowY = surfaceTopPx + liveSurfaceHeight.intValue + pillGapPx + p.height / 2f
+                            val k = t()
+                            val cx = sideX + (belowX - sideX) * k
+                            val cy = sideY + (belowY - sideY) * k
+                            val reveal = if (slides) {
+                                minOf(pillReveal.value, pillGate(), 1f - collapse.value).coerceIn(0f, 1f)
+                            } else {
+                                1f
+                            }
+                            val hiddenY = surfaceTopPx - edgeShift.floatValue + liveSurfaceHeight.intValue / 2f
+                            val y = if (slides) hiddenY + (cy - hiddenY) * reveal else cy
+                            val fit = if (slides && p.width > 0 && p.height > 0) {
+                                minOf(1f, w * 0.9f / p.width, liveSurfaceHeight.intValue * 0.9f / p.height)
+                            } else {
+                                1f
+                            }
+                            p.placeWithLayer((cx - p.width / 2f).roundToInt(), (y - p.height / 2f).roundToInt()) {
+                                val s = (fromScale + (toScale - fromScale) * k) * (fit + (1f - fit) * reveal)
+                                scaleX = s
+                                scaleY = s
+                                alpha = if (slides) alphaOf(k) else alphaOf(k) * (1f - collapse.value).coerceIn(0f, 1f)
+                            }
+                        }
+                    }
+                val queueModifier = Modifier
+                    .queueSlot(1f, 0.6f) { k -> (1f - k * 2f).coerceIn(0f, 1f) }
+                    .pointerInput(Unit) {
+                        detectTapGestures {
+                            if (currentState.stage != IslandStage.Line) return@detectTapGestures
+                            IslandHaptics.tap(context)
+                            if (currentState.focused?.queue != null) {
+                                actions.onAdvance()
+                            } else {
+                                lastQueuedIcons.firstOrNull()?.onSelect?.invoke()
+                            }
+                        }
+                    }
+                IslandQueueCount(
+                    count = lastQueuedIcons.size,
+                    size = spec.compactHeight,
+                    outlineColor = outlineFor(1f),
+                    outlineThickness = spec.outlineThickness,
+                    modifier = queueModifier,
+                    bond = queueBond,
+                )
+                IslandStackPill(
+                    icons = lastFullStack,
+                    selectedKey = lastFullStack.firstOrNull { it.current }?.key,
+                    iconSize = 30.dp,
+                    interactive = stage == IslandStage.Expanded,
+                    outlineColor = outlineFor(1f),
+                    outlineThickness = spec.outlineThickness,
+                    bond = pillBond,
+                    accent = focusedItem?.queueAccent,
+                    onInteraction = actions::onInteraction,
+                    modifier = Modifier
+                        .queueSlot(0.5f, 1f, slides = true) { k -> ((k - 0.3f) / 0.7f).coerceIn(0f, 1f) }
+                        .onSizeChanged { pillSize = it },
+                )
+            }
+        }
+        if (bond > 0.001f && lastCatchUp != null && catchUpAnim.value > 0.5f && !bubbleOnlyLayout) {
+            Box(
+                Modifier
+                    .layout { measurable, constraints ->
+                        val w = visibleWidth()
+                        val surfaceStart = surfaceLeft(w)
+                        val bubbleStart = if (bubbleTucking) liveBubbleX(w) else bubbleX(w)
+                        val left = minOf(bubbleStart, surfaceStart)
+                        val right = maxOf(bubbleStart + sideWidthLive(), surfaceStart + w)
+                        val body = measurable.measure(Constraints.fixed((right - left).coerceAtLeast(0), compactHeightPx.roundToInt()))
+                        layout(constraints.maxWidth, constraints.maxHeight) {
+                            body.place(left, surfaceTopPx - (surfaceTopPx * bond + hideLift()).roundToInt())
+                        }
+                    }
+                    .graphicsLayer { alpha = bond }
+                    .drawBehind {
+                        val r = size.height / 2f
+                        drawRoundRect(Color.Black, cornerRadius = CornerRadius(r))
+                        drawRect(Color.Black, size = Size(size.width, r))
+                        val f = compactHeightPx * 0.4f
+                        val leftFillet = Path().apply {
+                            moveTo(-f, 0f)
+                            lineTo(0f, 0f)
+                            lineTo(0f, f)
+                            arcTo(Rect(Offset(-f, f), f), 0f, -90f, false)
+                            close()
+                        }
+                        val rightFillet = Path().apply {
+                            moveTo(size.width + f, 0f)
+                            lineTo(size.width, 0f)
+                            lineTo(size.width, f)
+                            arcTo(Rect(Offset(size.width + f, f), f), 180f, 90f, false)
+                            close()
+                        }
+                        drawPath(leftFillet, Color.Black)
+                        drawPath(rightFillet, Color.Black)
+                    },
+            )
+        }
+        val bubbleData = lastCatchUp
+        if (bubbleData != null && catchUpAnim.value > 0.001f) {
+            val dragX = remember { Animatable(0f) }
+            val bubbleBond = remember(bubbleOnlyLayout) {
+                LiquidBond("sideBubble", presence = {
+                    if (bubbleOnlyLayout || bubbleTucking || currentState.stage == IslandStage.Hidden) catchUpAnim.value.coerceIn(0f, 1f) else 1f
+                })
+            }
+            val bubbleLiquid = rememberLiquidBody(LiquidSpec.Droplet, bubbleBond, liquidField)
+            val towardCamera = if (spec.growDirection > 0) -1f else 1f
+            val maxDrag = with(density) { 56.dp.toPx() }
+            val threshold = with(density) { 28.dp.toPx() }
+            Box(Modifier.fillMaxSize()) {
+                if (bubbleTucking && bubbleAbsorbing) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .drawBehind {
+                                val m = (1f - catchUpAnim.value).coerceIn(0f, 1f)
+                                val w = visibleWidth()
+                                val h = liveSurfaceHeight.intValue.toFloat()
+                                if (w <= 0 || h <= 0f) return@drawBehind
+                                val fromL = if (bubbleOnlyLayout) {
+                                    windowWidth / 2f - sideWidthLive() / 2f
+                                } else {
+                                    bubbleX(bubbleAnchorWidth[0].takeIf { it > 0 && collapse.value <= 0f } ?: w).toFloat()
+                                }
+                                val fromT = surfaceTopPx - surfaceTopPx * bond
+                                val toL = surfaceLeft(w).toFloat()
+                                val toT = surfaceTopPx - edgeShift.floatValue - surfaceTopPx * bond
+                                val l = fromL + (toL - fromL) * m
+                                val t = fromT + (toT - fromT) * m
+                                val r = fromL + sideWidthLive() + (toL + w - fromL - sideWidthLive()) * m
+                                val b = fromT + bubbleSizePx + (toT + h - fromT - bubbleSizePx) * m
+                                val corner = bubbleSizePx / 2f + (surfaceCornerPx(h, compactHeightPx, expandedCornerPx) - bubbleSizePx / 2f) * m
+                                drawRoundRect(Color.Black, Offset(l, t), Size(r - l, b - t), CornerRadius(corner))
+                            },
+                    )
+                }
+                IslandSideBubble(
+                    ownerKey = lastBubbleKey,
+                    bubbleFor = { knownBubbles[it] },
+                    size = spec.compactHeight,
+                    style = spec.queueStyle,
+                    outlineColor = outlineFor(1f),
+                    outlineThickness = spec.outlineThickness,
+                    maxIcons = bubbleMaxIcons,
+                    overflow = lastCatchUp?.overflow ?: com.sameerasw.essentials.island.model.QueueOverflow.Number,
+                    spread = { catchUpAnim.value },
+                    gatherToEnd = spec.growDirection <= 0,
+                    modifier = Modifier
+                        .offset {
+                            if (bubbleOnlyLayout) {
+                                IntOffset((windowWidth / 2 - sideWidthLive() / 2 + dragX.value).roundToInt(), surfaceTopPx - hideLift().roundToInt())
+                            } else {
+                                IntOffset(liveBubbleX(visibleWidth()) + dragX.value.roundToInt(), surfaceTopPx - (surfaceTopPx * bond + hideLift()).roundToInt())
+                            }
+                        }
+                        .liquid(bubbleLiquid)
+                        .graphicsLayer {
+                            val absorbing = bubbleTucking && bubbleAbsorbing
+                            val fades = bubbleOnlyLayout || stage == IslandStage.Hidden || bubbleTucking
+                            val appear = when {
+                                absorbing -> ((catchUpAnim.value - 0.65f) / 0.35f).coerceIn(0f, 1f)
+                                fades -> catchUpAnim.value.coerceIn(0f, 1f)
+                                else -> 1f
+                            }
+                            alpha = (1f - (abs(dragX.value) / maxDrag).coerceIn(0f, 0.8f)) * appear
+                            val appearScale = if (fades && !absorbing) 0.6f + 0.4f * appear else 1f
+                            scaleX = appearScale
+                            scaleY = appearScale
+                            val bubbleW = sideWidthLive().coerceAtLeast(1).toFloat()
+                            val gatherX = (bubbleSizePx / 2f / bubbleW).coerceIn(0f, 1f)
+                            transformOrigin = TransformOrigin(if (spec.growDirection <= 0) 1f - gatherX else gatherX, 0.5f)
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures {
+                                IslandHaptics.tap(context)
+                                bubbleAbsorbing = true
+                                bubbleData.onOpen()
+                                scope.launch {
+                                    delay(IslandMotion.COLLAPSE_MS.toLong())
+                                    if (!bubbleTucking) bubbleAbsorbing = false
+                                }
+                            }
+                        }
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onHorizontalDrag = { change, amount ->
+                                    if (bubbleData.onDismiss == null) return@detectHorizontalDragGestures
+                                    change.consume()
+                                    val next = dragX.value + amount
+                                    val lo = if (towardCamera > 0f) -with(density) { 8.dp.toPx() } else -maxDrag
+                                    val hi = if (towardCamera > 0f) maxDrag else with(density) { 8.dp.toPx() }
+                                    scope.launch { dragX.snapTo(next.coerceIn(lo, hi)) }
+                                },
+                                onDragEnd = {
+                                    scope.launch {
+                                        if (dragX.value * towardCamera > threshold) {
+                                            IslandHaptics.tap(context)
+                                            dragX.animateTo(towardCamera * maxDrag, motionTween(100))
+                                            bubbleData.onDismiss?.invoke()
+                                        } else {
+                                            dragX.animateTo(0f, IslandMotion.float())
+                                        }
+                                    }
+                                },
+                                onDragCancel = { scope.launch { dragX.animateTo(0f, IslandMotion.float()) } },
+                            )
+                        },
+                )
+            }
+        }
+        val collapseEndTarget = when {
+            state.arrangement.visibleItems.isEmpty() -> IntSize(minSurfaceHeight, minSurfaceHeight)
+            compactSize != IntSize.Zero -> compactSize
+            else -> fallbackCompact
+        }
+        val collapseEnd by animateIntSizeAsState(collapseEndTarget, IslandMotion.compactSize, label = "collapseEnd")
+        fun compactFloorWidth(): Int =
+            if (collapse.value > 0f && previewCompactSize[0] > 0) previewCompactSize[0] else collapseEnd.width
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = spec.surfaceTop)
+                .layout { measurable, constraints ->
+                    val p = measurable.measure(constraints)
+                    layout(p.width, p.height) {
+                        val dx = surfaceShiftFor(p.width) + lineShift.value.roundToInt() + catchShiftPx().roundToInt()
+                        p.place(dx, 0)
+                    }
+                }
+                .offset { IntOffset(0, (-edgeShift.floatValue - surfaceTopPx * bond - hideLift()).roundToInt()) }
+                .compactJelly(jelly, jellyRangePx)
+                .liquid(surfaceLiquid, TransformOrigin(0.5f, 0f))
+                .drawBehind {
+                    if (bond <= 0f) return@drawBehind
+                    val f = compactHeightPx * 0.4f * bond
+                    val left = Path().apply {
+                        moveTo(-f, 0f)
+                        lineTo(0f, 0f)
+                        lineTo(0f, f)
+                        arcTo(Rect(Offset(-f, f), f), 0f, -90f, false)
+                        close()
+                    }
+                    val right = Path().apply {
+                        moveTo(size.width + f, 0f)
+                        lineTo(size.width, 0f)
+                        lineTo(size.width, f)
+                        arcTo(Rect(Offset(size.width + f, f), f), 180f, 90f, false)
+                        close()
+                    }
+                    drawPath(left, Color.Black)
+                    drawPath(right, Color.Black)
+                }
+                .drawBehind {
+                    val p = pulse.value
+                    if (layeredSurface || pulseAccent == null || p <= 0f || !visible) return@drawBehind
+                    val spread = spec.pulseSpread.toPx()
+                    val dy = spec.pulseOffsetY.toPx()
+                    val r = surfaceCornerPx(size.height, compactHeightPx, expandedCornerPx) + spread
+                    pulsePaint.color = pulseAccent.copy(alpha = spec.pulseOpacity * p).toArgb()
+                    pulsePaint.maskFilter = pulseBlur
+                    drawContext.canvas.nativeCanvas.drawRoundRect(
+                        -spread, -spread + dy, size.width + spread, size.height + spread + dy, r, r, pulsePaint,
+                    )
+                }
+                .graphicsLayer {
+                    alpha = (if (visible) 1f else 0f) * (1f - if (bubbleOnlyLayout) catchUpAnim.value.coerceIn(0f, 1f) else 0f)
+                    // Corner follows the live height so it can never outrun the size animation.
+                    shape = if (bond > 0f) bondedShape(bond, compactHeightPx, expandedCornerPx) else surfaceShape
+                    clip = true
+                }
+                .drawBehind {
+                    val fill = maxOf(1f - detachedAmount(), collapse.value.coerceIn(0f, 1f))
+                    drawRect(Color.Black.copy(alpha = fill))
+                }
+                .onGloballyPositioned { coordinates ->
+                    val host = visualRootCoordinates
+                    if (host != null && host.isAttached && coordinates.isAttached) {
+                        val w = coordinates.size.width.toFloat()
+                        val h = coordinates.size.height.toFloat()
+                        val points = listOf(Offset.Zero, Offset(w, 0f), Offset(0f, h), Offset(w, h))
+                            .map { host.localPositionOf(coordinates, it) }
+                        if (points.all { it.x.isFinite() && it.y.isFinite() }) {
+                            visualBounds = Rect(points.minOf { it.x }, points.minOf { it.y }, points.maxOf { it.x }, points.maxOf { it.y })
+                        }
+                    }
+                }
+                .then(
+                    outlineFor(1f - bond)
+                        ?.let { Modifier.border(spec.outlineThickness, it, surfaceShape) }
+                        ?: Modifier,
+                )
+                // Finger-driven shrink sits inside the clip/background so the pill itself follows the drag.
+                .layout { measurable, constraints ->
+                    val child = measurable.measure(constraints)
+                    val t = collapse.value.coerceIn(0f, 1f)
+                    val end = if (t > 0f && previewCompactSize[0] > 0) {
+                        IntSize(previewCompactSize[0], previewCompactSize[1].coerceAtLeast(minSurfaceHeight))
+                    } else {
+                        collapseEnd
+                    }
+                    // Never smaller than the camera, whatever a spring or fling does.
+                    val preW = (if (t > 0f) lerp(child.width, end.width, t) else child.width).coerceAtLeast(minSurfaceWidth)
+                    val preH = (if (t > 0f) lerp(child.height, end.height, t) else child.height).coerceAtLeast(minSurfaceHeight)
+                    val hiding = currentState.stage == IslandStage.Hidden
+                    // While hiding, the pill keeps its last visible size until its turn to close into the camera.
+                    val baseW = if (hiding && holdSize[0] > 0) holdSize[0] else preW
+                    val baseH = if (hiding && holdSize[1] > 0) holdSize[1] else preH
+                    val heightProgress = (squash.value / 0.4f).coerceIn(0f, 1f)
+                    val widthProgress = ((squash.value - 0.2f) / 0.8f).coerceIn(0f, 1f)
+                    val w = lerp(baseW, minSurfaceWidth, widthProgress)
+                    val h = lerp(baseH, minSurfaceHeight, heightProgress).coerceAtLeast(minSurfaceHeight)
+                    if (!hiding) {
+                        holdSize[0] = preW
+                        holdSize[1] = preH
+                    }
+                    liveSurfaceHeight.intValue = h
+                    liveSurfaceWidth.intValue = w
+                    val range = (expandedHeight[0] - minSurfaceHeight).toFloat()
+                    val p = if (range > 0f) ((h - minSurfaceHeight) / range).coerceIn(0f, 1f) else 0f
+                    edgeShift.floatValue = outsetPx * p
+                    val dw = growTarget[0] - growFrom[0]
+                    val dh = growTarget[1] - growFrom[1]
+                    if (!growFlags[0] && growFrom[0] > 0 && (abs(dw) > 2 || abs(dh) > 2)) {
+                        val pw = if (abs(dw) > 2) ((w - growFrom[0]).toFloat() / dw).coerceIn(0f, 1f) else 1f
+                        val ph = if (abs(dh) > 2) ((h - growFrom[1]).toFloat() / dh).coerceIn(0f, 1f) else 1f
+                        val prog = minOf(pw, ph)
+                        if (prog >= 0.98f) growFlags[0] = true
+                        growFlags[1] = !growFlags[0]
+                        growProgress.floatValue = if (growFlags[0]) 1f else prog
+                    } else {
+                        growFlags[1] = false
+                        growProgress.floatValue = 1f
+                    }
+                    val childX = when {
+                        spec.growDirection > 0 -> 0
+                        spec.growDirection < 0 -> w - child.width
+                        else -> (w - child.width) / 2
+                    }
+                    layout(w, h) { child.place(childX, 0) }
+                }
+                .onSizeChanged { surfaceSize = it }
+                .layout { measurable, constraints ->
+                    val p = measurable.measure(constraints)
+                    val floorW = if (stage == IslandStage.Compact) maxOf(minSurfaceWidth, compactFloorWidth()) else minSurfaceWidth
+                    val w = p.width.coerceAtLeast(floorW)
+                    val h = p.height.coerceAtLeast(minSurfaceHeight)
+                    layout(w, h) { p.place((w - p.width) / 2, 0) }
+                }
+                .animateContentSize(
+                    animationSpec = when {
+                        IslandLiveResize.active -> snap()
+                        stage == IslandStage.Expanded || stage == IslandStage.Line -> IslandMotion.size
+                        stage == IslandStage.Compact && compactSettled -> IslandMotion.compactSize
+                        else -> IslandMotion.collapseSize
+                    },
+                    alignment = when {
+                        spec.growDirection > 0 -> Alignment.TopStart
+                        spec.growDirection < 0 -> Alignment.TopEnd
+                        else -> Alignment.TopCenter
+                    },
+                    finishedListener = { _, _ ->
+                        if (dragCommitted && currentState.stage != IslandStage.Expanded && currentState.stage != IslandStage.Line) {
+                            dragCommitted = false
+                            scope.launch { collapse.animateTo(0f, IslandMotion.settle()) }
+                        }
+                    },
+                )
+                .layout { measurable, constraints ->
+                    val p = measurable.measure(constraints)
+                    val floorW = if (stage == IslandStage.Compact) maxOf(minSurfaceWidth, compactFloorWidth()) else minSurfaceWidth
+                    growTarget[0] = p.width.coerceAtLeast(floorW)
+                    growTarget[1] = p.height.coerceAtLeast(minSurfaceHeight)
+                    layout(p.width, p.height) { p.place(0, 0) }
+                }
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        actions.onInteraction()
+                        val compact = currentState.stage == IslandStage.Compact
+                        val rumble = compact && actions.compactGestures.hasLongPress
+                        val holdMs = viewConfiguration.longPressTimeoutMillis
+                        compactLongPressed = false
+                        if (compact) {
+                            IslandHaptics.touchDown(context)
+                            scope.launch { jelly.pressDown() }
+                        }
+                        val ramp = if (rumble) {
+                            if (actions.compactGestures.longPressOpensBrief) {
+                                IslandHaptics.holdTickRampStart(context, holdMs)
+                            } else {
+                                IslandHaptics.holdRumbleStart(context, holdMs)
+                            }
+                            null
+                        } else {
+                            scope.launch {
+                                IslandHaptics.RAMP_DELAYS_MS.forEachIndexed { step, wait ->
+                                    delay(wait)
+                                    IslandHaptics.longPressRamp(context, step)
+                                }
+                            }
+                        }
+                        var holding = true
+                        while (true) {
+                            val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull() ?: break
+                            if (!change.pressed) break
+                            if (holding && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                                holding = false
+                                ramp?.cancel()
+                                if (rumble && !compactLongPressed) IslandHaptics.holdRumbleStop(context)
+                            }
+                        }
+                        ramp?.cancel()
+                        // Lifting early cuts the swell; after the press lands it has already finished.
+                        if (rumble && holding && !compactLongPressed) IslandHaptics.holdRumbleStop(context)
+                        if (compact) scope.launch { jelly.pressUp() }
+                    }
+                }
+                .pointerInput(stage) {
+                    if (stage == IslandStage.Hidden) return@pointerInput
+                    detectTapGestures(
+                        onTap = { handleTap(null) },
+                        onLongPress = { handleLongPress(null) },
+                    )
+                }
+                .pointerInput(stage) {
+                    if (stage != IslandStage.Compact) return@pointerInput
+                    detectCompactGestures(
+                        gestures = { actions.compactGestures },
+                        jelly = jelly,
+                        scope = scope,
+                        context = context,
+                        isBlocked = { compactLongPressed },
+                    )
+                }
+                .pointerInput(stage) {
+                    if (stage != IslandStage.Line && stage != IslandStage.Expanded) return@pointerInput
+                    val collapseRange = 120.dp.toPx()
+                    val dismissThreshold = 48.dp.toPx()
+                    val flyOff = view.resources.displayMetrics.widthPixels * 0.85f
+                    val tracker = VelocityTracker()
+                    val peek = stage == IslandStage.Line
+                    var startX = 0f
+                    var dx = 0f
+                    var dy = 0f
+                    
+                    var sliding = false
+                    var dropping = false
+                    var axisLocked = false
+                    var lockedHorizontal = false
+                    val downMode = spec.dismissDown && !peek
+                    var switchMode = downMode
+                    suspend fun awaitNextContent(focused: IslandItem) {
+                        quietContentChange = true
+                        val changed = withTimeoutOrNull(600L) {
+                            snapshotFlow { currentState.focused }.first {
+                                it !== focused && (focused.contentId == null || it?.contentId != focused.contentId)
+                            }
+                        }
+                        if (changed == null) quietContentChange = false
+                    }
+                    fun switchTarget(dir: Float): (() -> Unit)? {
+                        val focused = currentState.focused ?: return null
+                        val index = focused.stack.indexOfFirst { it.current }
+                        if (index >= 0) return focused.stack.getOrNull(if (dir < 0f) index + 1 else index - 1)?.onSelect
+                        return if (dir < 0f) focused.queue?.let { { actions.onAdvance() } } else null
+                    }
+                    var crossed = false
+                    var progress = 0f
+                    var collapseBase = 0f
+                    var dismissBase = 0f
+                    var lastStep = 0f
+                    val stepPx = 16.dp.toPx()
+                    fun inwardSign(): Float {
+                        val cameraX = when {
+                            spec.growDirection > 0 -> cameraSlotPx / 2f
+                            spec.growDirection < 0 -> size.width - cameraSlotPx / 2f
+                            else -> size.width / 2f
+                        }
+                        return when {
+                            startX < cameraX -> 1f
+                            startX > cameraX -> -1f
+                            else -> if (dx >= 0f) -1f else 1f
+                        }
+                    }
+                    detectDragGestures(
+                        onDragStart = { start ->
+                            tracker.resetTracking()
+                            startX = start.x
+                            dx = 0f
+                            dy = 0f
+                            collapseBase = collapse.value.coerceIn(0f, 1f)
+                            dismissBase = dismissOffset.value
+                            scope.launch { collapse.stop() }
+                            scope.launch { dismissOffset.stop() }
+                            scope.launch { dropOffset.stop() }
+                            dropping = false
+                            axisLocked = false
+                            switchMode = downMode || (!peek && currentState.focused?.dismissible != true)
+                            lastStep = 0f
+                            crossed = false
+                            sliding = false
+                        },
+                        onDrag = { change, amount ->
+                            change.consume()
+                            tracker.addPosition(change.uptimeMillis, change.position)
+                            dx += amount.x
+                            dy += amount.y
+                            val inward = dx * inwardSign()
+                            if (!axisLocked) {
+                                axisLocked = true
+                                lockedHorizontal = abs(dx) >= abs(dy)
+                            }
+                            val horizontal = lockedHorizontal
+                            val dismissible = currentState.focused?.dismissible == true
+                            val canSwitch = dx != 0f && switchTarget(dx) != null
+                            sliding = if (peek) horizontal && inward <= 0f else horizontal
+                            carouselDrag = sliding && switchMode && !carouselActive
+                            dropping = downMode && !horizontal && dy > 0f
+                            val slideFree = if (switchMode) canSwitch else dismissible
+                            val slide = dismissBase + if (slideFree) dx else dx * 0.25f
+                            val drop = if (dismissible) dy else dy * 0.25f
+                            if (sliding) {
+                                progress = 0f
+                                if (collapse.targetValue != 0f) scope.launch { collapse.animateTo(0f, IslandMotion.release()) }
+                                if (dropOffset.targetValue != 0f) scope.launch { dropOffset.animateTo(0f, IslandMotion.fling()) }
+                                scope.launch { dismissOffset.snapTo(slide) }
+                            } else if (dropping) {
+                                progress = 0f
+                                if (collapse.targetValue != 0f) scope.launch { collapse.animateTo(0f, IslandMotion.release()) }
+                                if (dismissOffset.targetValue != 0f) scope.launch { dismissOffset.animateTo(0f, IslandMotion.fling()) }
+                                scope.launch { dropOffset.snapTo(drop) }
+                            } else {
+                                val pull = if (peek) maxOf(inward, -dy) else -dy
+                                progress = (collapseBase + pull / collapseRange).coerceIn(0f, 1f)
+                                scope.launch { collapse.snapTo(progress) }
+                                if (dismissOffset.targetValue != 0f) scope.launch { dismissOffset.animateTo(0f, IslandMotion.fling()) }
+                                if (dropOffset.targetValue != 0f) scope.launch { dropOffset.animateTo(0f, IslandMotion.fling()) }
+                            }
+                            val now = when {
+                                sliding -> abs(slide) > dismissThreshold && slideFree
+                                dropping -> drop > dismissThreshold && dismissible
+                                else -> progress > COLLAPSE_COMMIT
+                            }
+                            swipeIntent = when {
+                                !now -> null
+                                sliding && switchMode -> null
+                                sliding || dropping -> SwipeIntent.Dismiss
+                                else -> SwipeIntent.Hide
+                            }
+                            if (now != crossed) {
+                                crossed = now
+                                if (now) IslandHaptics.thresholdReached(context) else IslandHaptics.thresholdLeft(context)
+                            } else {
+                                val dist = hypot(dx, dy)
+                                if (abs(dist - lastStep) >= stepPx) {
+                                    lastStep = dist
+                                    IslandHaptics.dragStep(context)
+                                }
+                            }
+                        },
+                        onDragEnd = {
+                            swipeIntent = null
+                            val v = tracker.calculateVelocity()
+                            if (sliding && switchMode) {
+                                val focused = currentState.focused
+                                val flung = abs(v.x) > 1000f && sign(v.x) == sign(dismissOffset.value)
+                                val dir = if (dismissOffset.value > 0f) 1f else -1f
+                                val target = switchTarget(dir)
+                                val commit = target != null && focused != null && (crossed || flung)
+                                val width = size.width.toFloat().coerceAtLeast(1f)
+                                scope.launch {
+                                    if (!commit || focused == null || target == null) {
+                                        dismissOffset.animateTo(0f, IslandMotion.fling(), initialVelocity = v.x)
+                                        carouselDrag = false
+                                        return@launch
+                                    }
+                                    IslandHaptics.commit(context)
+                                    carouselStart = dismissOffset.value
+                                    carouselDir = dir
+                                    carouselReady = false
+                                    carouselProgress.snapTo(0f)
+                                    carouselActive = true
+                                    carouselDrag = false
+                                    dismissOffset.snapTo(0f)
+                                    target()
+                                    actions.onInteraction()
+                                    try {
+                                        coroutineScope {
+                                            launch {
+                                                awaitNextContent(focused)
+                                                carouselReady = true
+                                            }
+                                            val remaining = abs(dir * width - carouselStart).coerceAtLeast(1f)
+                                            carouselProgress.animateTo(
+                                                1f,
+                                                spring(Spring.DampingRatioNoBouncy, Spring.StiffnessMediumLow),
+                                                initialVelocity = (abs(v.x) / remaining).coerceAtMost(6f),
+                                            )
+                                        }
+                                    } finally {
+                                        carouselActive = false
+                                        carouselReady = false
+                                        carouselProgress.snapTo(0f)
+                                    }
+                                }
+                            } else if (dropping) {
+                                val focused = currentState.focused
+                                val flung = v.y > 1500f
+                                val commit = focused?.dismissible == true && (crossed || flung)
+                                scope.launch {
+                                    if (!commit || focused == null) {
+                                        dropOffset.animateTo(0f, IslandMotion.fling(), initialVelocity = v.y)
+                                        return@launch
+                                    }
+                                    IslandHaptics.commit(context)
+                                    val target = size.height.toFloat()
+                                    val remaining = abs(target - dropOffset.value)
+                                    val speed = maxOf(v.y, 2500f)
+                                    val throwMs = (remaining / speed * 1000f).toInt().coerceIn(90, 200)
+                                    dropOffset.animateTo(target, tween(throwMs, easing = LinearEasing))
+                                    if (focused.queue != null) {
+                                        actions.onDismiss()
+                                        awaitNextContent(focused)
+                                        dropOffset.snapTo(target * 0.3f)
+                                        dropOffset.animateTo(0f, IslandMotion.fling())
+                                    } else {
+                                        dismissCommitted = true
+                                        actions.onDismiss()
+                                        dropOffset.snapTo(0f)
+                                    }
+                                }
+                            } else if (sliding) {
+                                val focused = currentState.focused
+                                val flung = abs(v.x) > 1500f
+                                val dir = if ((if (flung) v.x else dismissOffset.value) > 0f) 1f else -1f
+                                val commit = focused?.dismissible == true && (crossed || flung)
+                                scope.launch {
+                                    if (!commit || focused == null) {
+                                        dismissOffset.animateTo(0f, IslandMotion.fling(), initialVelocity = v.x)
+                                        return@launch
+                                    }
+                                    IslandHaptics.commit(context)
+                                    val remaining = abs(dir * flyOff - dismissOffset.value)
+                                    val speed = maxOf(abs(v.x), 2500f)
+                                    val throwMs = (remaining / speed * 1000f).toInt().coerceIn(90, 200)
+                                    val throwSpec = tween<Float>(throwMs, easing = LinearEasing)
+                                    dismissOffset.animateTo(dir * flyOff, throwSpec)
+                                    if (focused.queue != null) {
+                                        actions.onDismiss()
+                                        awaitNextContent(focused)
+                                    } else {
+                                        dismissCommitted = true
+                                        actions.onDismiss()
+                                    }
+                                    dismissOffset.snapTo(0f)
+                                }
+                            } else {
+                                val pullVelocity = (if (peek) maxOf(v.x * inwardSign(), -v.y) else -v.y) / collapseRange
+                                val commit = crossed || pullVelocity > 2f
+                                scope.launch {
+                                    if (commit) {
+                                        IslandHaptics.commit(context)
+                                        collapse.animateTo(1f, IslandMotion.release(), initialVelocity = pullVelocity.coerceIn(0f, 8f))
+                                        dragCommitted = true
+                                        actions.onCollapse()
+                                    } else {
+                                        collapse.animateTo(0f, IslandMotion.release(), initialVelocity = pullVelocity)
+                                    }
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            swipeIntent = null
+                            scope.launch { collapse.animateTo(0f, IslandMotion.release()) }
+                            scope.launch {
+                                dismissOffset.animateTo(0f, IslandMotion.fling())
+                                carouselDrag = false
+                            }
+                            scope.launch { dropOffset.animateTo(0f, IslandMotion.fling()) }
+                        },
+                    )
+                },
+        ) {
+            val item = key.itemKey?.let { state.items[it] ?: lastItems[it] }
+            // The frame the key changes on is drawn before the effect above runs: draw it as the handover's first frame
+            // (old content fully visible, new content transparent) instead of flashing the new content.
+            val previewing = key.stage == IslandStage.Expanded || key.stage == IslandStage.Line
+            val pending = key != lastKey && !(dragCommitted && !previewing)
+            val shownOutgoing = (if (pending && lastKey.stage != IslandStage.Hidden && !dismissCommitted) lastKey else outgoing)
+                ?.takeIf { it != key }
+            val cardCorner = if (key.stage == IslandStage.Expanded) spec.expandedCorner else spec.compactHeight / 2
+            val layerAlign = when {
+                spec.growDirection > 0 -> Alignment.TopStart
+                spec.growDirection < 0 -> Alignment.TopEnd
+                else -> Alignment.TopCenter
+            }
+            val queuedNext = item?.queue?.next
+            if (showDismissReveal && queuedNext != null && !spec.dismissDown && item?.dismissible == true) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .graphicsLayer {
+                            val p = (abs(dismissOffset.value) / (surfaceSize.width.coerceAtLeast(1) * 0.6f)).coerceIn(0f, 1f)
+                            val s = 0.94f + 0.06f * p
+                            scaleX = s
+                            scaleY = s
+                            alpha = 0.4f + 0.6f * p
+                            transformOrigin = TransformOrigin(contentOriginX, 0f)
+                        },
+                    contentAlignment = layerAlign,
+                ) {
+                    StageContent(key.stage, queuedNext, state, spec, actions, interactive = false)
+                }
+            } else if (showDismissReveal && item?.dismissible == true && !spec.dismissDown) {
+                DismissReveal(
+                    fromStart = revealDirection > 0f,
+                    progress = { (abs(dismissOffset.value) / dismissThresholdPx).coerceIn(0f, 1f) },
+                    corner = cardCorner,
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
+            val backdrop = backdropSlot.content
+            if (!layeredSurface && key.stage == IslandStage.Expanded && backdrop != null) {
+                Box(
+                    Modifier
+                        .layout { measurable, _ ->
+                            val p = measurable.measure(Constraints.fixed(surfaceSize.width.coerceAtLeast(0), surfaceSize.height.coerceAtLeast(0)))
+                            layout(0, 0) { p.place(0, 0) }
+                        }
+                        .graphicsLayer {
+                            alpha = contentAlpha.value * growGate(0.3f, 0.5f) * (1f - collapse.value * 1.6f).coerceIn(0f, 1f) *
+                                if (surfaceSize.width > 0) (1f - abs(dismissOffset.value) / surfaceSize.width * 0.6f).coerceIn(0f, 1f) else 1f
+                            translationX = dismissOffset.value + wiggle.value
+                            val sliding = dismissOffset.value != 0f
+                            shape = RoundedCornerShape(if (sliding) cardCorner.toPx() else 0f)
+                            clip = sliding
+                        }
+                        .drawBehind { if (dismissOffset.value != 0f) drawRect(Color.Black) },
+                ) { backdrop() }
+            }
+            Box(contentAlignment = layerAlign) {
+            // Keyed, so the leaving layer keeps its composition (a Line marquee doesn't restart when it becomes outgoing).
+            for (layerKey in listOfNotNull(shownOutgoing, key)) key(layerKey) {
+                val current = layerKey == key
+                val providedLeading = inlineQueue.takeIf { current && inlineLineQueue }
+                val layerModifier = if (current) {
+                    Modifier
+                        .layout { measurable, constraints ->
+                            val p = measurable.measure(constraints)
+                            if (key.stage == IslandStage.Expanded) {
+                                expandedHeight[0] = p.height
+                                if (layeredSurface) visualExpandedSize = IntSize(p.width, p.height)
+                            }
+                            layout(p.width, p.height) { p.place(0, 0) }
+                        }
+                        .onSizeChanged {
+                            target = it
+                            layerSizes[layerKey] = it
+                            if (key.stage == IslandStage.Compact) compactSize = it
+                        }
+                        .graphicsLayer {
+                            alpha = (if (pending) 0f else contentAlpha.value) * growGate(0.3f, 0.5f) *
+                                (if (previewing) 1f - collapse.value * 1.6f else 1f).coerceIn(0f, 1f) *
+                                (if (carouselDrag || carouselActive || surfaceSize.width <= 0) 1f else (1f - abs(dismissOffset.value) / surfaceSize.width * 0.6f).coerceIn(0f, 1f)) *
+                                (if (surfaceSize.height > 0) (1f - dropOffset.value / surfaceSize.height).coerceIn(0f, 1f) else 1f)
+                            translationX = if (carouselActive) {
+                                carouselStart + (carouselDir * size.width - carouselStart) * carouselProgress.value - carouselDir * size.width
+                            } else {
+                                dismissOffset.value + wiggle.value
+                            }
+                            val m = contentMotion.value - if (previewing) collapse.value.coerceIn(0f, 1f) else 0f
+                            // Only shrink (growing entry, drag preview); rising in from below keeps its size.
+                            val scale = 1f + contentScaleFor(key.stage, spec.bondEdge) * m.coerceAtMost(0f)
+                            scaleX = scale
+                            scaleY = scale
+                            translationY = contentShiftPx * m + edgeCorrection(key.stage) + dropOffset.value
+                            transformOrigin = TransformOrigin(contentOriginX, 0f)
+                            val sliding = !carouselActive && !carouselDrag && (dismissOffset.value != 0f || dropOffset.value != 0f)
+                            shape = RoundedCornerShape(if (sliding) cardCorner.toPx() else 0f)
+                            clip = sliding
+                        }
+                        .drawBehind { if (dismissOffset.value != 0f && backdrop == null && !layeredSurface) drawRect(Color.Black) }
+                        .drawWithContent {
+                            if (carouselActive) {
+                                translate(left = carouselDir * size.width) { drawLayer(carouselSnapshot) }
+                                if (carouselReady) drawContent()
+                            } else {
+                                if (carouselDrag) carouselSnapshot.record { this@drawWithContent.drawContent() }
+                                drawContent()
+                            }
+                        }
+                } else {
+                    Modifier
+                        .layout { measurable, _ ->
+                            val last = layerSizes[layerKey]
+                            val p = measurable.measure(if (last != null) Constraints.fixed(last.width, last.height) else Constraints())
+                            val x = when {
+                                spec.growDirection > 0 -> 0
+                                spec.growDirection < 0 -> -p.width
+                                else -> -p.width / 2
+                            }
+                            layout(0, 0) { p.place(x, 0) }
+                        }
+                        .graphicsLayer {
+                            val m = if (pending) contentMotion.value else outgoingMotion.value
+                            alpha = if (pending) contentAlpha.value else minOf(outgoingAlpha.value, leaveGate(0.35f))
+                            val scale = 1f + contentScaleFor(layerKey.stage, spec.bondEdge) * m
+                            scaleX = scale
+                            scaleY = scale
+                            translationY = contentShiftPx * m + edgeCorrection(layerKey.stage)
+                            transformOrigin = TransformOrigin(contentOriginX, 0f)
+                        }
+                }
+                val layerItem = if (current) item else layerKey.itemKey?.let { state.items[it] ?: lastItems[it] }
+                val layerLayered = layerItem?.expandedSurfaceStyle == ExpandedSurfaceStyle.Layered
+                Box(layerModifier) {
+                    CompositionLocalProvider(
+                        LocalIslandBackdropSlot provides if (layerLayered) backdropSink else backdropSlot.takeIf { current },
+                        LocalIslandCollapse provides { if (current) collapse.value else 0f },
+                        LocalIslandSurfaceAccent provides remember(layerKey, current) { { color: Color -> if (current) layerKey.itemKey?.let { reportedAccents[it] = color } } },
+                        LocalLineInset provides if (current) lineInsets else (0.dp to 0.dp),
+                        LocalLineLeading provides inlineQueue.takeIf { current && inlineLineQueue },
+                        LocalIslandMorph provides remember(layerKey) { IslandMorphLayer(morph, layerKey) },
+                    ) {
+                        StageContent(
+                            layerKey.stage, layerItem, state, spec, actions, interactive = current,
+                            onCellTap = ::handleTap,
+                            onCellLongPress = ::handleLongPress,
+                            sideBubble = ::sideBubbleProgress,
+                            bubbleExtent = { bubbleGapPx + sideWidthLive() },
+                            onSlack = { if (current) compactSlack.intValue = it },
+                            onBaseWidth = { if (current) compactBaseWidth.intValue = it },
+                            onNeedLeft = { if (current) compactNeedLeft.intValue = it },
+                        )
+                    }
+                }
+            }
+            Spacer(
+                Modifier
+                    .matchParentSize()
+                    .onGloballyPositioned {
+                        val origin = it.boundsInRoot().topLeft
+                        morphOrigin[0] = origin.x
+                        morphOrigin[1] = origin.y
+                    }
+                    .drawBehind { if (morph.running) morph.draw(this, Offset(morphOrigin[0], morphOrigin[1])) },
+            )
+            SwipeIntentChip(
+                intent = swipeIntent.takeIf { key.stage == IslandStage.Expanded },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = spec.expandedOutset + spec.expandedTopPadding + spec.compactHeight + 4.dp),
+            )
+            if (previewing && showPreview) {
+                // Compact content fades in underneath the finger, so release only has to finish the motion.
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .graphicsLayer {
+                            val t = collapse.value.coerceIn(0f, 1f)
+                            alpha = ((t - 0.15f) / 0.45f).coerceIn(0f, 1f)
+                            val m = 1f - t
+                            val scale = 1f + contentScaleFor(IslandStage.Compact) * m
+                            scaleX = scale
+                            scaleY = scale
+                            translationY = contentShiftPx * m + edgeCorrection(IslandStage.Compact)
+                            transformOrigin = TransformOrigin(contentOriginX, 0f)
+                        },
+                    contentAlignment = layerAlign,
+                ) {
+                    Box(
+                        Modifier.layout { measurable, constraints ->
+                            val p = measurable.measure(Constraints(maxHeight = constraints.maxHeight))
+                            previewCompactSize[0] = p.width.coerceAtLeast(minSurfaceWidth)
+                            previewCompactSize[1] = p.height
+                            layout(p.width, p.height) { p.place(0, 0) }
+                        },
+                    ) {
+                        CompactTemplate(
+                            state = state,
+                            spec = spec,
+                            onCellTap = {},
+                            onCellLongPress = {},
+                            sideBubble = ::sideBubbleProgress,
+                            bubbleExtent = { bubbleGapPx + sideWidthLive() },
+                            onSlack = { compactSlack.intValue = it },
+                            onBaseWidth = { compactBaseWidth.intValue = it },
+                            onNeedLeft = { compactNeedLeft.intValue = it },
+                        )
+                    }
+                }
+            }
+            }
+        }
+        if (showCameraRing) {
+            val ringColor = com.sameerasw.essentials.island.ui.components.islandAccent()
+            Canvas(Modifier.fillMaxSize()) {
+                val stroke = 2.dp.toPx()
+                val radius = spec.compactHeight.toPx() / 2f
+                drawCircle(
+                    color = ringColor,
+                    radius = radius + stroke / 2f,
+                    center = Offset(size.width / 2f, spec.surfaceTop.toPx() + radius),
+                    style = Stroke(width = stroke),
+                )
+            }
+        }
+    }
+    }
+}
+
+private const val BOND_DELAY_MS = 3000L
+
+private fun surfaceCornerPx(height: Float, compactHeightPx: Float, expandedCornerPx: Float): Float {
+    val t = ((height - compactHeightPx) / compactHeightPx).coerceIn(0f, 1f)
+    return (compactHeightPx / 2f + (expandedCornerPx - compactHeightPx / 2f) * t).coerceAtMost(height / 2f)
+}
+
+private fun bondedShape(progress: Float, compactHeightPx: Float, expandedCornerPx: Float): Shape = object : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val t = ((size.height - compactHeightPx) / compactHeightPx).coerceIn(0f, 1f)
+        val r = (compactHeightPx / 2f + (expandedCornerPx - compactHeightPx / 2f) * t).coerceAtMost(size.height / 2f)
+        val top = CornerRadius(r * (1f - progress))
+        val bottom = CornerRadius(r)
+        return Outline.Rounded(RoundRect(size.toRect(), top, top, bottom, bottom))
+    }
+}
+
+private fun lerp(a: Int, b: Int, t: Float): Int = (a + (b - a) * t).roundToInt()
+
+@Composable
+private fun DismissReveal(fromStart: Boolean, progress: () -> Float, corner: Dp, modifier: Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(corner))
+            .background(Color.White.copy(alpha = 0.1f))
+            .padding(horizontal = 20.dp),
+        contentAlignment = if (fromStart) Alignment.CenterStart else Alignment.CenterEnd,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.graphicsLayer {
+                val p = progress()
+                alpha = p
+                translationX = (if (fromStart) -1f else 1f) * (1f - p) * 12.dp.toPx()
+            },
+        ) {
+            Icon(painterResource(R.drawable.rounded_close_24), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Text(stringResource(R.string.action_dismiss), style = IslandTextStyles.title)
+        }
+    }
+}
+
+private val IslandStage.rank: Int
+    get() = when (this) {
+        IslandStage.Hidden -> 0
+        IslandStage.Compact -> 1
+        IslandStage.Line -> 2
+        IslandStage.Expanded -> 3
+    }
+
+private fun contentScaleFor(stage: IslandStage, flat: Boolean = false): Float = when (stage) {
+    IslandStage.Hidden, IslandStage.Compact -> 0.25f
+    IslandStage.Line -> 0.1f
+    IslandStage.Expanded -> if (flat) 0f else IslandMotion.CONTENT_SCALE
+}
+
+private val NoActions = object : IslandActions {
+    override fun onTap(itemKey: String?): Boolean = false
+    override fun onLongPress(itemKey: String?) {}
+    override fun onCollapse() {}
+    override fun onDismiss(): Boolean = false
+    override fun onOpenFocused() {}
+    override fun onInteraction() {}
+    override fun onTextInputChanged(active: Boolean) {}
+    override fun onAdvance(): Boolean = false
+}
+
+@Composable
+private fun StageContent(
+    stage: IslandStage,
+    item: IslandItem?,
+    state: IslandUiState,
+    spec: IslandLayoutSpec,
+    actions: IslandActions,
+    interactive: Boolean,
+    onCellTap: (String) -> Unit = {},
+    onCellLongPress: (String) -> Unit = {},
+    sideBubble: () -> Float = { 0f },
+    bubbleExtent: () -> Int = { 0 },
+    onSlack: (Int) -> Unit = {},
+    onBaseWidth: (Int) -> Unit = {},
+    onNeedLeft: (Int) -> Unit = {},
+) {
+    val a = if (interactive) actions else NoActions
+    when (stage) {
+        IslandStage.Hidden -> Spacer(Modifier.size(spec.compactHeight, spec.compactHeight))
+        IslandStage.Compact -> {
+            val feedback by IslandSlideFeedback.state.collectAsState()
+            val takeover = feedback
+            if (takeover is SlideFeedback.Level || takeover is SlideFeedback.Sound || (takeover != null && state.arrangement.visibleItems.isEmpty())) {
+                SlideFeedbackCompact(takeover, spec)
+            } else {
+                CompactTemplate(
+                    state = state,
+                    spec = spec,
+                    onCellTap = { if (interactive) onCellTap(it) },
+                    onCellLongPress = { if (interactive) onCellLongPress(it) },
+                    sideBubble = sideBubble,
+                    bubbleExtent = bubbleExtent,
+                    onSlack = onSlack,
+                    onBaseWidth = onBaseWidth,
+                    onNeedLeft = onNeedLeft,
+                )
+            }
+        }
+        IslandStage.Line -> item?.line?.let {
+            val inset = LocalLineInset.current
+            LineTemplate(it, spec, inset.first, inset.second, leading = LocalLineLeading.current)
+        }
+            ?: Spacer(Modifier.size(spec.lineWidth, spec.compactHeight))
+        IslandStage.Expanded -> item?.let {
+            ExpandedHost(
+                item = it,
+                spec = spec,
+                onCollapse = a::onCollapse,
+                onDismiss = { a.onDismiss() },
+                onOpen = a::onOpenFocused,
+                onTextInput = a::onTextInputChanged,
+                onKeepAlive = a::onInteraction,
+                onHold = a::onHold,
+                current = interactive,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SwipeIntentChip(intent: SwipeIntent?, modifier: Modifier) {
+    var shown by remember { mutableStateOf(SwipeIntent.Dismiss) }
+    if (intent != null) shown = intent
+    AnimatedVisibility(
+        visible = intent != null,
+        modifier = modifier,
+        enter = fadeIn(motionTween(120)) + scaleIn(motionSpring(dampingRatio = 0.55f, stiffness = 600f), initialScale = 0.6f),
+        exit = fadeOut(motionTween(100)) + scaleOut(motionTween(100), targetScale = 0.8f),
+    ) {
+        val hide = shown == SwipeIntent.Hide
+        val container = if (hide) Color(0xFFAECBFA) else Color(0xFFF6AEA9)
+        val ink = if (hide) Color(0xFF0B2A5B) else Color(0xFF5C1210)
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(container)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                painterResource(if (hide) R.drawable.rounded_visibility_off_24 else R.drawable.rounded_close_24),
+                contentDescription = null,
+                tint = ink,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                stringResource(if (hide) R.string.island_action_hide else R.string.action_dismiss),
+                style = IslandTextStyles.line.copy(color = ink, fontWeight = FontWeight.SemiBold),
+            )
+        }
+    }
+}

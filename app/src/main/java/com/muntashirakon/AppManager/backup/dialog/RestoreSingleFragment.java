@@ -1,0 +1,360 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.backup.dialog;
+
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.os.Bundle;
+import android.util.TypedValue;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.CheckedTextView;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.widget.PopupMenu;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.resources.MaterialAttributes;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.backup.BackupFlags;
+import io.github.muntashirakon.AppManager.backup.BackupItems;
+import io.github.muntashirakon.AppManager.backup.struct.BackupMetadataV5;
+import io.github.muntashirakon.AppManager.backup.struct.DeleteOpOptions;
+import io.github.muntashirakon.AppManager.batchops.BatchOpsManager;
+import io.github.muntashirakon.AppManager.crypto.auth.ActionAuthGate;
+import io.github.muntashirakon.AppManager.fm.SharableItems;
+import io.github.muntashirakon.AppManager.history.ops.DestructiveActionConfirmation;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.utils.UIUtils;
+import io.github.muntashirakon.dialog.SearchableFlagsDialogBuilder;
+import io.github.muntashirakon.io.Path;
+import io.github.muntashirakon.util.AdapterUtils;
+
+public class RestoreSingleFragment extends Fragment {
+    public static RestoreSingleFragment getInstance() {
+        return new RestoreSingleFragment();
+    }
+
+    private static final String TAG = RestoreSingleFragment.class.getSimpleName();
+
+    private BackupRestoreDialogViewModel mViewModel;
+    private Context mContext;
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        return inflater.inflate(R.layout.fragment_dialog_restore_single, container, false);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        mViewModel = new ViewModelProvider(requireParentFragment()).get(BackupRestoreDialogViewModel.class);
+        mContext = requireContext();
+
+        ImageView summaryIcon = view.findViewById(R.id.backup_restore_summary_icon);
+        TextView summaryTitle = view.findViewById(R.id.backup_restore_summary_title);
+        TextView summaryBody = view.findViewById(R.id.backup_restore_summary_body);
+        TextView summaryMeta = view.findViewById(R.id.backup_restore_summary_meta);
+        TextView actionStatus = view.findViewById(R.id.action_status);
+        RecyclerView recyclerView = view.findViewById(android.R.id.list);
+        MaterialButton restoreButton = view.findViewById(R.id.action_restore);
+        MaterialButton deleteButton = view.findViewById(R.id.action_delete);
+        MaterialButton moreButton = view.findViewById(R.id.more);
+
+        summaryIcon.setImageResource(R.drawable.ic_restore);
+        summaryTitle.setText(R.string.restore_single_summary_title);
+        summaryBody.setText(mViewModel.getBackupInfo().isInstalled()
+                ? R.string.restore_single_summary_installed
+                : R.string.restore_single_summary_uninstalled);
+        int backupVersionCount = mViewModel.getBackupVersionCount();
+        summaryMeta.setText(getResources().getQuantityString(R.plurals.backup_restore_version_count,
+                backupVersionCount, backupVersionCount));
+
+        recyclerView.setLayoutManager(new LinearLayoutManager(mContext, LinearLayoutManager.VERTICAL, false));
+        BackupAdapter adapter = new BackupAdapter(mContext, mViewModel.getBackupInfo().getBackupMetadataList(),
+                (metadata, selectionCount, added) -> {
+                    restoreButton.setEnabled(selectionCount == 1);
+                    deleteButton.setEnabled(selectionCount > 0);
+                    moreButton.setEnabled(selectionCount > 0);
+                    updateActionStatus(actionStatus, selectionCount);
+                });
+        recyclerView.setAdapter(adapter);
+
+        restoreButton.setOnClickListener(v -> handleRestore(adapter.getSelectedBackups().get(0)));
+        deleteButton.setOnClickListener(v -> handleDelete(adapter.getSelectedBackups()));
+        moreButton.setOnClickListener(v -> {
+            int total = adapter.selectionCount();
+            int frozenCount = adapter.getFrozenBackupSelectionCount();
+
+            PopupMenu popupMenu = new PopupMenu(mContext, v);
+            Menu menu = popupMenu.getMenu();
+            MenuItem freezeMenuItem = menu.add(R.string.freeze);
+            MenuItem unfreezeMenuItem = menu.add(R.string.unfreeze);
+            MenuItem shareMenuItem = menu.add(R.string.share_backup);
+
+            freezeMenuItem.setEnabled((total - frozenCount) > 0);
+            unfreezeMenuItem.setEnabled(frozenCount > 0);
+            // Sharing produces one file per backup file (apk + tar + metadata), so it only
+            // makes sense for a single selection — the chooser would otherwise receive a
+            // mixed bag of files from multiple backups with no way to distinguish them.
+            shareMenuItem.setEnabled(total == 1);
+            shareMenuItem.setOnMenuItemClickListener(item -> {
+                handleShare(adapter.getSelectedBackups().get(0));
+                return true;
+            });
+
+            freezeMenuItem.setOnMenuItemClickListener(item -> {
+                List<BackupMetadataV5> selectedBackups = adapter.getSelectedBackups();
+                int failed = 0;
+                for (BackupMetadataV5 metadata : selectedBackups) {
+                    try {
+                        metadata.info.getBackupItem().freeze();
+                        ++adapter.mFrozenBackupSelectionCount;
+                    } catch (IOException e) {
+                        Log.w(TAG, "Could not freeze backup", e);
+                        ++failed;
+                    }
+                }
+                if (failed > 0) {
+                    UIUtils.displayLongToastPl(R.plurals.alert_failed_to_freeze, failed, failed);
+                }
+                adapter.notifyItemRangeChanged(0, adapter.getItemCount(), AdapterUtils.STUB);
+                return true;
+            });
+            unfreezeMenuItem.setOnMenuItemClickListener(item -> {
+                List<BackupMetadataV5> selectedBackups = adapter.getSelectedBackups();
+                int failed = 0;
+                for (BackupMetadataV5 metadata : selectedBackups) {
+                    try {
+                        metadata.info.getBackupItem().unfreeze();
+                        --adapter.mFrozenBackupSelectionCount;
+                    } catch (IOException e) {
+                        Log.w(TAG, "Could not unfreeze backup", e);
+                        ++failed;
+                    }
+                }
+                if (failed > 0) {
+                    UIUtils.displayLongToastPl(R.plurals.alert_failed_to_unfreeze, failed, failed);
+                }
+                adapter.notifyItemRangeChanged(0, adapter.getItemCount(), AdapterUtils.STUB);
+                return true;
+            });
+            popupMenu.show();
+        });
+    }
+
+    private void handleRestore(@NonNull BackupMetadataV5 selectedBackup) {
+        BackupFlags flags = selectedBackup.info.flags;
+        BackupFlags enabledFlags = BackupFlags.fromPref();
+        enabledFlags.setFlags(flags.getFlags() & enabledFlags.getFlags());
+        List<Integer> supportedBackupFlags = BackupFlags.getBackupFlagsAsArray(flags.getFlags());
+        // Inject no signatures
+        supportedBackupFlags.add(BackupFlags.BACKUP_NO_SIGNATURE_CHECK);
+        supportedBackupFlags.add(BackupFlags.BACKUP_CUSTOM_USERS);
+        List<Integer> disabledFlags = new ArrayList<>();
+        if (!mViewModel.getBackupInfo().isInstalled()) {
+            enabledFlags.addFlag(BackupFlags.BACKUP_APK_FILES);
+            disabledFlags.add(BackupFlags.BACKUP_APK_FILES);
+        }
+        new SearchableFlagsDialogBuilder<>(mContext, supportedBackupFlags, BackupFlags.getFormattedFlagNames(mContext, supportedBackupFlags), enabledFlags.getFlags())
+                .setTitle(R.string.backup_options)
+                .addDisabledItems(disabledFlags)
+                .setPositiveButton(R.string.restore, (dialog, which, selections) -> {
+                    int newFlags = 0;
+                    for (int flag : selections) {
+                        newFlags |= flag;
+                    }
+                    enabledFlags.setFlags(newFlags);
+
+                    BackupRestoreDialogViewModel.OperationInfo operationInfo = new BackupRestoreDialogViewModel.OperationInfo();
+                    operationInfo.mode = BackupRestoreDialogFragment.MODE_RESTORE;
+                    operationInfo.op = BatchOpsManager.OP_RESTORE_BACKUP;
+                    operationInfo.flags = enabledFlags.getFlags();
+                    operationInfo.relativeDirs = new String[]{selectedBackup.info.getRelativeDir()};
+                    mViewModel.prepareForOperation(operationInfo);
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void updateActionStatus(@NonNull TextView actionStatus, int selectionCount) {
+        if (selectionCount == 0) {
+            actionStatus.setText(R.string.backup_restore_select_one_backup);
+        } else {
+            actionStatus.setText(getResources().getQuantityString(R.plurals.backup_restore_backup_selection_count,
+                    selectionCount, selectionCount));
+        }
+    }
+
+    /**
+     * Share every file under a backup directory via {@code ACTION_SEND_MULTIPLE} so the user
+     * can pipe the backup into another file manager / messaging app / cloud SAF provider
+     * without first zipping the directory. Encrypted backups stay encrypted on the way out —
+     * recipients still need the user's AppManagerNG key to restore. Closes ROADMAP iter-22
+     * row "Backup Sharing Button"; companion to [`docs/distribution/backup-destinations.md`](../../../../../../../../../docs/distribution/backup-destinations.md).
+     */
+    private void handleShare(@NonNull BackupMetadataV5 selectedBackup) {
+        BackupItems.BackupItem backupItem = selectedBackup.info.getBackupItem();
+        Path backupPath = backupItem.getBackupPath();
+        Path[] children = backupPath.listFiles();
+        if (children.length == 0) {
+            UIUtils.displayShortToast(R.string.share_backup_empty);
+            return;
+        }
+        List<Path> shareablePaths = new ArrayList<>(children.length);
+        for (Path child : children) {
+            if (child.isFile()) {
+                shareablePaths.add(child);
+            }
+        }
+        if (shareablePaths.isEmpty()) {
+            UIUtils.displayShortToast(R.string.share_backup_empty);
+            return;
+        }
+        try {
+            startActivity(new SharableItems(shareablePaths).toSharableIntent());
+        } catch (android.content.ActivityNotFoundException e) {
+            UIUtils.displayShortToast(R.string.share_backup_no_handler);
+        }
+    }
+
+    private void handleDelete(List<BackupMetadataV5> selectedBackups) {
+        FragmentActivity activity = requireActivity();
+        DestructiveActionConfirmation
+                .forBackupDelete(mContext, selectedBackups.size(), (dialog, which) ->
+                        ActionAuthGate.authenticate(activity,
+                                R.string.authenticate_to_delete_backups, () -> {
+                                    List<String> relativeDirs = new ArrayList<>(selectedBackups.size());
+                                    for (BackupMetadataV5 backup : selectedBackups) {
+                                        relativeDirs.add(backup.info.getRelativeDir());
+                                    }
+                                    BackupRestoreDialogViewModel.OperationInfo operationInfo = new BackupRestoreDialogViewModel.OperationInfo();
+                                    operationInfo.mode = BackupRestoreDialogFragment.MODE_DELETE;
+                                    operationInfo.op = BatchOpsManager.OP_DELETE_BACKUP;
+                                    operationInfo.relativeDirs = relativeDirs.toArray(new String[0]);
+                                    operationInfo.deleteScope = DeleteOpOptions.DELETE_SCOPE_SELECTED;
+                                    mViewModel.prepareForOperation(operationInfo);
+                                }))
+                .show();
+    }
+
+    private static class BackupAdapter extends RecyclerView.Adapter<BackupAdapter.ViewHolder> {
+        public interface OnSelectionListener {
+            void onSelectionChanged(@Nullable BackupMetadataV5 metadata, int selectionCount, boolean added);
+        }
+
+        private final int mLayoutId;
+        @NonNull
+        private final List<BackupMetadataV5> mBackups = new ArrayList<>();
+        @NonNull
+        private final List<Integer> mSelectedPositions = new ArrayList<>();
+        @NonNull
+        private final OnSelectionListener mSelectionListener;
+
+        private int mFrozenBackupSelectionCount = 0;
+
+        @SuppressLint("RestrictedApi")
+        public BackupAdapter(@NonNull Context context, @NonNull List<BackupMetadataV5> backups,
+                             @NonNull OnSelectionListener selectionListener) {
+            mSelectionListener = selectionListener;
+            mLayoutId = MaterialAttributes.resolveInteger(context, androidx.appcompat.R.attr.multiChoiceItemLayout,
+                    com.google.android.material.R.layout.mtrl_alert_select_dialog_multichoice);
+            mSelectionListener.onSelectionChanged(null, mSelectedPositions.size(), false);
+            for (int i = 0; i < backups.size(); ++i) {
+                BackupMetadataV5 backup = backups.get(i);
+                mBackups.add(backup);
+                if (backup.isBaseBackup()) {
+                    mSelectedPositions.add(i);
+                    if (backup.info.isFrozen()) {
+                        ++mFrozenBackupSelectionCount;
+                    }
+                    mSelectionListener.onSelectionChanged(backup, mSelectedPositions.size(), true);
+                }
+            }
+            notifyItemRangeInserted(0, mBackups.size());
+        }
+
+        public int selectionCount() {
+            return mSelectedPositions.size();
+        }
+
+        public int getFrozenBackupSelectionCount() {
+            return mFrozenBackupSelectionCount;
+        }
+
+        @NonNull
+        public List<BackupMetadataV5> getSelectedBackups() {
+            List<BackupMetadataV5> selectedBackups = new ArrayList<>();
+            for (int position : mSelectedPositions) {
+                selectedBackups.add(mBackups.get(position));
+            }
+            return selectedBackups;
+        }
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(mLayoutId, parent, false);
+            return new ViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            BackupMetadataV5 metadata = mBackups.get(position);
+            boolean isSelected = mSelectedPositions.contains(position);
+            holder.item.setChecked(isSelected);
+            holder.item.setText(metadata.toLocalizedString(holder.item.getContext()));
+            holder.item.setOnClickListener(v -> {
+                if (isSelected) {
+                    // Now unselected
+                    mSelectedPositions.remove((Integer) position);
+                    if (metadata.info.isFrozen()) {
+                        --mFrozenBackupSelectionCount;
+                    }
+                    mSelectionListener.onSelectionChanged(metadata, mSelectedPositions.size(), false);
+                } else {
+                    // Now selected
+                    mSelectedPositions.add(position);
+                    if (metadata.info.isFrozen()) {
+                        ++mFrozenBackupSelectionCount;
+                    }
+                    mSelectionListener.onSelectionChanged(metadata, mSelectedPositions.size(), true);
+                }
+                notifyItemChanged(position, AdapterUtils.STUB);
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return mBackups.size();
+        }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            CheckedTextView item;
+
+            public ViewHolder(@NonNull View itemView) {
+                super(itemView);
+                item = itemView.findViewById(android.R.id.text1);
+                // textAppearanceBodyLarge
+                item.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+                item.setTextColor(UIUtils.getTextColorSecondary(item.getContext()));
+            }
+        }
+    }
+}

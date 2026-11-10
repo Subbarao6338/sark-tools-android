@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.rules.struct;
+
+import androidx.annotation.NonNull;
+
+import java.util.Objects;
+
+import io.github.muntashirakon.AppManager.rules.RuleType;
+import io.github.muntashirakon.AppManager.utils.FreezeUtils;
+
+public class FreezeRule extends RuleEntry {
+    @FreezeUtils.FreezeMethod
+    private int mFreezeType;
+
+    public FreezeRule(@NonNull String packageName, @FreezeUtils.FreezeMethod int freezeType) {
+        super(packageName, STUB, RuleType.FREEZE);
+        mFreezeType = validateFreezeType(freezeType);
+    }
+
+    public FreezeRule(@NonNull String packageName, @NonNull RuleValueReader tokenizer) {
+        super(packageName, STUB, RuleType.FREEZE);
+        if (tokenizer.hasNext()) {
+            mFreezeType = parseFreezeType(tokenizer.next());
+        } else throw new IllegalArgumentException("Invalid format: freeze_type not found");
+    }
+
+    public int getFreezeType() {
+        return mFreezeType;
+    }
+
+    public void setFreezeType(@FreezeUtils.FreezeMethod int freezeType) {
+        mFreezeType = validateFreezeType(freezeType);
+    }
+
+    @FreezeUtils.FreezeMethod
+    private static int parseFreezeType(@NonNull String value) {
+        try {
+            return validateFreezeType(Integer.parseInt(value.trim()));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid format: freeze_type is invalid", e);
+        }
+    }
+
+    @FreezeUtils.FreezeMethod
+    private static int validateFreezeType(int freezeType) {
+        switch (freezeType) {
+            case FreezeUtils.FREEZE_DISABLE:
+            case FreezeUtils.FREEZE_SUSPEND:
+            case FreezeUtils.FREEZE_HIDE:
+            case FreezeUtils.FREEZE_ADV_SUSPEND:
+                return freezeType;
+            default:
+                throw new IllegalArgumentException("Invalid format: freeze_type is invalid");
+        }
+    }
+
+    @NonNull
+    @Override
+    public String toString() {
+        return "FreezeRule{" +
+                "mFreezeType=" + mFreezeType +
+                ", packageName='" + packageName + '\'' +
+                '}';
+    }
+
+    @NonNull
+    @Override
+    public String flattenToString(boolean isExternal) {
+        return addPackageWithTab(isExternal) + name + "\t" + type.name() + "\t" + mFreezeType;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof FreezeRule)) return false;
+        if (!super.equals(o)) return false;
+        FreezeRule freezeRule = (FreezeRule) o;
+        return getFreezeType() == freezeRule.getFreezeType();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), getFreezeType());
+    }
+}

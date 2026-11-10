@@ -1,0 +1,514 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.settings;
+
+import android.content.Context;
+import android.os.Build;
+import android.provider.Settings;
+import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.compat.AdvancedProtectionCompat;
+import io.github.muntashirakon.AppManager.dhizuku.DhizukuBridge;
+import io.github.muntashirakon.AppManager.misc.SupportInfoBundle;
+import io.github.muntashirakon.AppManager.runner.RootManagerInfo;
+import io.github.muntashirakon.AppManager.runner.Runner;
+import io.github.muntashirakon.AppManager.runner.RunnerUtils;
+import io.github.muntashirakon.AppManager.server.common.Shell;
+import io.github.muntashirakon.AppManager.servermanager.LocalServer;
+import io.github.muntashirakon.AppManager.servermanager.ServerConfig;
+import io.github.muntashirakon.AppManager.shizuku.ShizukuBridge;
+import io.github.muntashirakon.AppManager.users.Users;
+import io.github.muntashirakon.AppManager.utils.DateUtils;
+import io.github.muntashirakon.AppManager.utils.ExportTextUtils;
+
+public final class PrivilegeModeDoctor {
+    private PrivilegeModeDoctor() {
+    }
+
+    @NonNull
+    public static String run(@NonNull Context context) {
+        return runReport(context).text;
+    }
+
+    @NonNull
+    static Report runReport(@NonNull Context context) {
+        Context appContext = context.getApplicationContext();
+        List<Probe> probes = new ArrayList<>();
+        String configuredMode = Ops.getMode();
+        String inferredMode = String.valueOf(Ops.getInferredMode(appContext));
+        int workingUid = Users.getSelfOrRemoteUid();
+        probes.add(probeModeSelection(configuredMode, inferredMode, workingUid));
+        probes.add(probeRootBinary());
+        RootManagerInfo rootManagerInfo = RootManagerInfo.detect(appContext);
+        probes.add(probeRootManager(rootManagerInfo));
+        probes.add(probeSui(rootManagerInfo));
+        probes.add(probeShizuku(appContext));
+        probes.add(probeDhizuku(appContext));
+        probes.add(probeAdb(appContext));
+        probes.add(probeRestrictedSettings(appContext));
+        probes.add(probeAdvancedProtection(appContext));
+        probes.add(probeLocalServer());
+        probes.add(probeSelinux());
+        probes.add(probeAbi());
+        return new Report(appContext, configuredMode, inferredMode, workingUid, probes);
+    }
+
+    @NonNull
+    private static Probe probeModeSelection(@NonNull String configuredMode,
+                                            @NonNull String inferredMode,
+                                            int workingUid) {
+        String details = "configured=" + configuredMode + ", inferred=" + inferredMode + ", uid=" + workingUid;
+        String fix = "Change Settings > Operating mode if the inferred mode is not what you intended.";
+        if (!isModeHealthy(configuredMode, workingUid)) {
+            return Probe.warn("Mode selection", details, fix, FixTarget.MODE_SETTINGS);
+        }
+        return Probe.pass("Mode selection", details, fix);
+    }
+
+    @NonNull
+    private static Probe probeRootBinary() {
+        try {
+            Boolean rootGrant = RunnerUtils.isAppGrantedRoot();
+            if (Boolean.TRUE.equals(rootGrant)) {
+                Runner.Result id = Runner.runCommand("id -u");
+                if (id.isSuccessful() && "0".equals(id.getOutput().trim())) {
+                    return Probe.pass("Root grant", "su granted; id -u=0", "No action needed.");
+                }
+                return Probe.warn("Root grant", "su granted but id -u returned " + summarize(id),
+                        "Re-open the root manager and verify AppManagerNG still has root access.",
+                        FixTarget.ROOT_MANAGER);
+            }
+            if (rootGrant == null) {
+                return Probe.warn("Root binary", "su exists but AppManagerNG is not granted root",
+                        "Open your root manager and grant AppManagerNG, or use Shizuku/ADB mode.",
+                        FixTarget.ROOT_MANAGER);
+            }
+            return Probe.skip("Root binary", "no executable su binary detected",
+                    "Use Shizuku or ADB mode on non-rooted devices.");
+        } catch (Throwable th) {
+            return Probe.fail("Root grant", summarize(th),
+                    "Check the root manager prompt/logs, then rerun the doctor.",
+                    FixTarget.ROOT_MANAGER);
+        }
+    }
+
+    @NonNull
+    private static Probe probeRootManager(@NonNull RootManagerInfo info) {
+        String name = info.displayName();
+        if (name == null) {
+            return Probe.skip("Root manager", "none detected by shell marker or package fallback",
+                    "Install/configure Magisk, KernelSU, or APatch if root mode is expected.");
+        }
+        if (info.source == RootManagerInfo.Source.PACKAGE) {
+            return Probe.warn("Root manager", name + " via " + info.source,
+                    "Package fallback only; grant root and rerun to confirm /data/adb markers.",
+                    FixTarget.ROOT_MANAGER);
+        }
+        return Probe.pass("Root manager", name + " via " + info.source,
+                "No action needed.");
+    }
+
+    @NonNull
+    private static Probe probeSui(@NonNull RootManagerInfo info) {
+        if (info.suiPresent) {
+            return Probe.pass("Sui marker", "Magisk-module Sui marker detected",
+                    "Use Shizuku mode if you want Sui-backed binder operations.",
+                    FixTarget.MODE_SETTINGS);
+        }
+        return Probe.skip("Sui marker", "not detected", "No action needed unless this device should be using Sui.");
+    }
+
+    @NonNull
+    private static Probe probeShizuku(@NonNull Context context) {
+        String versionName = ShizukuBridge.getInstalledVersionName(context);
+        boolean binderAlive = ShizukuBridge.isBinderAlive();
+        boolean supportsUserService = ShizukuBridge.supportsUserService();
+        boolean hasPermission = ShizukuBridge.hasPermission();
+        String details = "installed=" + (versionName != null ? versionName : "unknown")
+                + ", api=" + ShizukuBridge.getVersionOrZero()
+                + ", uid=" + ShizukuBridge.getUidOrSelf()
+                + ", binder=" + binderAlive
+                + ", userService=" + supportsUserService
+                + ", permission=" + hasPermission;
+        if (ShizukuBridge.isRootBacked()) {
+            return Probe.warn("Shizuku root-backed", details,
+                    context.getString(R.string.privilege_health_shizuku_root_backed_warning)
+                            + " " + context.getString(R.string.mode_of_op_shizuku_root_backed_tooltip),
+                    FixTarget.MODE_SETTINGS);
+        }
+        ShizukuBridge.OemCompatibilityWarning oemWarning = ShizukuBridge.getOemCompatibilityWarning(context);
+        if (oemWarning != null) {
+            return Probe.warn("Shizuku OEM compatibility", details + ", oemRisk=" + oemWarning.reasonCode,
+                    context.getString(oemWarning.summaryTextRes, oemWarning.fallbackVersion)
+                            + " Archive: " + oemWarning.archiveUrl,
+                    FixTarget.SHIZUKU_ARCHIVE);
+        }
+        if (binderAlive && supportsUserService && hasPermission) {
+            return Probe.pass("Shizuku binder", details, "No action needed.");
+        }
+        if (!binderAlive) {
+            return Probe.warn("Shizuku binder", details, "Start Shizuku/Sui, then rerun the doctor.",
+                    FixTarget.SHIZUKU_SETTINGS);
+        }
+        if (!supportsUserService) {
+            return Probe.fail("Shizuku UserService", details, "Update Shizuku to a version with UserService support.",
+                    FixTarget.SHIZUKU_SETTINGS);
+        }
+        return Probe.warn("Shizuku permission", details, "Authorize AppManagerNG in Shizuku, then rerun the doctor.",
+                FixTarget.SHIZUKU_SETTINGS);
+    }
+
+    @NonNull
+    private static Probe probeDhizuku(@NonNull Context context) {
+        DhizukuBridge.Result result = DhizukuBridge.probe(context);
+        String details = "sdk=" + result.sdk
+                + ", installed=" + valueOrUnknown(result.installedVersionName)
+                + ", owner=" + result.ownerLabel()
+                + ", officialOwner=" + result.isOfficialOwner()
+                + ", provider=" + result.providerVisible
+                + ", permission=" + result.apiPermissionGranted;
+        if (DhizukuBridge.isBelowMinimumSupportedAndroidVersion(result.sdk)) {
+            return Probe.skip("Dhizuku", details,
+                    "Dhizuku supports Android 8.0 through 16; use Shizuku, ADB, or root on this device.");
+        }
+        if (!result.isInstalled() && !result.isOfficialOwner()) {
+            return Probe.skip("Dhizuku", details,
+                    "Install and activate Dhizuku only if DeviceOwner/DPM operations are expected.");
+        }
+        if (!result.isOfficialOwner()) {
+            return Probe.warn("Dhizuku", details,
+                    "Dhizuku is installed but is not the device/profile owner. Activation command: "
+                            + DhizukuBridge.ACTIVATION_COMMAND,
+                    FixTarget.DHIZUKU_SETTINGS);
+        }
+        if (!result.providerVisible) {
+            return Probe.warn("Dhizuku", details,
+                    "Dhizuku is owner, but its API provider is not visible to AppManagerNG.",
+                    FixTarget.DHIZUKU_SETTINGS);
+        }
+        if (!result.apiPermissionGranted) {
+            return Probe.warn("Dhizuku", details,
+                    "Grant AppManagerNG Dhizuku API permission before DPM operations are enabled.",
+                    FixTarget.DHIZUKU_SETTINGS);
+        }
+        return Probe.pass("Dhizuku", details,
+                "Provider detected. AppManagerNG still needs the separate DPM operation integration slice.");
+    }
+
+    @NonNull
+    private static Probe probeAdb(@NonNull Context context) {
+        boolean usbDebugging = isGlobalSettingEnabled(context, "adb_enabled");
+        boolean wirelessDebugging = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                && isGlobalSettingEnabled(context, "adb_wifi_enabled");
+        boolean paired = ServerConfig.hasPairedAdbDevice();
+        String details = "usb=" + usbDebugging + ", wireless=" + wirelessDebugging
+                + ", paired=" + paired + ", lastPairingPort=" + ServerConfig.getLastAdbPairingPort();
+        if (usbDebugging && (wirelessDebugging || paired)) {
+            return Probe.pass("ADB reachability", details, "No action needed unless pairing has expired.");
+        }
+        if (usbDebugging || wirelessDebugging || paired) {
+            return Probe.warn("ADB reachability", details,
+                    "Enable both USB debugging and Wireless debugging, or reconnect ADB over TCP.",
+                    FixTarget.DEVELOPER_OPTIONS);
+        }
+        return Probe.skip("ADB reachability", details,
+                "Enable Developer options > USB debugging / Wireless debugging for ADB modes.",
+                FixTarget.DEVELOPER_OPTIONS);
+    }
+
+    @NonNull
+    private static Probe probeRestrictedSettings(@NonNull Context context) {
+        RestrictedSettingsDiagnostics.Result result = RestrictedSettingsDiagnostics.probe(context);
+        String source = result.sourcePackageName != null ? result.sourcePackageName : "unknown";
+        String details = "sdk=" + Build.VERSION.SDK_INT
+                + ", source=" + source
+                + ", installer=" + valueOrUnknown(result.installerPackageName)
+                + ", initiating=" + valueOrUnknown(result.initiatingPackageName)
+                + ", originating=" + valueOrUnknown(result.originatingPackageName)
+                + (result.error != null ? ", error=" + singleLine(result.error) : "");
+        switch (result.status) {
+            case RestrictedSettingsDiagnostics.STATUS_NOT_APPLICABLE:
+                return Probe.skip("Restricted Settings", details,
+                        "Android 13 Restricted Settings does not apply on this device.");
+            case RestrictedSettingsDiagnostics.STATUS_TRUSTED_STORE:
+                return Probe.pass("Restricted Settings", details,
+                        "No action needed unless Accessibility, notification listener, or device-admin toggles are disabled.");
+            case RestrictedSettingsDiagnostics.STATUS_LIKELY_RESTRICTED:
+                return Probe.warn("Restricted Settings", details,
+                        context.getString(R.string.privilege_health_restricted_settings_mode_doctor_fix),
+                        FixTarget.RESTRICTED_APP_INFO);
+            case RestrictedSettingsDiagnostics.STATUS_UNKNOWN_SOURCE:
+                return Probe.warn("Restricted Settings", details,
+                        context.getString(R.string.privilege_health_restricted_settings_mode_doctor_fix),
+                        FixTarget.RESTRICTED_APP_INFO);
+            case RestrictedSettingsDiagnostics.STATUS_REVIEW_RECOMMENDED:
+            default:
+                return Probe.warn("Restricted Settings", details,
+                        context.getString(R.string.privilege_health_restricted_settings_mode_doctor_fix),
+                        FixTarget.RESTRICTED_APP_INFO);
+        }
+    }
+
+    @NonNull
+    private static Probe probeAdvancedProtection(@NonNull Context context) {
+        if (Build.VERSION.SDK_INT < 36) {
+            return Probe.skip("Advanced Protection", "sdk=" + Build.VERSION.SDK_INT,
+                    "Advanced Protection requires Android 16 (API 36) or later.");
+        }
+        boolean enabled = AdvancedProtectionCompat.isAdvancedProtectionEnabled(context);
+        String details = "sdk=" + Build.VERSION.SDK_INT + ", enabled=" + enabled;
+        if (enabled) {
+            return Probe.warn("Advanced Protection", details,
+                    "Advanced Protection blocks sideloading. Disable it in Android settings to install APKs.",
+                    FixTarget.SECURITY_SETTINGS);
+        }
+        return Probe.pass("Advanced Protection", details,
+                "Sideloading is not blocked by Advanced Protection.");
+    }
+
+    @NonNull
+    private static Probe probeLocalServer() {
+        long started = android.os.SystemClock.elapsedRealtime();
+        try {
+            LocalServer server = LocalServer.getInstance();
+            Shell.Result result = server.runCommand("id -u");
+            long elapsed = android.os.SystemClock.elapsedRealtime() - started;
+            String output = result.getMessage() != null ? result.getMessage().trim() : "";
+            if (result.getStatusCode() == 0) {
+                return Probe.pass("LocalServer command", "id -u=" + output + ", elapsed=" + elapsed + "ms",
+                        "No action needed.");
+            }
+            return Probe.fail("LocalServer command", "exit=" + result.getStatusCode()
+                            + ", output=" + output,
+                    "Rerun the LocalServer bootstrap smoke test and share the support info bundle.",
+                    FixTarget.BOOTSTRAP_SMOKE_TEST);
+        } catch (Throwable th) {
+            return Probe.fail("LocalServer command", summarize(th),
+                    "Rerun the LocalServer bootstrap smoke test and share the support info bundle.",
+                    FixTarget.BOOTSTRAP_SMOKE_TEST);
+        }
+    }
+
+    @NonNull
+    private static Probe probeSelinux() {
+        try {
+            Runner.Result result = Runner.runCommand("id -Z 2>/dev/null || cat /proc/self/attr/current 2>/dev/null");
+            if (result.isSuccessful() && !result.getOutput().trim().isEmpty()) {
+                return Probe.pass("SELinux domain", result.getOutput().trim(), "No action needed.");
+            }
+            return Probe.warn("SELinux domain", summarize(result),
+                    "Expected on some ROMs; include support info if privileged calls fail.",
+                    FixTarget.SUPPORT_BUNDLE);
+        } catch (Throwable th) {
+            return Probe.warn("SELinux domain", summarize(th),
+                    "Expected on some ROMs; include support info if privileged calls fail.",
+                    FixTarget.SUPPORT_BUNDLE);
+        }
+    }
+
+    @NonNull
+    private static Probe probeAbi() {
+        String[] supportedAbis = Build.SUPPORTED_ABIS;
+        if (supportedAbis != null && supportedAbis.length > 0) {
+            return Probe.pass("ABI", Arrays.toString(supportedAbis), "No action needed.");
+        }
+        return Probe.fail("ABI", "Build.SUPPORTED_ABIS is empty",
+                "This ROM is not reporting supported ABIs correctly.",
+                FixTarget.SUPPORT_BUNDLE);
+    }
+
+    @NonNull
+    static String buildReport(@NonNull Context context,
+                              @NonNull String configuredMode,
+                              @NonNull String inferredMode,
+                              int workingUid,
+                              @NonNull List<Probe> probes) {
+        StringBuilder report = new StringBuilder("AppManagerNG mode doctor\n");
+        report.append("Generated: ").append(DateUtils.formatLongDateTime(context, System.currentTimeMillis())).append('\n');
+        report.append("Configured mode: ").append(configuredMode).append('\n');
+        report.append("Inferred mode: ").append(inferredMode).append('\n');
+        report.append("Working UID: ").append(workingUid).append('\n');
+        report.append("Android SDK: ").append(Build.VERSION.SDK_INT).append('\n');
+        report.append("ABIs: ").append(Arrays.toString(Build.SUPPORTED_ABIS)).append('\n');
+        for (Probe probe : probes) {
+            report.append("\n")
+                    .append(probe.status)
+                    .append(" - ")
+                    .append(probe.name)
+                    .append(": ")
+                    .append(probe.details);
+            if (probe.fix != null && !probe.fix.isEmpty()) {
+                report.append("\nFix: ").append(probe.fix);
+            }
+        }
+        return report.toString();
+    }
+
+    @NonNull
+    static String buildSupportPreamble(@NonNull String modeDoctorReport) {
+        return "Mode Doctor probe\n=================\n" + modeDoctorReport;
+    }
+
+    @NonNull
+    static String formatReportForClipboard(@NonNull String report) {
+        return ExportTextUtils.toPlainTextReport(SupportInfoBundle.scrubForPublicIssue(report));
+    }
+
+    @NonNull
+    private static String summarize(@NonNull Runner.Result result) {
+        String output = result.getOutput();
+        if (TextUtils.isEmpty(output)) {
+            output = TextUtils.join(" ", result.getStderr());
+        }
+        return "exit=" + result.getExitCode() + (TextUtils.isEmpty(output) ? "" : ", output=" + singleLine(output));
+    }
+
+    @NonNull
+    private static String summarize(@NonNull Throwable th) {
+        String message = th.getMessage();
+        return th.getClass().getSimpleName() + (message != null ? ": " + singleLine(message) : "");
+    }
+
+    @NonNull
+    private static String singleLine(@NonNull String value) {
+        String compact = value.trim().replaceAll("\\s+", " ");
+        if (compact.length() > 180) {
+            return compact.substring(0, 177) + "...";
+        }
+        return compact;
+    }
+
+    @NonNull
+    private static String valueOrUnknown(@Nullable String value) {
+        return value != null ? value : "unknown";
+    }
+
+    private static boolean isGlobalSettingEnabled(@NonNull Context context, @NonNull String key) {
+        try {
+            return Settings.Global.getInt(context.getContentResolver(), key, 0) != 0;
+        } catch (Exception t) {
+            return false;
+        }
+    }
+
+    private static boolean isModeHealthy(@NonNull String mode, int uid) {
+        switch (mode) {
+            case Ops.MODE_ROOT:
+                return uid == Ops.ROOT_UID;
+            case Ops.MODE_SHIZUKU:
+                return uid == Ops.ROOT_UID || uid == Ops.SYSTEM_UID || uid == Ops.SHELL_UID;
+            case Ops.MODE_ADB_OVER_TCP:
+            case Ops.MODE_ADB_WIFI:
+                return uid <= Ops.SHELL_UID;
+            case Ops.MODE_AUTO:
+            case Ops.MODE_NO_ROOT:
+            default:
+                return true;
+        }
+    }
+
+    enum FixTarget {
+        MODE_SETTINGS,
+        ROOT_MANAGER,
+        SHIZUKU_SETTINGS,
+        SHIZUKU_ARCHIVE,
+        DHIZUKU_SETTINGS,
+        DEVELOPER_OPTIONS,
+        RESTRICTED_APP_INFO,
+        BOOTSTRAP_SMOKE_TEST,
+        SECURITY_SETTINGS,
+        SUPPORT_BUNDLE,
+    }
+
+    static final class Report {
+        @NonNull
+        final String text;
+        @NonNull
+        final List<Probe> probes;
+
+        Report(@NonNull Context context,
+               @NonNull String configuredMode,
+               @NonNull String inferredMode,
+               int workingUid,
+               @NonNull List<Probe> probes) {
+            this.probes = Collections.unmodifiableList(new ArrayList<>(probes));
+            text = buildReport(context, configuredMode, inferredMode, workingUid, this.probes);
+        }
+    }
+
+    static final class Probe {
+        @NonNull
+        final String status;
+        @NonNull
+        final String name;
+        @NonNull
+        final String details;
+        @Nullable
+        final String fix;
+        @Nullable
+        final FixTarget fixTarget;
+
+        private Probe(@NonNull String status, @NonNull String name,
+                      @NonNull String details, @Nullable String fix,
+                      @Nullable FixTarget fixTarget) {
+            this.status = status;
+            this.name = name;
+            this.details = details;
+            this.fix = fix;
+            this.fixTarget = fixTarget;
+        }
+
+        @NonNull
+        static Probe pass(@NonNull String name, @NonNull String details, @Nullable String fix) {
+            return pass(name, details, fix, null);
+        }
+
+        @NonNull
+        static Probe pass(@NonNull String name, @NonNull String details, @Nullable String fix,
+                          @Nullable FixTarget fixTarget) {
+            return new Probe("PASS", name, details, fix, fixTarget);
+        }
+
+        @NonNull
+        static Probe warn(@NonNull String name, @NonNull String details, @Nullable String fix) {
+            return warn(name, details, fix, null);
+        }
+
+        @NonNull
+        static Probe warn(@NonNull String name, @NonNull String details, @Nullable String fix,
+                          @Nullable FixTarget fixTarget) {
+            return new Probe("WARN", name, details, fix, fixTarget);
+        }
+
+        @NonNull
+        static Probe fail(@NonNull String name, @NonNull String details, @Nullable String fix) {
+            return fail(name, details, fix, null);
+        }
+
+        @NonNull
+        static Probe fail(@NonNull String name, @NonNull String details, @Nullable String fix,
+                          @Nullable FixTarget fixTarget) {
+            return new Probe("FAIL", name, details, fix, fixTarget);
+        }
+
+        @NonNull
+        static Probe skip(@NonNull String name, @NonNull String details, @Nullable String fix) {
+            return skip(name, details, fix, null);
+        }
+
+        @NonNull
+        static Probe skip(@NonNull String name, @NonNull String details, @Nullable String fix,
+                          @Nullable FixTarget fixTarget) {
+            return new Probe("SKIP", name, details, fix, fixTarget);
+        }
+    }
+}

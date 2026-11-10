@@ -1,0 +1,789 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.history.ops;
+
+import android.content.Context;
+
+import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.util.ArrayList;
+import java.util.List;
+
+import io.github.muntashirakon.AppManager.R;
+import io.github.muntashirakon.AppManager.apk.installer.ApkQueueItem;
+import io.github.muntashirakon.AppManager.apk.installer.PackageInstallerCompat;
+import io.github.muntashirakon.AppManager.apk.installer.PackageInstallerService;
+import io.github.muntashirakon.AppManager.batchops.BatchOpsManager;
+import io.github.muntashirakon.AppManager.batchops.BatchOpsService;
+import io.github.muntashirakon.AppManager.batchops.BatchQueueItem;
+import io.github.muntashirakon.AppManager.history.IJsonSerializer;
+import io.github.muntashirakon.AppManager.profiles.ProfileQueueItem;
+import io.github.muntashirakon.AppManager.profiles.struct.ProfileApplierResult;
+import io.github.muntashirakon.AppManager.servermanager.LocalServer;
+import io.github.muntashirakon.AppManager.settings.Ops;
+import io.github.muntashirakon.AppManager.utils.JSONUtils;
+
+public final class OperationJournalMetadata implements IJsonSerializer {
+    private static final int SCHEMA_VERSION = 2;
+    private static final int MAX_TARGET_PREVIEW = 8;
+    private static final int MAX_WARNINGS = 24;
+    private static final int MAX_RECOVERY_ACTIONS = 10;
+
+    private static final String KEY_SCHEMA_VERSION = "schema_version";
+    private static final String KEY_MODE_LABEL = "mode_label";
+    private static final String KEY_OPERATION_LABEL = "operation_label";
+    private static final String KEY_TARGET_COUNT = "target_count";
+    private static final String KEY_FAILED_COUNT = "failed_count";
+    private static final String KEY_EXIT_CODE = "exit_code";
+    private static final String KEY_REQUIRES_RESTART = "requires_restart";
+    private static final String KEY_REPLAYABLE = "replayable";
+    private static final String KEY_REVERSIBLE = "reversible";
+    private static final String KEY_RISK = "risk";
+    private static final String KEY_ROLLBACK_HINT = "rollback_hint";
+    private static final String KEY_TARGET_PREVIEW = "target_preview";
+    private static final String KEY_FAILURE_MESSAGE = "failure_message";
+    private static final String KEY_BOOTSTRAP_SIGNATURE = "bootstrap_signature";
+    private static final String KEY_WARNINGS = "warnings";
+    private static final String KEY_RECOVERY_ACTIONS = "recovery_actions";
+
+    public static final int RISK_LOW = 0;
+    public static final int RISK_MEDIUM = 1;
+    public static final int RISK_HIGH = 2;
+
+    @IntDef({RISK_LOW, RISK_MEDIUM, RISK_HIGH})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface Risk {
+    }
+
+    private static final String ROLLBACK_NONE = "none";
+    private static final String ROLLBACK_RESTORE_BACKUP = "restore_backup";
+    private static final String ROLLBACK_RUN_INVERSE = "run_inverse";
+    private static final String ROLLBACK_REINSTALL = "reinstall";
+    private static final String ROLLBACK_MANUAL_REAPPLY = "manual_reapply";
+    private static final String ROLLBACK_DELETE_ARTIFACT = "delete_artifact";
+
+    private static final String RECOVERY_REVIEW_HISTORY = "review_history";
+    private static final String RECOVERY_REVIEW_LOGS = "review_logs";
+    private static final String RECOVERY_RERUN_FAILED = "rerun_failed";
+    private static final String RECOVERY_RESTORE_BACKUP = "restore_backup";
+    private static final String RECOVERY_RUN_INVERSE = "run_inverse";
+    private static final String RECOVERY_REINSTALL = "reinstall";
+    private static final String RECOVERY_MANUAL_REAPPLY = "manual_reapply";
+    private static final String RECOVERY_DELETE_ARTIFACT = "delete_artifact";
+    private static final String RECOVERY_RESTART = "restart";
+    private static final String RECOVERY_VERIFY_TARGET = "verify_target";
+    private static final String RECOVERY_NO_AUTOMATIC = "no_automatic";
+
+    @NonNull
+    private final JSONObject mJsonObject;
+
+    private OperationJournalMetadata(@NonNull JSONObject jsonObject) {
+        mJsonObject = jsonObject;
+    }
+
+    @Nullable
+    public static OperationJournalMetadata fromJson(@Nullable String serializedExtra) {
+        if (serializedExtra == null) {
+            return null;
+        }
+        try {
+            return new OperationJournalMetadata(new JSONObject(serializedExtra));
+        } catch (JSONException ignore) {
+            return null;
+        }
+    }
+
+    @NonNull
+    public static OperationJournalMetadata forBatchOperation(@NonNull Context context,
+                                                             @NonNull BatchQueueItem item,
+                                                             @NonNull BatchOpsManager.Result result) {
+        int op = item.getOp();
+        return builder(context)
+                .setOperationLabel(BatchOpsService.getDesiredOpTitle(context, op))
+                .setTargetCount(item.getPackages().size())
+                .setFailedCount(result.getFailedPackages().size())
+                .setExitCode(result.isSuccessful() ? 0 : 1)
+                .setRequiresRestart(result.requiresRestart())
+                .setReplayable(true)
+                .setReversible(isReversibleBatchOp(op))
+                .setRisk(getRiskForBatchOp(op))
+                .setRollbackHint(getRollbackHintForBatchOp(op))
+                .setRecoveryActions(getRecoveryActionsForBatchOp(op, result))
+                .setTargetPreview(item.getPackages())
+                .setWarnings(result.getWarnings())
+                .build();
+    }
+
+    @NonNull
+    public static OperationJournalMetadata forInstaller(@NonNull Context context,
+                                                        @NonNull ApkQueueItem item,
+                                                        @PackageInstallerCompat.Status int status,
+                                                        @Nullable String blockingPackage,
+                                                        @Nullable String statusMessage) {
+        boolean success = status == PackageInstallerCompat.STATUS_SUCCESS;
+        String label = item.getAppLabel();
+        if (label == null) {
+            label = item.getPackageName();
+        }
+        Builder builder = builder(context)
+                .setOperationLabel(context.getString(R.string.package_installer))
+                .setTargetCount(1)
+                .setFailedCount(success ? 0 : 1)
+                .setExitCode(status)
+                .setRequiresRestart(false)
+                .setReplayable(true)
+                .setReversible(false)
+                .setRisk(item.isInstallExisting() ? RISK_LOW : RISK_MEDIUM)
+                .setRollbackHint(ROLLBACK_REINSTALL)
+                .setRecoveryActions(getRecoveryActionsForRollbackHint(ROLLBACK_REINSTALL, success ? 0 : 1,
+                        true, false, false))
+                .setTargetPreview(label);
+        if (!success) {
+            String failureMessage = PackageInstallerService.getStringFromStatus(context, status, label, blockingPackage);
+            if (statusMessage != null) {
+                failureMessage += "\n" + statusMessage;
+            }
+            builder.setFailureMessage(failureMessage);
+        }
+        return builder.build();
+    }
+
+    @NonNull
+    public static OperationJournalMetadata forProfile(@NonNull Context context,
+                                                      @NonNull ProfileQueueItem item,
+                                                      boolean success,
+                                                      boolean requiresRestart,
+                                                      @Nullable Throwable error) {
+        return forProfile(context, item, success, requiresRestart, null,
+                error != null ? error.getMessage() : null);
+    }
+
+    @NonNull
+    public static OperationJournalMetadata forProfile(@NonNull Context context,
+                                                      @NonNull ProfileQueueItem item,
+                                                      boolean success,
+                                                      boolean requiresRestart,
+                                                      @Nullable ProfileApplierResult result,
+                                                      @Nullable String failureMessage) {
+        int targetCount = getProfileTargetCount(result);
+        int failedCount = getProfileFailedCount(success, targetCount, result);
+        if (failedCount > targetCount) {
+            targetCount = failedCount;
+        }
+        Builder builder = builder(context)
+                .setOperationLabel(context.getString(R.string.profiles))
+                .setTargetCount(targetCount)
+                .setFailedCount(failedCount)
+                .setExitCode(success ? 0 : 1)
+                .setRequiresRestart(requiresRestart)
+                .setReplayable(true)
+                .setReversible(false)
+                .setRisk(RISK_HIGH)
+                .setRollbackHint(ROLLBACK_MANUAL_REAPPLY)
+                .setRecoveryActions(getRecoveryActionsForRollbackHint(ROLLBACK_MANUAL_REAPPLY, failedCount,
+                        true, requiresRestart, false))
+                .setTargetPreview(getProfileTargetPreview(item, result));
+        if (!success && failureMessage != null && !failureMessage.isEmpty()) {
+            builder.setFailureMessage(failureMessage);
+        }
+        return builder.build();
+    }
+
+    private static int getProfileTargetCount(@Nullable ProfileApplierResult result) {
+        if (result == null || result.getTargetCount() <= 0) {
+            return 1;
+        }
+        return result.getTargetCount();
+    }
+
+    private static int getProfileFailedCount(boolean success, int targetCount,
+                                             @Nullable ProfileApplierResult result) {
+        if (success) {
+            return 0;
+        }
+        if (result == null) {
+            return 1;
+        }
+        int failedPackages = result.getFailedPackageCount();
+        if (result.hasSkippedOperations()) {
+            return Math.max(1, Math.max(targetCount, failedPackages));
+        }
+        return Math.max(1, failedPackages);
+    }
+
+    @NonNull
+    private static List<String> getProfileTargetPreview(@NonNull ProfileQueueItem item,
+                                                        @Nullable ProfileApplierResult result) {
+        ArrayList<String> targets = new ArrayList<>();
+        targets.add(item.getProfileName());
+        if (result != null) {
+            targets.addAll(result.getFailedPackages());
+        }
+        return targets;
+    }
+
+    @NonNull
+    public static OperationJournalMetadata forOneClickCleanup(@NonNull Context context,
+                                                              @NonNull String operationLabel,
+                                                              int targetCount,
+                                                              int failedCount,
+                                                              @NonNull List<String> targetPreview) {
+        return builder(context)
+                .setOperationLabel(operationLabel)
+                .setTargetCount(targetCount)
+                .setFailedCount(failedCount)
+                .setExitCode(failedCount == 0 ? 0 : 1)
+                .setRequiresRestart(false)
+                .setReplayable(false)
+                .setReversible(false)
+                .setRisk(RISK_HIGH)
+                .setRollbackHint(ROLLBACK_NONE)
+                .setRecoveryActions(getRecoveryActionsForRollbackHint(ROLLBACK_NONE, failedCount, false, false, false))
+                .setTargetPreview(targetPreview)
+                .build();
+    }
+
+    @NonNull
+    public static OperationJournalMetadata forSingleAppAction(@NonNull Context context,
+                                                              @NonNull SingleAppActionHistoryItem item,
+                                                              boolean success,
+                                                              @Risk int risk,
+                                                              boolean reversible,
+                                                              @Nullable Throwable failure) {
+        Builder builder = builder(context)
+                .setOperationLabel(item.getOperationLabel())
+                .setTargetCount(1)
+                .setFailedCount(success ? 0 : 1)
+                .setExitCode(success ? 0 : 1)
+                .setRequiresRestart(false)
+                .setReplayable(false)
+                .setReversible(reversible)
+                .setRisk(risk)
+                .setRollbackHint(reversible ? ROLLBACK_RUN_INVERSE : ROLLBACK_MANUAL_REAPPLY)
+                .setRecoveryActions(getRecoveryActionsForRollbackHint(
+                        reversible ? ROLLBACK_RUN_INVERSE : ROLLBACK_MANUAL_REAPPLY,
+                        success ? 0 : 1, false, false, false))
+                .setTargetPreview(item.getTargetPreviewLabel());
+        if (!success && failure != null && failure.getMessage() != null) {
+            builder.setFailureMessage(failure.getMessage());
+        }
+        return builder.build();
+    }
+
+    @NonNull
+    private static Builder builder(@NonNull Context context) {
+        Builder builder = new Builder()
+                .setModeLabel(Ops.getInferredMode(context).toString())
+                .setSchemaVersion(SCHEMA_VERSION);
+        String bootstrapSignature = getLastBootstrapSignatureSafely();
+        if (!bootstrapSignature.isEmpty()) {
+            builder.setBootstrapSignature(bootstrapSignature);
+        }
+        return builder;
+    }
+
+    @NonNull
+    private static String getLastBootstrapSignatureSafely() {
+        try {
+            return LocalServer.getLastBootstrapSignature();
+        } catch (Exception ignore) {
+            return "";
+        }
+    }
+
+    @Risk
+    private static int getRiskForBatchOp(@BatchOpsManager.OpType int op) {
+        switch (op) {
+            case BatchOpsManager.OP_BACKUP:
+            case BatchOpsManager.OP_BACKUP_APK:
+            case BatchOpsManager.OP_CLEAR_CACHE:
+            case BatchOpsManager.OP_EXPORT_RULES:
+            case BatchOpsManager.OP_INSTALL_EXISTING:
+                return RISK_LOW;
+            case BatchOpsManager.OP_CLEAR_DATA:
+            case BatchOpsManager.OP_DELETE_BACKUP:
+            case BatchOpsManager.OP_RESTORE_BACKUP:
+            case BatchOpsManager.OP_UNINSTALL:
+                return RISK_HIGH;
+            default:
+                return RISK_MEDIUM;
+        }
+    }
+
+    private static boolean isReversibleBatchOp(@BatchOpsManager.OpType int op) {
+        switch (op) {
+            case BatchOpsManager.OP_BLOCK_TRACKERS:
+            case BatchOpsManager.OP_FREEZE:
+            case BatchOpsManager.OP_ADVANCED_FREEZE:
+            case BatchOpsManager.OP_BLOCK_COMPONENTS:
+            case BatchOpsManager.OP_UNBLOCK_TRACKERS:
+            case BatchOpsManager.OP_UNFREEZE:
+            case BatchOpsManager.OP_UNBLOCK_COMPONENTS:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    @NonNull
+    private static String getRollbackHintForBatchOp(@BatchOpsManager.OpType int op) {
+        switch (op) {
+            case BatchOpsManager.OP_BACKUP:
+            case BatchOpsManager.OP_BACKUP_APK:
+            case BatchOpsManager.OP_EXPORT_RULES:
+                return ROLLBACK_DELETE_ARTIFACT;
+            case BatchOpsManager.OP_RESTORE_BACKUP:
+                return ROLLBACK_RESTORE_BACKUP;
+            case BatchOpsManager.OP_BLOCK_TRACKERS:
+            case BatchOpsManager.OP_FREEZE:
+            case BatchOpsManager.OP_ADVANCED_FREEZE:
+            case BatchOpsManager.OP_BLOCK_COMPONENTS:
+            case BatchOpsManager.OP_UNBLOCK_TRACKERS:
+            case BatchOpsManager.OP_UNFREEZE:
+            case BatchOpsManager.OP_UNBLOCK_COMPONENTS:
+                return ROLLBACK_RUN_INVERSE;
+            case BatchOpsManager.OP_SET_APP_OPS:
+            case BatchOpsManager.OP_NET_POLICY:
+            case BatchOpsManager.OP_DISABLE_BACKGROUND:
+            case BatchOpsManager.OP_GRANT_PERMISSIONS:
+            case BatchOpsManager.OP_REVOKE_PERMISSIONS:
+                return ROLLBACK_MANUAL_REAPPLY;
+            default:
+                return ROLLBACK_NONE;
+        }
+    }
+
+    @NonNull
+    private static List<String> getRecoveryActionsForBatchOp(@BatchOpsManager.OpType int op,
+                                                             @NonNull BatchOpsManager.Result result) {
+        return getRecoveryActionsForRollbackHint(getRollbackHintForBatchOp(op),
+                result.getFailedPackages().size(), true, result.requiresRestart(), true);
+    }
+
+    @NonNull
+    private static List<String> getRecoveryActionsForRollbackHint(@NonNull String rollbackHint,
+                                                                  int failedCount,
+                                                                  boolean replayable,
+                                                                  boolean requiresRestart,
+                                                                  boolean hasResultLog) {
+        ArrayList<String> actions = new ArrayList<>();
+        addRecoveryAction(actions, RECOVERY_REVIEW_HISTORY);
+        if (failedCount > 0 && hasResultLog) {
+            addRecoveryAction(actions, RECOVERY_REVIEW_LOGS);
+        }
+        if (failedCount > 0) {
+            if (replayable) {
+                addRecoveryAction(actions, RECOVERY_RERUN_FAILED);
+            }
+        }
+        addRollbackRecoveryAction(actions, rollbackHint);
+        if (requiresRestart) {
+            addRecoveryAction(actions, RECOVERY_RESTART);
+        }
+        addRecoveryAction(actions, RECOVERY_VERIFY_TARGET);
+        return actions;
+    }
+
+    private static void addRollbackRecoveryAction(@NonNull List<String> actions,
+                                                  @NonNull String rollbackHint) {
+        switch (rollbackHint) {
+            case ROLLBACK_DELETE_ARTIFACT:
+                addRecoveryAction(actions, RECOVERY_DELETE_ARTIFACT);
+                break;
+            case ROLLBACK_RESTORE_BACKUP:
+                addRecoveryAction(actions, RECOVERY_RESTORE_BACKUP);
+                break;
+            case ROLLBACK_RUN_INVERSE:
+                addRecoveryAction(actions, RECOVERY_RUN_INVERSE);
+                break;
+            case ROLLBACK_REINSTALL:
+                addRecoveryAction(actions, RECOVERY_REINSTALL);
+                break;
+            case ROLLBACK_MANUAL_REAPPLY:
+                addRecoveryAction(actions, RECOVERY_MANUAL_REAPPLY);
+                break;
+            case ROLLBACK_NONE:
+            default:
+                addRecoveryAction(actions, RECOVERY_NO_AUTOMATIC);
+                break;
+        }
+    }
+
+    private static void addRecoveryAction(@NonNull List<String> actions,
+                                          @NonNull String action) {
+        if (!actions.contains(action) && actions.size() < MAX_RECOVERY_ACTIONS) {
+            actions.add(action);
+        }
+    }
+
+    @NonNull
+    public String getModeLabel() {
+        return mJsonObject.optString(KEY_MODE_LABEL, "");
+    }
+
+    @NonNull
+    public String getSearchableText() {
+        try {
+            return serializeToJson().toString();
+        } catch (JSONException ignore) {
+            return "";
+        }
+    }
+
+    @NonNull
+    public String getOperationLabel() {
+        return mJsonObject.optString(KEY_OPERATION_LABEL, "");
+    }
+
+    public int getTargetCount() {
+        return getNonNegativeInt(KEY_TARGET_COUNT);
+    }
+
+    public int getFailedCount() {
+        return Math.min(getTargetCount(), getNonNegativeInt(KEY_FAILED_COUNT));
+    }
+
+    @Nullable
+    public Integer getExitCode() {
+        return JSONUtils.getIntOrNull(mJsonObject, KEY_EXIT_CODE);
+    }
+
+    public boolean requiresRestart() {
+        return mJsonObject.optBoolean(KEY_REQUIRES_RESTART, false);
+    }
+
+    public boolean isReplayable() {
+        return mJsonObject.optBoolean(KEY_REPLAYABLE, true);
+    }
+
+    public boolean isReversible() {
+        return mJsonObject.optBoolean(KEY_REVERSIBLE, false);
+    }
+
+    @Risk
+    public int getRisk() {
+        int risk = mJsonObject.optInt(KEY_RISK, RISK_MEDIUM);
+        if (risk == RISK_LOW || risk == RISK_HIGH) {
+            return risk;
+        }
+        return RISK_MEDIUM;
+    }
+
+    @Nullable
+    public String getFailureMessage() {
+        return JSONUtils.optString(mJsonObject, KEY_FAILURE_MESSAGE);
+    }
+
+    @NonNull
+    public List<String> getWarnings() {
+        return getSanitizedStringArray(KEY_WARNINGS, MAX_WARNINGS);
+    }
+
+    @Nullable
+    public String getBootstrapSignature() {
+        return JSONUtils.optString(mJsonObject, KEY_BOOTSTRAP_SIGNATURE);
+    }
+
+    @NonNull
+    public List<String> getTargetPreview() {
+        return getSanitizedStringArray(KEY_TARGET_PREVIEW, MAX_TARGET_PREVIEW);
+    }
+
+    @NonNull
+    public List<String> getLocalizedRecoveryActions(@NonNull Context context) {
+        List<String> actionKeys = getRecoveryActionKeys();
+        ArrayList<String> actions = new ArrayList<>(actionKeys.size());
+        for (String actionKey : actionKeys) {
+            String localized = getLocalizedRecoveryAction(context, actionKey);
+            if (localized != null && !actions.contains(localized)) {
+                actions.add(localized);
+            }
+        }
+        return actions;
+    }
+
+    @NonNull
+    public String getLocalizedRisk(@NonNull Context context) {
+        switch (getRisk()) {
+            case RISK_LOW:
+                return context.getString(R.string.op_history_risk_low);
+            case RISK_HIGH:
+                return context.getString(R.string.op_history_risk_high);
+            case RISK_MEDIUM:
+            default:
+                return context.getString(R.string.op_history_risk_medium);
+        }
+    }
+
+    @NonNull
+    public String getLocalizedRollbackHint(@NonNull Context context) {
+        switch (mJsonObject.optString(KEY_ROLLBACK_HINT, ROLLBACK_NONE)) {
+            case ROLLBACK_DELETE_ARTIFACT:
+                return context.getString(R.string.op_history_rollback_delete_artifact);
+            case ROLLBACK_RESTORE_BACKUP:
+                return context.getString(R.string.op_history_rollback_restore_backup);
+            case ROLLBACK_RUN_INVERSE:
+                return context.getString(R.string.op_history_rollback_run_inverse);
+            case ROLLBACK_REINSTALL:
+                return context.getString(R.string.op_history_rollback_reinstall);
+            case ROLLBACK_MANUAL_REAPPLY:
+                return context.getString(R.string.op_history_rollback_manual_reapply);
+            case ROLLBACK_NONE:
+            default:
+                return context.getString(R.string.op_history_rollback_none);
+        }
+    }
+
+    @NonNull
+    private List<String> getRecoveryActionKeys() {
+        List<String> actionKeys = getSanitizedStringArray(KEY_RECOVERY_ACTIONS, MAX_RECOVERY_ACTIONS);
+        if (!actionKeys.isEmpty()) {
+            return actionKeys;
+        }
+        return getRecoveryActionsForRollbackHint(
+                mJsonObject.optString(KEY_ROLLBACK_HINT, ROLLBACK_NONE),
+                getFailedCount(), isReplayable(), requiresRestart(), true);
+    }
+
+    @Nullable
+    private static String getLocalizedRecoveryAction(@NonNull Context context,
+                                                     @NonNull String actionKey) {
+        switch (actionKey) {
+            case RECOVERY_REVIEW_HISTORY:
+                return context.getString(R.string.op_history_recovery_review_history);
+            case RECOVERY_REVIEW_LOGS:
+                return context.getString(R.string.op_history_recovery_review_logs);
+            case RECOVERY_RERUN_FAILED:
+                return context.getString(R.string.op_history_recovery_rerun_failed);
+            case RECOVERY_RESTORE_BACKUP:
+                return context.getString(R.string.op_history_recovery_restore_backup);
+            case RECOVERY_RUN_INVERSE:
+                return context.getString(R.string.op_history_recovery_run_inverse);
+            case RECOVERY_REINSTALL:
+                return context.getString(R.string.op_history_recovery_reinstall);
+            case RECOVERY_MANUAL_REAPPLY:
+                return context.getString(R.string.op_history_recovery_manual_reapply);
+            case RECOVERY_DELETE_ARTIFACT:
+                return context.getString(R.string.op_history_recovery_delete_artifact);
+            case RECOVERY_RESTART:
+                return context.getString(R.string.op_history_recovery_restart);
+            case RECOVERY_VERIFY_TARGET:
+                return context.getString(R.string.op_history_recovery_verify_target);
+            case RECOVERY_NO_AUTOMATIC:
+                return context.getString(R.string.op_history_recovery_no_automatic);
+            default:
+                return null;
+        }
+    }
+
+    @NonNull
+    public String getSummary(@NonNull Context context) {
+        String targetCount = context.getResources().getQuantityString(
+                R.plurals.op_history_target_count, getTargetCount(), getTargetCount());
+        return context.getString(R.string.op_history_item_metadata,
+                getLocalizedRisk(context), targetCount, getModeLabel());
+    }
+
+    @NonNull
+    @Override
+    public JSONObject serializeToJson() throws JSONException {
+        JSONObject jsonObject = new JSONObject(mJsonObject.toString());
+        jsonObject.put(KEY_TARGET_COUNT, getTargetCount());
+        jsonObject.put(KEY_FAILED_COUNT, getFailedCount());
+        Integer exitCode = getExitCode();
+        if (exitCode == null) {
+            jsonObject.remove(KEY_EXIT_CODE);
+        } else {
+            jsonObject.put(KEY_EXIT_CODE, exitCode);
+        }
+        jsonObject.put(KEY_RISK, getRisk());
+        jsonObject.put(KEY_TARGET_PREVIEW, toSanitizedStringArray(getTargetPreview(), MAX_TARGET_PREVIEW));
+        List<String> warnings = getWarnings();
+        if (warnings.isEmpty()) {
+            jsonObject.remove(KEY_WARNINGS);
+        } else {
+            jsonObject.put(KEY_WARNINGS, toSanitizedStringArray(warnings, MAX_WARNINGS));
+        }
+        jsonObject.put(KEY_RECOVERY_ACTIONS, toSanitizedStringArray(getRecoveryActionKeys(), MAX_RECOVERY_ACTIONS));
+        return jsonObject;
+    }
+
+    private int getNonNegativeInt(@NonNull String key) {
+        return Math.max(0, mJsonObject.optInt(key, 0));
+    }
+
+    @NonNull
+    private List<String> getSanitizedStringArray(@NonNull String key, int maxEntries) {
+        JSONArray array = mJsonObject.optJSONArray(key);
+        List<String> result = new ArrayList<>();
+        if (array == null) {
+            return result;
+        }
+        for (int i = 0; i < array.length() && result.size() < maxEntries; ++i) {
+            String value = sanitizeArrayString(array.opt(i));
+            if (value != null) {
+                result.add(value);
+            }
+        }
+        return result;
+    }
+
+    @Nullable
+    private static String sanitizeArrayString(@Nullable Object rawValue) {
+        if (!(rawValue instanceof String)) {
+            return null;
+        }
+        String value = ((String) rawValue).trim();
+        return value.isEmpty() ? null : value;
+    }
+
+    @NonNull
+    private static JSONArray toSanitizedStringArray(@Nullable List<String> values, int maxEntries) {
+        JSONArray array = new JSONArray();
+        if (values == null) {
+            return array;
+        }
+        for (int i = 0; i < values.size() && array.length() < maxEntries; ++i) {
+            String value = sanitizeArrayString(values.get(i));
+            if (value != null) {
+                array.put(value);
+            }
+        }
+        return array;
+    }
+
+    public static final class Builder {
+        @NonNull
+        private final JSONObject mJsonObject = new JSONObject();
+
+        @NonNull
+        Builder setSchemaVersion(int schemaVersion) {
+            put(KEY_SCHEMA_VERSION, schemaVersion);
+            return this;
+        }
+
+        @NonNull
+        Builder setModeLabel(@NonNull String modeLabel) {
+            put(KEY_MODE_LABEL, modeLabel);
+            return this;
+        }
+
+        @NonNull
+        Builder setOperationLabel(@NonNull String operationLabel) {
+            put(KEY_OPERATION_LABEL, operationLabel);
+            return this;
+        }
+
+        @NonNull
+        Builder setTargetCount(int targetCount) {
+            put(KEY_TARGET_COUNT, Math.max(0, targetCount));
+            return this;
+        }
+
+        @NonNull
+        Builder setFailedCount(int failedCount) {
+            put(KEY_FAILED_COUNT, Math.max(0, failedCount));
+            return this;
+        }
+
+        @NonNull
+        Builder setExitCode(int exitCode) {
+            put(KEY_EXIT_CODE, exitCode);
+            return this;
+        }
+
+        @NonNull
+        Builder setRequiresRestart(boolean requiresRestart) {
+            put(KEY_REQUIRES_RESTART, requiresRestart);
+            return this;
+        }
+
+        @NonNull
+        Builder setReplayable(boolean replayable) {
+            put(KEY_REPLAYABLE, replayable);
+            return this;
+        }
+
+        @NonNull
+        Builder setReversible(boolean reversible) {
+            put(KEY_REVERSIBLE, reversible);
+            return this;
+        }
+
+        @NonNull
+        Builder setRisk(@Risk int risk) {
+            put(KEY_RISK, risk);
+            return this;
+        }
+
+        @NonNull
+        Builder setRollbackHint(@NonNull String rollbackHint) {
+            put(KEY_ROLLBACK_HINT, rollbackHint);
+            return this;
+        }
+
+        @NonNull
+        Builder setTargetPreview(@Nullable List<String> targets) {
+            put(KEY_TARGET_PREVIEW, toSanitizedStringArray(targets, MAX_TARGET_PREVIEW));
+            return this;
+        }
+
+        @NonNull
+        Builder setTargetPreview(@Nullable String target) {
+            JSONArray targetPreview = new JSONArray();
+            String sanitizedTarget = sanitizeArrayString(target);
+            if (sanitizedTarget != null) {
+                targetPreview.put(sanitizedTarget);
+            }
+            put(KEY_TARGET_PREVIEW, targetPreview);
+            return this;
+        }
+
+        @NonNull
+        Builder setFailureMessage(@NonNull String failureMessage) {
+            put(KEY_FAILURE_MESSAGE, failureMessage);
+            return this;
+        }
+
+        @NonNull
+        Builder setWarnings(@Nullable List<String> warnings) {
+            JSONArray warningArray = toSanitizedStringArray(warnings, MAX_WARNINGS);
+            if (warningArray.length() > 0) {
+                put(KEY_WARNINGS, warningArray);
+            }
+            return this;
+        }
+
+        @NonNull
+        Builder setRecoveryActions(@Nullable List<String> recoveryActions) {
+            put(KEY_RECOVERY_ACTIONS, toSanitizedStringArray(recoveryActions, MAX_RECOVERY_ACTIONS));
+            return this;
+        }
+
+        @NonNull
+        Builder setBootstrapSignature(@NonNull String bootstrapSignature) {
+            put(KEY_BOOTSTRAP_SIGNATURE, bootstrapSignature);
+            return this;
+        }
+
+        @NonNull
+        OperationJournalMetadata build() {
+            return new OperationJournalMetadata(mJsonObject);
+        }
+
+        private void put(@NonNull String key, @Nullable Object value) {
+            try {
+                mJsonObject.put(key, value);
+            } catch (JSONException ignore) {
+            }
+        }
+    }
+}

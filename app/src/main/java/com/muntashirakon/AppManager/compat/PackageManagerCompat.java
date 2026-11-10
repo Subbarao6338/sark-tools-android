@@ -1,0 +1,1056 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package io.github.muntashirakon.AppManager.compat;
+
+import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
+import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED;
+import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER;
+import static android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
+import static android.content.pm.PackageManager.DONT_KILL_APP;
+import static android.content.pm.PackageManager.SYNCHRONOUS;
+
+import android.Manifest;
+import android.app.IActivityManager;
+import android.annotation.SuppressLint;
+import android.annotation.UserIdInt;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.IPackageInstaller;
+import android.content.pm.IPackageManager;
+import android.content.pm.IPackageManagerN;
+import android.content.pm.IPackageManagerV37;
+import android.content.pm.LauncherActivityInfo;
+import android.content.pm.LauncherApps;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ParceledListSlice;
+import android.content.pm.PermissionInfo;
+import android.content.pm.ProviderInfo;
+import android.content.pm.ResolveInfo;
+import android.content.pm.ServiceInfo;
+import android.content.pm.SuspendDialogInfo;
+import android.os.BadParcelableException;
+import android.os.Build;
+import android.os.DeadObjectException;
+import android.os.RemoteException;
+import android.os.SystemClock;
+import android.os.UserHandle;
+import android.os.UserHandleHidden;
+import android.util.AndroidException;
+
+import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.annotation.RequiresPermission;
+import androidx.annotation.VisibleForTesting;
+import androidx.annotation.WorkerThread;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
+import dev.rikka.tools.refine.Refine;
+import io.github.muntashirakon.AppManager.ipc.ProxyBinder;
+import io.github.muntashirakon.AppManager.logs.Log;
+import io.github.muntashirakon.AppManager.revert.OsRevertMonitor;
+import io.github.muntashirakon.AppManager.runner.Runner;
+import io.github.muntashirakon.AppManager.self.SelfPermissions;
+import io.github.muntashirakon.AppManager.types.UserPackagePair;
+import io.github.muntashirakon.AppManager.users.Users;
+import io.github.muntashirakon.AppManager.utils.BroadcastUtils;
+import io.github.muntashirakon.AppManager.utils.ContextUtils;
+import io.github.muntashirakon.AppManager.utils.ExUtils;
+import io.github.muntashirakon.AppManager.utils.ThreadUtils;
+import io.github.muntashirakon.AppManager.utils.Utils;
+import misc.utils.VersionCodes;
+
+public final class PackageManagerCompat {
+    public static final String TAG = PackageManagerCompat.class.getSimpleName();
+
+    public static final int MATCH_STATIC_SHARED_AND_SDK_LIBRARIES = 0x04000000;
+    public static final int GET_SIGNING_CERTIFICATES;
+    public static final int GET_SIGNING_CERTIFICATES_APK;
+    public static final int MATCH_DISABLED_COMPONENTS;
+    public static final int MATCH_UNINSTALLED_PACKAGES;
+
+    static {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            GET_SIGNING_CERTIFICATES = PackageManager.GET_SIGNING_CERTIFICATES;
+        } else {
+            //noinspection deprecation
+            GET_SIGNING_CERTIFICATES = PackageManager.GET_SIGNATURES;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            GET_SIGNING_CERTIFICATES_APK = PackageManager.GET_SIGNING_CERTIFICATES;
+        } else {
+            //noinspection deprecation
+            GET_SIGNING_CERTIFICATES_APK = PackageManager.GET_SIGNATURES;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            MATCH_DISABLED_COMPONENTS = PackageManager.MATCH_DISABLED_COMPONENTS;
+            MATCH_UNINSTALLED_PACKAGES = PackageManager.MATCH_UNINSTALLED_PACKAGES;
+        } else {
+            //noinspection deprecation
+            MATCH_DISABLED_COMPONENTS = PackageManager.GET_DISABLED_COMPONENTS;
+            //noinspection deprecation
+            MATCH_UNINSTALLED_PACKAGES = PackageManager.GET_UNINSTALLED_PACKAGES;
+        }
+    }
+
+    @IntDef({
+            COMPONENT_ENABLED_STATE_DEFAULT,
+            COMPONENT_ENABLED_STATE_ENABLED,
+            COMPONENT_ENABLED_STATE_DISABLED,
+            COMPONENT_ENABLED_STATE_DISABLED_USER,
+            COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED,
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface EnabledState {
+    }
+
+    @IntDef(flag = true, value = {
+            DONT_KILL_APP,
+            SYNCHRONOUS
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface EnabledFlags {
+    }
+
+    private static final int NEEDED_FLAGS = MATCH_UNINSTALLED_PACKAGES | MATCH_STATIC_SHARED_AND_SDK_LIBRARIES;
+
+    @WorkerThread
+    @NonNull
+    public static List<PackageInfo> getInstalledPackages(int flags, @UserIdInt int userId) {
+        return getInstalledPackagesWithStatus(flags, userId).packages;
+    }
+
+    @WorkerThread
+    @NonNull
+    public static InstalledPackagesResult getInstalledPackagesWithStatus(int flags, @UserIdInt int userId) {
+        IPackageManager privilegedPackageManager = getPackageManager();
+        PackageManager unprivilegedPackageManager = ContextUtils.getContext().getPackageManager();
+        return getInstalledPackagesWithStatus(new PackageEnumerationSource() {
+            @Nullable
+            @Override
+            @SuppressWarnings("deprecation")
+            public List<PackageInfo> getUnprivilegedPackages(int requestedFlags) {
+                return unprivilegedPackageManager.getInstalledPackages(requestedFlags);
+            }
+
+            @NonNull
+            @Override
+            public List<PackageInfo> getPrivilegedPackages(int requestedFlags, int requestedUserId) {
+                return getInstalledPackagesInternal(privilegedPackageManager, requestedFlags, requestedUserId);
+            }
+
+            @NonNull
+            @Override
+            public PackageInfo getPrivilegedPackageInfo(@NonNull String packageName, int requestedFlags,
+                                                         int requestedUserId) throws Exception {
+                return getPackageInfo(privilegedPackageManager, packageName, requestedFlags, requestedUserId);
+            }
+        }, flags, userId, UserHandleHidden.myUserId());
+    }
+
+    @VisibleForTesting
+    @NonNull
+    static InstalledPackagesResult getInstalledPackagesWithStatus(@NonNull PackageEnumerationSource source,
+                                                                   int flags, @UserIdInt int userId,
+                                                                   @UserIdInt int currentUserId) {
+        List<PackageInfo> refPackages = null;
+        boolean hasUnprivilegedReference = userId == currentUserId;
+        if (hasUnprivilegedReference) {
+            try {
+                refPackages = source.getUnprivilegedPackages(flags & NEEDED_FLAGS);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "Could not retrieve the unprivileged package reference for user " + userId, e);
+            }
+            hasUnprivilegedReference = refPackages != null;
+        }
+        if (refPackages == null) {
+            // Cross-user scans cannot use the app process PackageManager. This also preserves the
+            // existing privileged fallback when an OEM blocks the unprivileged reference call.
+            refPackages = source.getPrivilegedPackages(flags & NEEDED_FLAGS, userId);
+        }
+
+        List<PackageInfo> packageInfoList = source.getPrivilegedPackages(flags, userId);
+        if (hasUnprivilegedReference) {
+            int privilegedCount = packageInfoList.size();
+            int unprivilegedCount = refPackages.size();
+            if (privilegedCount >= unprivilegedCount) {
+                return new InstalledPackagesResult(packageInfoList, null);
+            }
+            // An app can be removed between the reference and privileged snapshots. Confirm the
+            // shortfall before warning or restoring entries from the older snapshot.
+            try {
+                List<PackageInfo> refreshedPackages = source.getUnprivilegedPackages(flags & NEEDED_FLAGS);
+                if (refreshedPackages != null) {
+                    refPackages = refreshedPackages;
+                    unprivilegedCount = refPackages.size();
+                    if (containsAllPackageNames(packageInfoList, refPackages)) {
+                        return new InstalledPackagesResult(packageInfoList, null);
+                    }
+                }
+            } catch (RuntimeException e) {
+                Log.w(TAG, "Could not refresh the unprivileged package reference for user " + userId, e);
+            }
+            Log.w(TAG, "Privileged package enumeration returned %d of %d packages for user %d; "
+                            + "using the unprivileged reference",
+                    privilegedCount, unprivilegedCount, userId);
+            packageInfoList = recoverPackageDetails(source, refPackages, flags, userId, true);
+            return new InstalledPackagesResult(packageInfoList,
+                    new PackageEnumerationWarning(privilegedCount, unprivilegedCount));
+        }
+
+        if (packageInfoList.size() == refPackages.size()) {
+            return new InstalledPackagesResult(packageInfoList, null);
+        }
+        if (packageInfoList.size() > refPackages.size()) {
+            Set<String> pkgsFromPkgInfo = new HashSet<>(packageInfoList.size());
+            Set<String> pkgsFromAppInfo = new HashSet<>(refPackages.size());
+            for (PackageInfo info : packageInfoList) pkgsFromPkgInfo.add(info.packageName);
+            for (PackageInfo info : refPackages) pkgsFromAppInfo.add(info.packageName);
+            pkgsFromPkgInfo.removeAll(pkgsFromAppInfo);
+            Log.i(TAG, "Loaded extra packages: " + pkgsFromPkgInfo.toString());
+            throw new IllegalStateException("Retrieved " + packageInfoList.size() + " packages out of "
+                    + refPackages.size() + " applications which is impossible");
+        }
+        Log.w(TAG, "Could not fetch installed packages for user %d using getInstalledPackages(), using workaround",
+                userId);
+        return new InstalledPackagesResult(recoverPackageDetails(source, refPackages, flags, userId, false), null);
+    }
+
+    private static boolean containsAllPackageNames(@NonNull List<PackageInfo> packages,
+                                                    @NonNull List<PackageInfo> referencePackages) {
+        if (packages.size() < referencePackages.size()) {
+            return false;
+        }
+        Set<String> packageNames = new HashSet<>(packages.size());
+        for (PackageInfo packageInfo : packages) {
+            packageNames.add(packageInfo.packageName);
+        }
+        for (PackageInfo packageInfo : referencePackages) {
+            if (!packageNames.contains(packageInfo.packageName)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @NonNull
+    private static List<PackageInfo> recoverPackageDetails(@NonNull PackageEnumerationSource source,
+                                                            @NonNull List<PackageInfo> refPackages,
+                                                            int flags, @UserIdInt int userId,
+                                                            boolean preserveUnprivilegedEntryOnFailure) {
+        List<PackageInfo> packageInfoList = new ArrayList<>(refPackages.size());
+        for (int i = 0; i < refPackages.size(); ++i) {
+            if (ThreadUtils.isInterrupted()) {
+                break;
+            }
+            PackageInfo refPackage = refPackages.get(i);
+            String packageName = refPackage.packageName;
+            try {
+                packageInfoList.add(source.getPrivilegedPackageInfo(packageName, flags, userId));
+            } catch (Exception ex) {
+                Log.e(TAG, "Could not retrieve package info for " + packageName + " and user " + userId);
+                if (preserveUnprivilegedEntryOnFailure) {
+                    packageInfoList.add(refPackage);
+                }
+            }
+            if (i % 100 == 0) {
+                // Prevent DeadObjectException
+                SystemClock.sleep(300);
+            }
+        }
+        return packageInfoList;
+    }
+
+    @VisibleForTesting
+    interface PackageEnumerationSource {
+        @Nullable
+        List<PackageInfo> getUnprivilegedPackages(int flags);
+
+        @NonNull
+        List<PackageInfo> getPrivilegedPackages(int flags, @UserIdInt int userId);
+
+        @NonNull
+        PackageInfo getPrivilegedPackageInfo(@NonNull String packageName, int flags,
+                                             @UserIdInt int userId) throws Exception;
+    }
+
+    public static final class InstalledPackagesResult {
+        @NonNull
+        public final List<PackageInfo> packages;
+        @Nullable
+        public final PackageEnumerationWarning warning;
+
+        private InstalledPackagesResult(@NonNull List<PackageInfo> packages,
+                                        @Nullable PackageEnumerationWarning warning) {
+            this.packages = packages;
+            this.warning = warning;
+        }
+    }
+
+    public static final class PackageEnumerationWarning {
+        public final int privilegedCount;
+        public final int unprivilegedCount;
+
+        public PackageEnumerationWarning(int privilegedCount, int unprivilegedCount) {
+            this.privilegedCount = Math.max(0, privilegedCount);
+            this.unprivilegedCount = Math.max(0, unprivilegedCount);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static List<PackageInfo> getInstalledPackagesInternal(@NonNull IPackageManager pm,
+                                                                  int flags,
+                                                                  @UserIdInt int userId) {
+        try {
+            Object result;
+            try {
+                if (Build.VERSION.SDK_INT >= VersionCodes.CINNAMON_BUN) {
+                    result = Refine.<IPackageManagerV37>unsafeCast(pm)
+                            .getInstalledPackages(flags, userId);
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    result = pm.getInstalledPackages((long) flags, userId);
+                } else {
+                    result = pm.getInstalledPackages(flags, userId);
+                }
+            } catch (NoSuchMethodError | AbstractMethodError e) {
+                // Android 17 (API 37) changed the return type of the hidden
+                // IPackageManager#getInstalledPackages overloads, so the descriptor baked into our
+                // bytecode may no longer resolve and the direct call fails with a linkage error.
+                // Re-dispatch reflectively (method resolution ignores the return type) and adapt
+                // whatever container the platform hands back.
+                Log.w(TAG, "getInstalledPackages return type changed; retrying reflectively", e);
+                result = invokeListMethodReflectively(pm, "getInstalledPackages", flags, userId);
+            }
+            return extractList(result);
+        } catch (RemoteException e) {
+            return ExUtils.rethrowFromSystemServer(e);
+        } catch (BadParcelableException e) {
+            Log.w(TAG, "Could not retrieve all packages for user " + userId, e);
+            return Collections.emptyList();
+        }
+    }
+
+    @WorkerThread
+    public static List<ApplicationInfo> getInstalledApplications(int flags, @UserIdInt int userId)
+            throws RemoteException {
+        return getInstalledApplications(getPackageManager(), flags, userId);
+    }
+
+    @SuppressLint("NewApi")
+    @SuppressWarnings("deprecation")
+    @WorkerThread
+    public static List<ApplicationInfo> getInstalledApplications(@NonNull IPackageManager pm, int flags,
+                                                                 @UserIdInt int userId) throws RemoteException {
+        Object result;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                result = pm.getInstalledApplications((long) flags, userId);
+            } else {
+                result = pm.getInstalledApplications(flags, userId);
+            }
+        } catch (NoSuchMethodError | AbstractMethodError e) {
+            // Android 17 (API 37) changed the return type of the hidden
+            // IPackageManager#getInstalledApplications, so the ParceledListSlice descriptor baked
+            // into our bytecode no longer resolves and the direct call fails with a linkage error.
+            // Re-dispatch reflectively (method resolution ignores the return type) and adapt
+            // whatever container the platform now hands back.
+            Log.w(TAG, "getInstalledApplications return type changed; retrying reflectively", e);
+            result = invokeListMethodReflectively(pm, "getInstalledApplications", flags, userId);
+        }
+        return extractList(result);
+    }
+
+    /**
+     * Re-dispatch a {@code getInstalled{Packages,Applications}(flags, userId)} call reflectively.
+     * <p>
+     * The hidden {@link IPackageManager} overloads historically returned a
+     * {@link ParceledListSlice}, but Android 17 (API 37) changes the return type. Reflective
+     * method resolution matches on name and parameter types only, so it keeps working across such
+     * a change; {@link #extractList(Object)} then normalizes the result.
+     */
+    @Nullable
+    private static Object invokeListMethodReflectively(@NonNull IPackageManager pm, @NonNull String methodName,
+                                                       int flags, @UserIdInt int userId) throws RemoteException {
+        try {
+            Method method;
+            Object[] args;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                method = pm.getClass().getMethod(methodName, long.class, int.class);
+                args = new Object[]{(long) flags, userId};
+            } else {
+                method = pm.getClass().getMethod(methodName, int.class, int.class);
+                args = new Object[]{flags, userId};
+            }
+            return method.invoke(pm, args);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RemoteException) {
+                throw (RemoteException) cause;
+            }
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            if (cause instanceof Error) {
+                throw (Error) cause;
+            }
+            throw new IllegalStateException("Could not invoke " + methodName + " reflectively", cause);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(methodName + " is unavailable on this platform", e);
+        }
+    }
+
+    /**
+     * Normalize the value returned by {@link IPackageManager}'s list accessors into a {@link List}.
+     * <p>
+     * Handles the historical {@link ParceledListSlice} wrapper, a plain {@link List} (the shape a
+     * future platform may switch to), a {@code null} result, and any other wrapper that still
+     * exposes a {@code getList()} accessor. Never returns {@code null}.
+     */
+    @NonNull
+    @SuppressWarnings("unchecked")
+    @VisibleForTesting
+    static <T> List<T> extractList(@Nullable Object sliceOrList) {
+        if (sliceOrList == null) {
+            return Collections.emptyList();
+        }
+        if (sliceOrList instanceof ParceledListSlice) {
+            List<T> list = ((ParceledListSlice) sliceOrList).getList();
+            return list != null ? list : Collections.emptyList();
+        }
+        if (sliceOrList instanceof List) {
+            return (List<T>) sliceOrList;
+        }
+        // Forward-compat: a ParceledListSlice replacement that still exposes getList().
+        try {
+            Method getList = sliceOrList.getClass().getMethod("getList");
+            Object list = getList.invoke(sliceOrList);
+            if (list instanceof List) {
+                return (List<T>) list;
+            }
+        } catch (ReflectiveOperationException e) {
+            Log.w(TAG, "Could not extract list from " + sliceOrList.getClass().getName(), e);
+        }
+        return Collections.emptyList();
+    }
+
+    @NonNull
+    public static PackageInfo getPackageInfo(@NonNull String packageName, int flags, @UserIdInt int userId)
+            throws RemoteException, PackageManager.NameNotFoundException {
+        return getPackageInfo(getPackageManager(), packageName, flags, userId);
+    }
+
+    @NonNull
+    private static PackageInfo getPackageInfo(@NonNull IPackageManager pm, @NonNull String packageName, int flags,
+                                             @UserIdInt int userId)
+            throws RemoteException, PackageManager.NameNotFoundException {
+        PackageInfo info = null;
+        try {
+            info = getPackageInfoInternal(pm, packageName, flags, userId);
+        } catch (DeadObjectException e) {
+            Log.w(TAG, "Could not fetch info for package %s and user %d with flags 0x%X, using workaround",
+                    e, packageName, userId, flags);
+        }
+        if (info == null) {
+            // The app might not be loaded properly due parcel size limit, try to load components separately.
+            // first check the existence of the package
+            int strippedFlags = flags & ~(PackageManager.GET_ACTIVITIES | PackageManager.GET_SERVICES
+                    | PackageManager.GET_PROVIDERS | PackageManager.GET_RECEIVERS | PackageManager.GET_PERMISSIONS);
+            info = getPackageInfoInternal(pm, packageName, strippedFlags, userId);
+            if (info == null) {
+                // At this point, it should return package info.
+                // Returning null denotes that it failed again even after the major flags have been stripped.
+                throw new PackageManager.NameNotFoundException(String.format("Could not retrieve info for package %s with flags 0x%X for user %d",
+                        packageName, strippedFlags, userId));
+            }
+            // Load info for major flags
+            ActivityInfo[] activities = null;
+            if ((flags & PackageManager.GET_ACTIVITIES) != 0) {
+                int newFlags = flags & ~(PackageManager.GET_SERVICES | PackageManager.GET_PROVIDERS
+                        | PackageManager.GET_RECEIVERS | PackageManager.GET_PERMISSIONS);
+                PackageInfo info1 = getPackageInfoInternal(pm, packageName, newFlags, userId);
+                if (info1 != null) activities = info1.activities;
+            }
+            ServiceInfo[] services = null;
+            if ((flags & PackageManager.GET_SERVICES) != 0) {
+                int newFlags = flags & ~(PackageManager.GET_ACTIVITIES | PackageManager.GET_PROVIDERS
+                        | PackageManager.GET_RECEIVERS | PackageManager.GET_PERMISSIONS);
+                PackageInfo info1 = getPackageInfoInternal(pm, packageName, newFlags, userId);
+                if (info1 != null) services = info1.services;
+            }
+            ProviderInfo[] providers = null;
+            if ((flags & PackageManager.GET_PROVIDERS) != 0) {
+                int newFlags = flags & ~(PackageManager.GET_ACTIVITIES | PackageManager.GET_SERVICES
+                        | PackageManager.GET_RECEIVERS | PackageManager.GET_PERMISSIONS);
+                PackageInfo info1 = getPackageInfoInternal(pm, packageName, newFlags, userId);
+                if (info1 != null) providers = info1.providers;
+            }
+            ActivityInfo[] receivers = null;
+            if ((flags & PackageManager.GET_RECEIVERS) != 0) {
+                int newFlags = flags & ~(PackageManager.GET_ACTIVITIES | PackageManager.GET_SERVICES
+                        | PackageManager.GET_PROVIDERS | PackageManager.GET_PERMISSIONS);
+                PackageInfo info1 = getPackageInfoInternal(pm, packageName, newFlags, userId);
+                if (info1 != null) receivers = info1.receivers;
+            }
+            PermissionInfo[] permissions = null;
+            if ((flags & PackageManager.GET_PERMISSIONS) != 0) {
+                int newFlags = flags & ~(PackageManager.GET_ACTIVITIES | PackageManager.GET_SERVICES
+                        | PackageManager.GET_PROVIDERS | PackageManager.GET_RECEIVERS);
+                PackageInfo info1 = getPackageInfoInternal(pm, packageName, newFlags, userId);
+                if (info1 != null) permissions = info1.permissions;
+            }
+            info.activities = activities;
+            info.services = services;
+            info.providers = providers;
+            info.receivers = receivers;
+            info.permissions = permissions;
+        }
+        // Info should never be null here, but it's checked anyway.
+        return Objects.requireNonNull(info);
+    }
+
+    @SuppressWarnings("deprecation")
+    @NonNull
+    public static ApplicationInfo getApplicationInfo(String packageName, int flags, @UserIdInt int userId)
+            throws RemoteException, PackageManager.NameNotFoundException {
+        IPackageManager pm = getPackageManager();
+        ApplicationInfo applicationInfo;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            applicationInfo = pm.getApplicationInfo(packageName, (long) flags, userId);
+        } else applicationInfo = pm.getApplicationInfo(packageName, flags, userId);
+        if (applicationInfo == null) {
+            throw new PackageManager.NameNotFoundException("Package " + packageName + " not found.");
+        }
+        return applicationInfo;
+    }
+
+    @Nullable
+    public static String getInstallerPackageName(@NonNull String packageName, @UserIdInt int userId) {
+        try {
+            InstallSourceInfoCompat installSource = getInstallSourceInfo(packageName, userId);
+            if (installSource.getInstallingPackageName() != null) {
+                return installSource.getInstallingPackageName();
+            }
+            return installSource.getInitiatingPackageName();
+        } catch (RemoteException | SecurityException e) {
+            return null;
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    @NonNull
+    public static InstallSourceInfoCompat getInstallSourceInfo(@NonNull String packageName, @UserIdInt int userId)
+            throws RemoteException {
+        IPackageManager pm = getPackageManager();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            return new InstallSourceInfoCompat(pm.getInstallSourceInfo(packageName, userId));
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return new InstallSourceInfoCompat(pm.getInstallSourceInfo(packageName));
+        }
+        String installerPackageName = null;
+        try {
+            installerPackageName = getPackageManager().getInstallerPackageName(packageName);
+        } catch (IllegalArgumentException e) {
+            String message = e.getMessage();
+            if (message != null && message.startsWith("Unknown package:")) {
+                throw new RemoteException(message);
+            }
+        }
+        return new InstallSourceInfoCompat(installerPackageName);
+    }
+
+    @Nullable
+    public static Intent getLaunchIntentForPackage(@NonNull String packageName, @UserIdInt int userId) {
+        Context context = ContextUtils.getContext();
+        if (userId == UserHandleHidden.myUserId()) {
+            PackageManager pm = context.getPackageManager();
+            return Utils.isTv(context)
+                    ? pm.getLeanbackLaunchIntentForPackage(packageName)
+                    : pm.getLaunchIntentForPackage(packageName);
+        }
+        UserHandle userHandle = Users.getUserHandle(userId);
+        if (userHandle == null) {
+            // No supported user present
+            return null;
+        }
+        LauncherApps launcherApps = (LauncherApps) context.getSystemService(Context.LAUNCHER_APPS_SERVICE);
+        try {
+            if (!launcherApps.isPackageEnabled(packageName, userHandle)) {
+                // Package not enabled
+                return null;
+            }
+        } catch (SecurityException e) {
+            Log.w(TAG, "Could not retrieve enable state of " + packageName + " for user "  + userHandle, e);
+            return null;
+        }
+        List<LauncherActivityInfo> activityInfoList = launcherApps.getActivityList(packageName, userHandle);
+        if (activityInfoList.isEmpty()) {
+            // No activities
+            return null;
+        }
+        // Return the first openable activity
+        LauncherActivityInfo info = activityInfoList.get(0);
+        return new Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                .setComponent(info.getComponentName());
+    }
+
+    @SuppressLint("NewApi")
+    @SuppressWarnings("deprecation")
+    @NonNull
+    public static List<ResolveInfo> queryIntentActivities(@NonNull Context context, @NonNull Intent intent, int flags,
+                                                          @UserIdInt int userId)
+            throws RemoteException {
+        IPackageManager pm = getPackageManager();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            IPackageManagerN pmN = Refine.unsafeCast(pm);
+            ParceledListSlice<ResolveInfo> resolveInfoList;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                resolveInfoList = pmN.queryIntentActivities(intent,
+                        intent.resolveTypeIfNeeded(context.getContentResolver()), (long) flags, userId);
+            } else {
+                resolveInfoList = pmN.queryIntentActivities(intent,
+                        intent.resolveTypeIfNeeded(context.getContentResolver()), flags, userId);
+            }
+            return resolveInfoList.getList();
+        } else {
+            return pm.queryIntentActivities(intent, intent.resolveTypeIfNeeded(context.getContentResolver()), flags,
+                    userId);
+        }
+    }
+
+    @EnabledState
+    public static int getComponentEnabledSetting(ComponentName componentName, @UserIdInt int userId)
+            throws SecurityException, IllegalArgumentException {
+        try {
+            return getPackageManager().getComponentEnabledSetting(componentName, userId);
+        } catch (RemoteException e) {
+            return ExUtils.rethrowFromSystemServer(e);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    @RequiresPermission(value = Manifest.permission.CHANGE_COMPONENT_ENABLED_STATE)
+    public static void setComponentEnabledSetting(ComponentName componentName,
+                                                  @EnabledState int newState,
+                                                  @EnabledFlags int flags,
+                                                  @UserIdInt int userId)
+            throws RemoteException {
+        IPackageManager pm = getPackageManager();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            String callingPackage = SelfPermissions.getCallingPackage(Users.getSelfOrRemoteUid());
+            pm.setComponentEnabledSetting(componentName, newState, flags, userId, callingPackage);
+        } else pm.setComponentEnabledSetting(componentName, newState, flags, userId);
+        OsRevertMonitor.watchComponent(ContextUtils.getContext(), componentName, userId, newState);
+        if (userId != UserHandleHidden.myUserId()) {
+            BroadcastUtils.sendPackageAltered(ContextUtils.getContext(), new String[]{componentName.getPackageName()});
+        }
+    }
+
+    @RequiresPermission(value = Manifest.permission.CHANGE_COMPONENT_ENABLED_STATE)
+    public static void setApplicationEnabledSetting(String packageName, @EnabledState int newState,
+                                                    @EnabledFlags int flags, @UserIdInt int userId)
+            throws SecurityException, IllegalArgumentException {
+        try {
+            getPackageManager().setApplicationEnabledSetting(packageName, newState, flags, userId, null);
+            if (userId != UserHandleHidden.myUserId()) {
+                BroadcastUtils.sendPackageAltered(ContextUtils.getContext(), new String[]{packageName});
+            }
+        } catch (RemoteException e) {
+            ExUtils.rethrowFromSystemServer(e);
+        }
+    }
+
+    public static int getApplicationEnabledSetting(String packageName, @UserIdInt int userId)
+            throws SecurityException, IllegalArgumentException {
+        try {
+            return getPackageManager().getApplicationEnabledSetting(packageName, userId);
+        } catch (RemoteException e) {
+            return ExUtils.rethrowFromSystemServer(e);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    @RequiresApi(Build.VERSION_CODES.N)
+    @RequiresPermission(allOf = {"android.permission.SUSPEND_APPS", ManifestCompat.permission.MANAGE_USERS})
+    public static void suspendPackages(String[] packageNames, @UserIdInt int userId, boolean suspend) throws RemoteException {
+        String callingPackage = SelfPermissions.getCallingPackage(Users.getSelfOrRemoteUid());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                getPackageManager().setPackagesSuspendedAsUser(packageNames, suspend, null, null, null, 0, callingPackage, 0, userId);
+            } catch (NoSuchMethodError e) {
+                getPackageManager().setPackagesSuspendedAsUser(packageNames, suspend, null, null, (SuspendDialogInfo) null, callingPackage, userId);
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getPackageManager().setPackagesSuspendedAsUser(packageNames, suspend, null, null, (SuspendDialogInfo) null, callingPackage, userId);
+        } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.P) {
+            getPackageManager().setPackagesSuspendedAsUser(packageNames, suspend, null, null, (String) null, callingPackage, userId);
+        } else {
+            getPackageManager().setPackagesSuspendedAsUser(packageNames, suspend, userId);
+        }
+        if (userId != UserHandleHidden.myUserId()) {
+            BroadcastUtils.sendPackageAltered(ContextUtils.getContext(), packageNames);
+        }
+    }
+
+    public static boolean isPackageSuspended(String packageName, @UserIdInt int userId) throws RemoteException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            return getPackageManager().isPackageSuspendedForUser(packageName, userId);
+        }
+        return false;
+    }
+
+    @RequiresPermission(ManifestCompat.permission.MANAGE_USERS)
+    public static void hidePackage(String packageName, @UserIdInt int userId, boolean hide) throws RemoteException {
+        if (SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.MANAGE_USERS)) {
+            boolean hidden = getPackageManager().setApplicationHiddenSettingAsUser(packageName, hide, userId);
+            if (userId != UserHandleHidden.myUserId()) {
+                if (hidden) {
+                    if (hide) {
+                        BroadcastUtils.sendPackageRemoved(ContextUtils.getContext(), new String[]{packageName});
+                    } else {
+                        BroadcastUtils.sendPackageAdded(ContextUtils.getContext(), new String[]{packageName});
+                    }
+                }
+            }
+        } else {
+            throw new RemoteException("Missing required permission: android.permission.MANAGE_USERS.");
+        }
+    }
+
+    public static boolean isPackageHidden(String packageName, @UserIdInt int userId) throws RemoteException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                // Find using private flags
+                ApplicationInfo info = getApplicationInfo(packageName,
+                        PackageManagerCompat.MATCH_STATIC_SHARED_AND_SDK_LIBRARIES, userId);
+                return ApplicationInfoCompat.isHidden(info);
+            } catch (PackageManager.NameNotFoundException ignore) {
+            }
+        }
+        if (SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.MANAGE_USERS)) {
+            return getPackageManager().getApplicationHiddenSettingAsUser(packageName, userId);
+        }
+        // Otherwise, there is no way to detect if the package is hidden
+        return false;
+    }
+
+    @SuppressWarnings("deprecation")
+    @RequiresPermission(anyOf = {
+            Manifest.permission.INSTALL_PACKAGES,
+            "com.android.permission.INSTALL_EXISTING_PACKAGES"
+    })
+    public static int installExistingPackageAsUser(@NonNull String packageName, @UserIdInt int userId, int installFlags,
+                                                   int installReason, @Nullable List<String> whiteListedPermissions)
+            throws RemoteException {
+        int returnCode;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            returnCode = getPackageManager().installExistingPackageAsUser(packageName, userId, installFlags, installReason, whiteListedPermissions);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            returnCode = getPackageManager().installExistingPackageAsUser(packageName, userId, installFlags, installReason);
+        } else returnCode = getPackageManager().installExistingPackageAsUser(packageName, userId);
+        if (userId != UserHandleHidden.myUserId()) {
+            BroadcastUtils.sendPackageAdded(ContextUtils.getContext(), new String[]{packageName});
+        }
+        return returnCode;
+    }
+
+    /**
+     * Threshold for treating a post-clear data-size delta as "actually cleared".
+     * Android 16 QPR2 surfaced a class of bug ([S184]) where the
+     * {@code IPackageManager.clearApplicationUserData} hidden API returns success
+     * but leaves the data partition fully populated; a simple equality check
+     * isn't enough because the user-data dir naturally retains a few KB of
+     * skeleton state (default prefs, `cache/` placeholder, lib symlinks) even
+     * after a clean wipe. 64 KiB tolerates that floor while still flagging the
+     * silent-failure case where 100s of MB / GBs persist.
+     */
+    private static final long DATA_DROP_TOLERANCE_BYTES = 64L * 1024L;
+
+    @RequiresPermission(ManifestCompat.permission.CLEAR_APP_USER_DATA)
+    public static void clearApplicationUserData(@NonNull UserPackagePair pair) throws AndroidException {
+        long preSize = queryAppDataBytesQuietly(pair);
+        AndroidException ipcException = null;
+        try {
+            clearApplicationUserDataViaIpc(pair);
+        } catch (AndroidException e) {
+            ipcException = e;
+        }
+        // Post-clear ground-truth check. The IPC return value is unreliable on
+        // some Android 16 QPR2 builds (Poco F3 / Infinity-X 3.9 / Root mode —
+        // upstream AM #1965 [S184]); the data partition stays populated despite
+        // a "success" result. Compare baseline vs. post-clear sizes via
+        // StorageStatsManager and fall back to the `pm clear --user N` shell
+        // path when the delta proves the IPC lied.
+        boolean shouldFallback;
+        if (ipcException != null) {
+            shouldFallback = true;
+        } else if (preSize >= 0) {
+            long postSize = queryAppDataBytesQuietly(pair);
+            shouldFallback = shouldFallbackToShellAfterClearData(preSize, postSize);
+            if (shouldFallback) {
+                Log.w(TAG, "clearApplicationUserData: IPC reported success for " + pair
+                        + " but data size " + postSize + "B did not drop from " + preSize + "B"
+                        + " (tolerance " + DATA_DROP_TOLERANCE_BYTES + "B); falling back to pm-clear shell");
+            }
+        } else {
+            // Couldn't measure — trust the IPC result. Real-world: pre-O / no
+            // STORAGE_STATS_SERVICE / package not yet indexed.
+            shouldFallback = false;
+        }
+        if (shouldFallback && !clearApplicationUserDataViaShell(pair)) {
+            if (ipcException != null) throw ipcException;
+            throw new AndroidException("pm clear shell fallback failed for " + pair
+                    + " after IPC clear silently left data in place");
+        }
+        BroadcastUtils.sendPackageAltered(ContextUtils.getContext(), new String[]{pair.getPackageName()});
+    }
+
+    @RequiresPermission(ManifestCompat.permission.CLEAR_APP_USER_DATA)
+    private static void clearApplicationUserDataViaIpc(@NonNull UserPackagePair pair) throws AndroidException {
+        ClearDataObserver obs = new ClearDataObserver();
+        try {
+            IActivityManager am = ActivityManagerCompat.getActivityManager();
+            am.clearApplicationUserData(pair.getPackageName(), false, obs, pair.getUserId());
+        } catch (Exception | LinkageError e) {
+            // LinkageError: the 4-arg AIDL overload is absent below Android P,
+            // so the device proxy throws NoSuchMethodError instead of an Exception.
+            Log.d(TAG, "IActivityManager.clearApplicationUserData failed, falling back to IPackageManager", e);
+            obs = new ClearDataObserver();
+            clearApplicationUserDataViaPackageManager(pair, obs);
+        }
+        //noinspection SynchronizationOnLocalVariableOrMethodParameter
+        synchronized (obs) {
+            while (!obs.isCompleted()) {
+                try {
+                    obs.wait(500);
+                } catch (InterruptedException ignore) {
+                }
+            }
+        }
+        if (!obs.isSuccessful()) {
+            throw new AndroidException("Could not clear data of package " + pair);
+        }
+    }
+
+    private static void clearApplicationUserDataViaPackageManager(
+            @NonNull UserPackagePair pair, @NonNull ClearDataObserver obs) throws RemoteException {
+        IPackageManager pm = getPackageManager();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                pm.clearApplicationUserData(pair.getPackageName(), obs, pair.getUserId(), false);
+            } catch (NoSuchMethodError e) {
+                pm.clearApplicationUserData(pair.getPackageName(), obs, pair.getUserId());
+            }
+        } else {
+            pm.clearApplicationUserData(pair.getPackageName(), obs, pair.getUserId());
+        }
+    }
+
+    /**
+     * Shell-path fallback for {@link #clearApplicationUserData} on Android 16
+     * QPR2 builds where the hidden-API path silently leaves data in place.
+     * Returns {@code true} when {@code pm clear --user N <pkg>} prints
+     * "Success" on stdout. Requires a privileged shell (root or ADB).
+     */
+    private static boolean clearApplicationUserDataViaShell(@NonNull UserPackagePair pair) {
+        Runner.Result r = Runner.runCommand(new String[]{
+                "pm", "clear",
+                "--user", String.valueOf(pair.getUserId()),
+                pair.getPackageName(),
+        });
+        return r.isSuccessful() && isSuccessfulPmClearOutput(r.getOutput());
+    }
+
+    static boolean shouldFallbackToShellAfterClearData(long preSize, long postSize) {
+        return preSize >= 0 && postSize >= 0 && postSize > preSize - DATA_DROP_TOLERANCE_BYTES;
+    }
+
+    static boolean isSuccessfulPmClearOutput(@Nullable String output) {
+        if (output == null) return false;
+        // Older Android: "Success" on success, "Failed" on failure.
+        // Android 12+ : same. Use a startsWith check so trailing newline doesn't trip us.
+        return output.trim().startsWith("Success");
+    }
+
+    /**
+     * Measure the on-disk data + cache size of a package via
+     * {@link android.app.usage.IStorageStatsManager}. Returns {@code -1} on any
+     * failure (pre-O, missing service, exception). Used as a baseline for the
+     * post-clear ground-truth check; never throws.
+     */
+    private static long queryAppDataBytesQuietly(@NonNull UserPackagePair pair) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return -1L;
+        try {
+            android.app.usage.IStorageStatsManager statsService =
+                    android.app.usage.IStorageStatsManager.Stub.asInterface(
+                            ProxyBinder.getService(Context.STORAGE_STATS_SERVICE));
+            android.app.usage.StorageStats stats = statsService.queryStatsForPackage(
+                    null /* uuid: internal */,
+                    pair.getPackageName(),
+                    pair.getUserId(),
+                    ContextUtils.getContext().getPackageName());
+            return stats.getDataBytes() + stats.getCacheBytes();
+        } catch (Exception e) {
+            return -1L;
+        }
+    }
+
+    @RequiresPermission(ManifestCompat.permission.CLEAR_APP_USER_DATA)
+    public static boolean clearApplicationUserData(@NonNull String packageName, @UserIdInt int userId) {
+        try {
+            clearApplicationUserData(new UserPackagePair(packageName, userId));
+            return true;
+        } catch (AndroidException | SecurityException e) {
+            Log.w(TAG, e);
+            return false;
+        }
+    }
+
+    @RequiresPermission(allOf = {
+            Manifest.permission.DELETE_CACHE_FILES,
+            "android.permission.INTERNAL_DELETE_CACHE_FILES"
+    })
+    public static void deleteApplicationCacheFilesAsUser(UserPackagePair pair) throws AndroidException {
+        IPackageManager pm = getPackageManager();
+        ClearDataObserver obs = new ClearDataObserver();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            pm.deleteApplicationCacheFilesAsUser(pair.getPackageName(), pair.getUserId(), obs);
+        } else pm.deleteApplicationCacheFiles(pair.getPackageName(), obs);
+        //noinspection SynchronizationOnLocalVariableOrMethodParameter
+        synchronized (obs) {
+            while (!obs.isCompleted()) {
+                try {
+                    obs.wait(500);
+                } catch (InterruptedException ignore) {
+                }
+            }
+        }
+        if (!obs.isSuccessful()) {
+            throw new AndroidException("Could not clear cache of package " + pair);
+        }
+        BroadcastUtils.sendPackageAltered(ContextUtils.getContext(), new String[]{pair.getPackageName()});
+    }
+
+    @RequiresPermission(allOf = {
+            Manifest.permission.DELETE_CACHE_FILES,
+            "android.permission.INTERNAL_DELETE_CACHE_FILES"
+    })
+    public static boolean deleteApplicationCacheFilesAsUser(String packageName, int userId) {
+        try {
+            deleteApplicationCacheFilesAsUser(new UserPackagePair(packageName, userId));
+            return true;
+        } catch (AndroidException | SecurityException e) {
+            Log.w(TAG, e);
+            return false;
+        }
+    }
+
+    @RequiresPermission(ManifestCompat.permission.FORCE_STOP_PACKAGES)
+    public static void forceStopPackage(String packageName, int userId) throws SecurityException {
+        try {
+            ActivityManagerCompat.getActivityManager().forceStopPackage(packageName, userId);
+            BroadcastUtils.sendPackageAltered(ContextUtils.getContext(), new String[]{packageName});
+        } catch (RemoteException e) {
+            ExUtils.rethrowFromSystemServer(e);
+        }
+    }
+
+    @NonNull
+    public static IPackageInstaller getPackageInstaller() throws RemoteException {
+        return IPackageInstaller.Stub.asInterface(new ProxyBinder(getPackageManager().getPackageInstaller().asBinder()));
+    }
+
+    @SuppressWarnings("deprecation")
+    @RequiresPermission(Manifest.permission.CLEAR_APP_CACHE)
+    public static void freeStorageAndNotify(@Nullable String volumeUuid,
+                                            long freeStorageSize,
+                                            @StorageManagerCompat.AllocateFlags int storageFlags)
+            throws RemoteException {
+        IPackageManager pm;
+        ClearDataObserver obs = new ClearDataObserver();
+        if (SelfPermissions.checkSelfPermission(Manifest.permission.CLEAR_APP_CACHE)) {
+            // Clear cache using unprivileged method: Special case for Android Lollipop
+            pm = getUnprivilegedPackageManager();
+        } else if (SelfPermissions.checkSelfOrRemotePermission(Manifest.permission.CLEAR_APP_CACHE)) { // Use privileged mode
+            pm = getPackageManager();
+        } else { // Clear one by one
+            // Special case: IPackageManager#freeStorageAndNotify cannot be used before Android Oreo because Shell does
+            // not have the permission android.permission.CLEAR_APP_CACHE
+            boolean hasPermission;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                hasPermission = SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.INTERNAL_DELETE_CACHE_FILES);
+            } else {
+                hasPermission = SelfPermissions.checkSelfOrRemotePermission(Manifest.permission.DELETE_CACHE_FILES);
+            }
+            if (!hasPermission) {
+                // Does not have enough permission
+                return;
+            }
+            if (!SelfPermissions.checkSelfOrRemotePermission(ManifestCompat.permission.INTERACT_ACROSS_USERS_FULL)) {
+                int userId = UserHandleHidden.myUserId();
+                for (ApplicationInfo info : getInstalledApplications(MATCH_STATIC_SHARED_AND_SDK_LIBRARIES, userId)) {
+                    deleteApplicationCacheFilesAsUser(info.packageName, userId);
+                }
+                return;
+            }
+            for (int userId : Users.getUsersIds()) {
+                for (ApplicationInfo info : getInstalledApplications(MATCH_STATIC_SHARED_AND_SDK_LIBRARIES, userId)) {
+                    deleteApplicationCacheFilesAsUser(info.packageName, userId);
+                }
+            }
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pm.freeStorageAndNotify(volumeUuid, freeStorageSize, storageFlags, obs);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            pm.freeStorageAndNotify(volumeUuid, freeStorageSize, obs);
+        } else {
+            pm.freeStorageAndNotify(freeStorageSize, obs);
+        }
+        //noinspection SynchronizationOnLocalVariableOrMethodParameter
+        synchronized (obs) {
+            while (!obs.isCompleted()) {
+                try {
+                    obs.wait(1_000);
+                } catch (InterruptedException ignore) {
+                }
+            }
+        }
+    }
+
+    @SuppressLint("NewApi")
+    @SuppressWarnings("deprecation")
+    private static PackageInfo getPackageInfoInternal(IPackageManager pm, String packageName, int flags, @UserIdInt int userId)
+            throws RemoteException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return pm.getPackageInfo(packageName, (long) flags, userId);
+        }
+        return pm.getPackageInfo(packageName, flags, userId);
+    }
+
+    public static IPackageManager getPackageManager() {
+        return IPackageManager.Stub.asInterface(ProxyBinder.getService("package"));
+    }
+
+    public static IPackageManager getUnprivilegedPackageManager() {
+        return IPackageManager.Stub.asInterface(ProxyBinder.getUnprivilegedService("package"));
+    }
+}
