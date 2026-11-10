@@ -237,6 +237,7 @@ class CalculatorModuleTest {
                 UnitCategory.Weight -> toolNames.contains("Weight & Mass")
                 UnitCategory.Temperature -> toolNames.contains("Temperature")
                 UnitCategory.Data -> toolNames.contains("Data Storage")
+                UnitCategory.FuelEconomy -> toolNames.contains("Fuel Economy") || toolNames.contains("Fuel Economy Converter")
                 else -> toolNames.contains(category.label)
             }
             assertTrue("Expected tool for category ${category.label} in UnitConverters", matchFound)

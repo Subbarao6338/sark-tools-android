@@ -1057,7 +1057,9 @@ fun ToolboxApp(
                     composable<EpicBookmarklets> { ToolScreen("Bookmarklets", "bookmarklets", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("bookmarklets") } }
                     composable<EpicUrl2markdown> { ToolScreen("Web URL to Markdown", "url2markdown", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.web.EpicWebToolsScreen("url2markdown") } }
                     composable<EpicBluetooth> { ToolScreen("Bluetooth Scanner", "bluetooth", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.networktools.EpicNetworkToolsScreen("bluetooth") } }
-                    composable<DigitalClockWidgetConfig> { ToolScreen("Digital Clock Widget Config", "digital_clock_widget", navController, this@SharedTransitionLayout, this@composable) { DigitalClockConfigScreen() } }
+                    composable<DigitalClockWidgetConfig> {
+                        com.toolbox.widgets.WidgetsManagementScreen(onBack = { navController.popBackStack() }, initialTab = 1)
+                    }
                 }
             }
         }

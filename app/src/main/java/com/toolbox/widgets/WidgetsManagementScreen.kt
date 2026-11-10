@@ -21,9 +21,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -34,25 +35,25 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 data class WidgetInfoItem(
@@ -68,10 +69,12 @@ data class WidgetInfoItem(
 @Composable
 fun WidgetsManagementScreen(
     onBack: () -> Unit,
+    initialTab: Int = 0,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var selectedTab by remember { mutableIntStateOf(initialTab) }
 
     val widgetList = remember {
         listOf(
@@ -88,6 +91,9 @@ fun WidgetsManagementScreen(
             WidgetInfoItem("notes", "Quick Notes Scratchpad", "3x2", "View your latest thoughts and notes right on your home screen", NotesWidgetReceiver::class.java, "Everyday"),
             WidgetInfoItem("world_clock", "World Clock Widget", "3x2", "Dual local time and UTC global time synchronization", WorldClockWidgetReceiver::class.java, "DateTime"),
             WidgetInfoItem("digital_clock", "Digital Clock Widget", "3x2", "Material Expressive live clock with seconds, date, custom colors, and transparency", DigitalClockWidgetProvider::class.java, "DateTime"),
+            WidgetInfoItem("tip_calculator", "Tip Calculator Widget", "2x2", "Quick bill split, standard tip percentages, and total per person right on home screen", TipCalculatorWidgetReceiver::class.java, "Calculators"),
+            WidgetInfoItem("dice_coin", "Dice & Coin Flip Widget", "2x2", "Instant home screen roll D6 dice and toss heads or tails coin randomizer", DiceCoinWidgetReceiver::class.java, "Games"),
+            WidgetInfoItem("habit_tracker", "Habit Tracker Widget", "2x2", "Glance at daily habit streak completion and goal reminders directly from home screen", HabitTrackerWidgetReceiver::class.java, "Everyday"),
         )
     }
 
@@ -107,174 +113,210 @@ fun WidgetsManagementScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Header Creator Card
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    ),
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Widgets, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Widget Creator & Manager",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Add and pin precision widgets to your Android Home Screen. ${widgetList.size} predefined widgets available.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                        )
-                    }
-                }
+            PrimaryTabRow(
+                selectedTabIndex = selectedTab,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("All Widgets (${widgetList.size})") },
+                    icon = { Icon(Icons.Default.Widgets, contentDescription = null) },
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Digital Clock Config") },
+                    icon = { Icon(Icons.Default.Schedule, contentDescription = null) },
+                )
             }
 
-            // Custom Widget Creation Section
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    ),
-                    shape = RoundedCornerShape(16.dp),
+            if (selectedTab == 1) {
+                DigitalClockConfigScreen()
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                    ) {
+                    // Header Creator Card
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            ),
+                            shape = RoundedCornerShape(16.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Widgets, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "Widget Creator & Manager",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Add and pin precision widgets to your Android Home Screen. ${widgetList.size} predefined widgets available, including configurable Digital Clock.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                                )
+                            }
+                        }
+                    }
+
+                    // Custom Widget Creation Section
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            ),
+                            shape = RoundedCornerShape(16.dp),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                            ) {
+                                Text(
+                                    text = "CREATE CUSTOM WIDGET",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                OutlinedTextField(
+                                    value = customWidgetTitle,
+                                    onValueChange = { customWidgetTitle = it },
+                                    label = { Text("Custom Widget Label") },
+                                    placeholder = { Text("e.g. My Workout Counter") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = {
+                                        val target = widgetList.firstOrNull { it.id == selectedWidgetType } ?: widgetList[0]
+                                        pinWidgetToHomeScreen(context, target.receiverClass) { success ->
+                                            scope.launch {
+                                                if (success) {
+                                                    snackbarHostState.showSnackbar("Pin request submitted to launcher")
+                                                } else {
+                                                    snackbarHostState.showSnackbar("Please add widget from your launcher's widget picker")
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Pin Widget to Home Screen")
+                                }
+                            }
+                        }
+                    }
+
+                    item {
                         Text(
-                            text = "CREATE CUSTOM WIDGET",
+                            text = "AVAILABLE WIDGETS (${widgetList.size})",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = customWidgetTitle,
-                            onValueChange = { customWidgetTitle = it },
-                            label = { Text("Custom Widget Label") },
-                            placeholder = { Text("e.g. My Workout Counter") },
+                    }
+
+                    items(widgetList, key = { it.id }) { widget ->
+                        Card(
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = {
-                                val target = widgetList.firstOrNull { it.id == selectedWidgetType } ?: widgetList[0]
-                                pinWidgetToHomeScreen(context, target.receiverClass) { success ->
-                                    scope.launch {
-                                        if (success) {
-                                            snackbarHostState.showSnackbar("Pin request submitted to launcher")
-                                        } else {
-                                            snackbarHostState.showSnackbar("Please add widget from your launcher's widget picker")
-                                        }
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            ),
+                            shape = RoundedCornerShape(14.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = widget.name,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Text(
+                                            text = "Category: ${widget.category}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .background(
+                                                MaterialTheme.colorScheme.secondaryContainer,
+                                                RoundedCornerShape(8.dp),
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    ) {
+                                        Text(
+                                            text = widget.size,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        )
                                     }
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Pin Widget to Home Screen")
-                        }
-                    }
-                }
-            }
-
-            item {
-                Text(
-                    text = "AVAILABLE WIDGETS (${widgetList.size})",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            items(widgetList, key = { it.id }) { widget ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    ),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = widget.name,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Text(
-                                    text = "Category: ${widget.category}",
+                                    text = widget.description,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        MaterialTheme.colorScheme.secondaryContainer,
-                                        RoundedCornerShape(8.dp),
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                            ) {
-                                Text(
-                                    text = widget.size,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = widget.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    pinWidgetToHomeScreen(context, widget.receiverClass) { success ->
-                                        scope.launch {
-                                            if (success) {
-                                                snackbarHostState.showSnackbar("Pin request submitted for ${widget.name}")
-                                            } else {
-                                                snackbarHostState.showSnackbar("Long press home screen to place ${widget.name}")
-                                            }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                ) {
+                                    if (widget.id == "digital_clock") {
+                                        OutlinedButton(
+                                            onClick = { selectedTab = 1 },
+                                        ) {
+                                            Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Customize Clock")
                                         }
+                                        Spacer(modifier = Modifier.width(8.dp))
                                     }
-                                },
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add to Home")
+                                    Button(
+                                        onClick = {
+                                            pinWidgetToHomeScreen(context, widget.receiverClass) { success ->
+                                                scope.launch {
+                                                    if (success) {
+                                                        snackbarHostState.showSnackbar("Pin request submitted for ${widget.name}")
+                                                    } else {
+                                                        snackbarHostState.showSnackbar("Long press home screen to place ${widget.name}")
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Add to Home")
+                                    }
+                                }
                             }
                         }
                     }
@@ -284,7 +326,7 @@ fun WidgetsManagementScreen(
     }
 }
 
-private fun pinWidgetToHomeScreen(
+fun pinWidgetToHomeScreen(
     context: Context,
     receiverClass: Class<*>,
     onResult: (Boolean) -> Unit,
