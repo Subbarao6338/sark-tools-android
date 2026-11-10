@@ -1470,5 +1470,18 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "url2markdown" -> EpicUrl2markdown
     "bluetooth" -> EpicBluetooth
     "digital_clock_widget" -> DigitalClockWidgetConfig
+
+    // Merged Epic Tool Fallbacks
+    "age" -> DateCalculator
+    "converter" -> UnitConverter
+    "currency" -> CurrencyConverter
+    "json-fmt" -> JsonFormatter
+    "password" -> PasswordGenerator
+    "regex" -> RegexTester
+    "speed" -> NetworkSpeedTest
+    "stopwatch" -> StopwatchTimer
+    "timestamp" -> TimestampConverter
+    "worldclock" -> WorldClock
+    "color" -> ColorPicker
     else -> null
 }

@@ -564,7 +564,7 @@ val allTools = listOf(
         icon = Icons.Default.CompareArrows,
         category = ToolCategory.UnitConverters,
         description = "Convert between units across 17+ categories including length, weight, temperature, volume, speed, area, and more. Supports all common units with instant real-time conversion.",
-        searchKeywords = listOf("convert", "length", "weight", "temperature", "volume"),
+        searchKeywords = listOf("convert", "converter", "length", "weight", "temperature", "volume", "units"),
     ),
     ToolDefinition(
         id = "length_converter",
@@ -735,7 +735,7 @@ val allTools = listOf(
         icon = Icons.Default.CurrencyExchange,
         category = ToolCategory.Converters,
         description = "Convert between world currencies using benchmark offline exchange rates with instant calculations.",
-        searchKeywords = listOf("currency", "exchange", "money", "usd", "inr", "eur", "gbp", "jpy", "rate"),
+        searchKeywords = listOf("currency", "converter", "exchange", "money", "usd", "inr", "eur", "gbp", "jpy", "rate"),
     ),
     ToolDefinition(
         id = "number_to_words",
@@ -1054,7 +1054,7 @@ val allTools = listOf(
         category = ToolCategory.ImageTools,
         description = "Pick colors from the real world using your camera. Point at any object to capture its color with HEX, RGB, and HSL values. Save colors to a palette for design reference.",
         requiresCamera = true,
-        searchKeywords = listOf("color", "hex", "rgb", "eyedropper", "palette"),
+        searchKeywords = listOf("color", "color-picker", "hex", "rgb", "hsl", "eyedropper", "palette"),
     ),
     ToolDefinition(
         id = "photo_cleanup",
@@ -1480,7 +1480,7 @@ val allTools = listOf(
         icon = Icons.Default.Password,
         category = ToolCategory.EverydayTools,
         description = "Generate secure random passwords with configurable length and character sets. Features strength indicator, copy to clipboard, and recent history.",
-        searchKeywords = listOf("password", "generate", "secure", "random", "key", "strong"),
+        searchKeywords = listOf("password", "password-tool", "generate", "secure", "random", "key", "strong"),
     ),
     ToolDefinition(
         id = "screen_flash",
@@ -1531,7 +1531,7 @@ val allTools = listOf(
         icon = Icons.Default.CalendarToday,
         category = ToolCategory.DateTime,
         description = "Calculate days between dates, exact age in years/months/days, and add or subtract days from any date. Includes countdown to next birthday.",
-        searchKeywords = listOf("date", "age", "birthday", "difference", "days", "calendar"),
+        searchKeywords = listOf("date", "age", "birthday", "difference", "days", "calendar", "age-calculator"),
     ),
     ToolDefinition(
         id = "stopwatch_timer",
@@ -1539,7 +1539,7 @@ val allTools = listOf(
         icon = Icons.Default.Timer,
         category = ToolCategory.DateTime,
         description = "Stopwatch with lap timing and countdown timer in one tool. Start, stop, and record laps with precision. The timer supports custom durations with alarm notification.",
-        searchKeywords = listOf("stopwatch", "timer", "countdown", "lap"),
+        searchKeywords = listOf("stopwatch", "timer", "countdown", "lap", "timer-stopwatch"),
     ),
     ToolDefinition(
         id = "focus_timer",
@@ -1555,7 +1555,7 @@ val allTools = listOf(
         icon = Icons.Default.AccessTimeFilled,
         category = ToolCategory.DateTime,
         description = "See the current time in cities around the world at a glance. Add and remove cities; everything stays on your device.",
-        searchKeywords = listOf("world", "clock", "time", "timezone", "zone", "city", "utc", "gmt"),
+        searchKeywords = listOf("world", "clock", "worldclock", "time", "timezone", "zone", "city", "utc", "gmt"),
     ),
     ToolDefinition(
         id = "sleep_timer",
@@ -1595,7 +1595,7 @@ val allTools = listOf(
         icon = Icons.Default.HourglassEmpty,
         category = ToolCategory.DateTime,
         description = "Convert Unix epoch timestamps (seconds and milliseconds) to formatted local and UTC date-times and parse date strings.",
-        searchKeywords = listOf("timestamp", "epoch", "unix", "date", "time", "utc", "iso8601"),
+        searchKeywords = listOf("timestamp", "epoch", "unix", "date", "time", "utc", "iso8601", "timestamp-tool"),
     ),
     ToolDefinition(
         id = "working_days_calculator",
@@ -2264,7 +2264,7 @@ val allTools = listOf(
         icon = Icons.Default.DataArray,
         category = ToolCategory.DevTools,
         description = "Format, beautify, and minify JSON with custom indentation, syntax error detection, and validity checks.",
-        searchKeywords = listOf("json", "format", "beautify", "minify", "validate", "developer", "parse"),
+        searchKeywords = listOf("json", "json-fmt", "format", "beautify", "minify", "validate", "developer", "parse"),
     ),
     ToolDefinition(
         id = "uuid_generator",
@@ -2288,7 +2288,7 @@ val allTools = listOf(
         icon = Icons.Default.Pattern,
         category = ToolCategory.DevTools,
         description = "Test regular expressions with real-time match highlighting, group extraction, error diagnostics, and regex flag toggles.",
-        searchKeywords = listOf("regex", "regular expression", "test", "match", "groups", "pattern"),
+        searchKeywords = listOf("regex", "regular expression", "test", "match", "groups", "pattern", "regex-tester"),
     ),
     ToolDefinition(
         id = "api-tester",
@@ -2489,7 +2489,7 @@ val allTools = listOf(
         icon = Icons.Default.NetworkCell,
         category = ToolCategory.NetworkTools,
         description = "Measure network latency ping, packet jitter, and throughput speed with latency health guidelines.",
-        searchKeywords = listOf("speed", "test", "ping", "latency", "network", "throughput", "bandwidth", "jitter"),
+        searchKeywords = listOf("speed", "speed-test", "test", "ping", "latency", "network", "throughput", "bandwidth", "jitter"),
     ),
     ToolDefinition(
         id = "ping",
