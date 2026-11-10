@@ -352,3 +352,20 @@ import kotlinx.serialization.Serializable
 @Serializable object EpicUrl2markdown
 @Serializable object EpicBluetooth
 @Serializable object DigitalClockWidgetConfig
+
+@Serializable object TsvConverterDest
+@Serializable object LoremGeneratorDest
+@Serializable object CsvCleanerDest
+@Serializable object AspectRatioCalcDest
+@Serializable object MorseAudioSynthDest
+@Serializable object FileChecksumDest
+@Serializable object SystemUptimeDest
+@Serializable object ColorContrastMatrixDest
+@Serializable object BaseConverterProDest
+@Serializable object WifiChannelScannerDest
+@Serializable object CalorieBurnCalcDest
+@Serializable object QuoteGeneratorDest
+@Serializable object UrlBuilderDest
+@Serializable object CronExplainerDest
+@Serializable object JsonSchemaValidatorDest
+@Serializable object TextDiffViewerDest
