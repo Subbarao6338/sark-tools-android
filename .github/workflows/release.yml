@@ -51,7 +51,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'sarktools' }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease -x lint -x check --no-daemon
+          ./gradlew assembleRelease -x lint -x check --no-daemon -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m" -Dkotlin.daemon.jvm.options="-Xmx4096m"
           mkdir -p release-apk
           cp app/build/outputs/apk/release/sark-tools-*.apk release-apk/sark-tools-${{ steps.versioning.outputs.VERSION_NAME }}.apk
 
