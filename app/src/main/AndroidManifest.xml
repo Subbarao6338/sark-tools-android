@@ -721,6 +721,74 @@
             </intent-filter>
         </service>
 
+        <!-- Registered Activities for Companion Modules -->
+        <activity
+            android:name="com.sameerasw.essentials.MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Toolbox" />
+
+        <activity
+            android:name="com.wstxda.gsl.activity.ManagerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Toolbox" />
+
+        <activity
+            android:name="io.github.muntashirakon.AppManager.main.MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Toolbox" />
+
+        <activity
+            android:name="app.simple.inure.activities.app.MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Toolbox" />
+
+        <!-- Registered DevPulse Services & Widgets -->
+        <service
+            android:name="com.hamraj37.devpulse.service.FloatingMonitorService"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.hamraj37.devpulse.widget.DevPulseDashboardWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.hamraj37.devpulse.widget.DevPulseCompactWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.hamraj37.devpulse.widget.DevPulseStorageWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.hamraj37.devpulse.widget.DevPulseMinimalWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.hamraj37.devpulse.widget.WidgetBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.USER_PRESENT" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
     <uses-permission android:name="android.permission.READ_CALL_LOG" />

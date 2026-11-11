@@ -369,3 +369,41 @@ import kotlinx.serialization.Serializable
 @Serializable object CronExplainerDest
 @Serializable object JsonSchemaValidatorDest
 @Serializable object TextDiffViewerDest
+
+// DevPulse Destinations
+@Serializable object DevPulseMainDest
+@Serializable object DevPulseBatteryDest
+@Serializable object DevPulseCpuDest
+@Serializable object DevPulseMemoryDest
+@Serializable object DevPulseDisplayDest
+@Serializable object DevPulseNetworkDest
+@Serializable object DevPulseThermalDest
+@Serializable object DevPulseSensorsDest
+@Serializable object DevPulseCameraDest
+@Serializable object DevPulseTestsDest
+@Serializable object DevPulseRootDest
+@Serializable object DevPulseIntegrityDest
+@Serializable object DevPulseAppAnalyzerDest
+@Serializable object DevPulseScreenTimeDest
+@Serializable object DevPulseFloatingMonitorsDest
+
+// OmniToolbox Destinations
+@Serializable object OmniHomeDest
+@Serializable object OmniBallisticsDest
+@Serializable object OmniPrimeCheckerDest
+@Serializable object OmniStarMapDest
+@Serializable object OmniMoonPhaseDest
+@Serializable object OmniTidesDest
+@Serializable object OmniSignalMirrorDest
+@Serializable object OmniSurvivalGuideDest
+@Serializable object OmniBeaconNavDest
+@Serializable object OmniWeatherForecastDest
+@Serializable object OmniTeluguPanchangamDest
+
+// Companion Module Destinations
+@Serializable object ToolkitQuickTilesDest
+@Serializable object EssentialsToolsDest
+@Serializable object GslManagerDest
+@Serializable object AppManagerInspectorDest
+@Serializable object InureManagerDest
+@Serializable object DailyToolsPdfDest
