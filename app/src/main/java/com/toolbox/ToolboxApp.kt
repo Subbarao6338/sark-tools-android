@@ -1076,6 +1076,293 @@ fun ToolboxApp(
                     composable<CronExplainerDest> { ToolScreen("Cron Explainer", "cron_explainer", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.CronExplainerScreen() } }
                     composable<JsonSchemaValidatorDest> { ToolScreen("Schema Validator", "json_schema_validator", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.devtools.JsonSchemaValidatorScreen() } }
                     composable<TextDiffViewerDest> { ToolScreen("Diff Viewer", "text_diff_viewer", navController, this@SharedTransitionLayout, this@composable) { com.toolbox.everyday.TextDiffViewerScreen() } }
+
+                    // DevPulse routes
+                    composable<DevPulseMainDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        ToolScreen("DevPulse Suite", "devpulse_main", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.MainScreen(viewModel = devPulseVm)
+                        }
+                    }
+                    composable<DevPulseBatteryDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("Battery Telemetry", "devpulse_battery", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.BatteryScreen(batteryInfo = dpUiState.batteryInfo)
+                        }
+                    }
+                    composable<DevPulseCpuDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("CPU Monitor", "devpulse_cpu", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.CpuScreen(cpuInfo = dpUiState.cpuInfo)
+                        }
+                    }
+                    composable<DevPulseMemoryDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("Memory & Storage", "devpulse_memory", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.MemoryScreen(memoryInfo = dpUiState.memoryInfo)
+                        }
+                    }
+                    composable<DevPulseDisplayDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("Display Specs", "devpulse_display", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.DisplayScreen(displayInfo = dpUiState.displayInfo)
+                        }
+                    }
+                    composable<DevPulseNetworkDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("Network Telemetry", "devpulse_network", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.NetworkScreen(networkInfo = dpUiState.networkInfo)
+                        }
+                    }
+                    composable<DevPulseThermalDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("Thermal Monitor", "devpulse_thermal", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.ThermalScreen(thermalInfo = dpUiState.thermalInfo)
+                        }
+                    }
+                    composable<DevPulseSensorsDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("Sensors Diagnostic", "devpulse_sensors", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.SensorsScreen(sensorInfo = dpUiState.sensorInfo)
+                        }
+                    }
+                    composable<DevPulseCameraDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("Camera Specs", "devpulse_camera", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.CameraScreen(
+                                cameraInfo = dpUiState.cameraInfo,
+                                selectedCameraId = dpUiState.selectedCameraId,
+                                onSelectCamera = devPulseVm::selectCamera
+                            )
+                        }
+                    }
+                    composable<DevPulseTestsDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("Hardware Tests", "devpulse_tests", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.TestsScreen(
+                                testsList = dpUiState.testsList,
+                                onUpdateTestStatus = devPulseVm::updateTestStatus
+                            )
+                        }
+                    }
+                    composable<DevPulseRootDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("Root Checker", "devpulse_root", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.RootCheckerScreen(
+                                uiState = dpUiState,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                    }
+                    composable<DevPulseIntegrityDest> {
+                        ToolScreen("Play Integrity", "devpulse_integrity", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.PlayIntegrityScreen(onBack = { navController.popBackStack() })
+                        }
+                    }
+                    composable<DevPulseAppAnalyzerDest> {
+                        val devPulseVm: com.hamraj37.devpulse.ui.MainViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        val dpUiState by devPulseVm.uiState.collectAsState()
+                        ToolScreen("App Analyzer", "devpulse_app_analyzer", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.AppAnalyzerScreen(
+                                uiState = dpUiState,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                    }
+                    composable<DevPulseScreenTimeDest> {
+                        ToolScreen("Screen Time Stats", "devpulse_screen_time", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.ScreenTimeScreen(onBack = { navController.popBackStack() })
+                        }
+                    }
+                    composable<DevPulseFloatingMonitorsDest> {
+                        ToolScreen("Floating Monitors", "devpulse_floating_monitors", navController, this@SharedTransitionLayout, this@composable) {
+                            com.hamraj37.devpulse.ui.screens.FloatingMonitorsScreen(onBack = { navController.popBackStack() })
+                        }
+                    }
+
+                    // OmniToolbox routes
+                    composable<OmniHomeDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Omni Toolbox Hub", "omni_home", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.HomeScreen(
+                                navController = innerNavController,
+                                showCategoryCounts = true,
+                                favorites = emptySet(),
+                                onToggleFavorite = {}
+                            )
+                        }
+                    }
+                    composable<OmniBallisticsDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Ballistics Simulator", "omni_ballistics", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.science.BallisticsScreen(navController = innerNavController)
+                        }
+                    }
+                    composable<OmniPrimeCheckerDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Prime Number Checker", "omni_prime_checker", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.science.PrimeCheckerScreen(navController = innerNavController)
+                        }
+                    }
+                    composable<OmniStarMapDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Star Map & Constellations", "omni_star_map", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.astronomy.StarMapScreen(navController = innerNavController)
+                        }
+                    }
+                    composable<OmniMoonPhaseDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Moon Phase Pro", "omni_moon_phase", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.astronomy.MoonPhaseScreen(navController = innerNavController)
+                        }
+                    }
+                    composable<OmniTidesDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Ocean Tides Predictor", "omni_tides", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.environment.TidesScreen(navController = innerNavController)
+                        }
+                    }
+                    composable<OmniSignalMirrorDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Signal Mirror SOS", "omni_signal_mirror", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.survival.SignalMirrorScreen(navController = innerNavController)
+                        }
+                    }
+                    composable<OmniSurvivalGuideDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Outdoor Survival Guide", "omni_survival_guide", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.outdoor.SurvivalGuideScreen(navController = innerNavController)
+                        }
+                    }
+                    composable<OmniBeaconNavDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Beacon Navigation", "omni_beacon_nav", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.outdoor.BeaconNavigationScreen(navController = innerNavController)
+                        }
+                    }
+                    composable<OmniWeatherForecastDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        ToolScreen("Barometric Weather Forecast", "omni_weather_forecast", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.environment.WeatherForecastScreen(navController = innerNavController)
+                        }
+                    }
+                    composable<OmniTeluguPanchangamDest> {
+                        val innerNavController = androidx.navigation.compose.rememberNavController()
+                        val omniVm: omni.toolbox.viewmodel.OmniViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                        ToolScreen("Telugu Panchangam", "omni_telugu_panchangam", navController, this@SharedTransitionLayout, this@composable) {
+                            omni.toolbox.ui.screens.utility.TeluguPanchangamScreen(navController = innerNavController, viewModel = omniVm)
+                        }
+                    }
+
+                    // Companion Module Routes
+                    composable<ToolkitQuickTilesDest> {
+                        ToolScreen("Toolkit Tiles", "toolkit_quick_tiles", navController, this@SharedTransitionLayout, this@composable) {
+                            com.toolbox.tiles.QuickTilesManagementScreen(onBack = { navController.popBackStack() })
+                        }
+                    }
+                    composable<EssentialsToolsDest> {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        ToolScreen("Essentials Tools", "essentials_tools", navController, this@SharedTransitionLayout, this@composable) {
+                            androidx.compose.foundation.layout.Box(
+                                modifier = androidx.compose.foundation.layout.Modifier.fillMaxSize(),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) {
+                                androidx.compose.material3.Button(
+                                    onClick = {
+                                        try {
+                                            val intent = android.content.Intent(context, com.sameerasw.essentials.MainActivity::class.java)
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            // Handle fallback
+                                        }
+                                    }
+                                ) {
+                                    androidx.compose.material3.Text("Launch Essentials Suite")
+                                }
+                            }
+                        }
+                    }
+                    composable<GslManagerDest> {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        ToolScreen("GSL Shortcuts", "gsl_manager", navController, this@SharedTransitionLayout, this@composable) {
+                            androidx.compose.foundation.layout.Box(
+                                modifier = androidx.compose.foundation.layout.Modifier.fillMaxSize(),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) {
+                                androidx.compose.material3.Button(
+                                    onClick = {
+                                        try {
+                                            val intent = android.content.Intent(context, com.wstxda.gsl.activity.ManagerActivity::class.java)
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            // Handle fallback
+                                        }
+                                    }
+                                ) {
+                                    androidx.compose.material3.Text("Launch GSL Manager")
+                                }
+                            }
+                        }
+                    }
+                    composable<AppManagerInspectorDest> {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        ToolScreen("App Manager", "appmanager_inspector", navController, this@SharedTransitionLayout, this@composable) {
+                            androidx.compose.foundation.layout.Box(
+                                modifier = androidx.compose.foundation.layout.Modifier.fillMaxSize(),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) {
+                                androidx.compose.material3.Button(
+                                    onClick = {
+                                        try {
+                                            val intent = android.content.Intent(context, io.github.muntashirakon.AppManager.main.MainActivity::class.java)
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            // Handle fallback
+                                        }
+                                    }
+                                ) {
+                                    androidx.compose.material3.Text("Launch App Manager")
+                                }
+                            }
+                        }
+                    }
+                    composable<InureManagerDest> {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        ToolScreen("Inure Manager", "inure_manager", navController, this@SharedTransitionLayout, this@composable) {
+                            androidx.compose.foundation.layout.Box(
+                                modifier = androidx.compose.foundation.layout.Modifier.fillMaxSize(),
+                                contentAlignment = androidx.compose.ui.Alignment.Center
+                            ) {
+                                androidx.compose.material3.Button(
+                                    onClick = {
+                                        try {
+                                            val intent = android.content.Intent(context, app.simple.inure.activities.app.MainActivity::class.java)
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            // Handle fallback
+                                        }
+                                    }
+                                ) {
+                                    androidx.compose.material3.Text("Launch Inure Manager")
+                                }
+                            }
+                        }
+                    }
+                    composable<DailyToolsPdfDest> {
+                        ToolScreen("DailyTools PDF Web Suite", "dailytools_pdf_hub", navController, this@SharedTransitionLayout, this@composable) {
+                            com.toolbox.doctools.DailyToolsPdfHubScreen()
+                        }
+                    }
                 }
             }
         }
@@ -1516,5 +1803,43 @@ private fun toolDestination(toolId: String): Any? = when (toolId) {
     "cron_explainer" -> CronExplainerDest
     "json_schema_validator" -> JsonSchemaValidatorDest
     "text_diff_viewer" -> TextDiffViewerDest
+
+    // DevPulse Tool Destinations
+    "devpulse_main" -> DevPulseMainDest
+    "devpulse_battery" -> DevPulseBatteryDest
+    "devpulse_cpu" -> DevPulseCpuDest
+    "devpulse_memory" -> DevPulseMemoryDest
+    "devpulse_display" -> DevPulseDisplayDest
+    "devpulse_network" -> DevPulseNetworkDest
+    "devpulse_thermal" -> DevPulseThermalDest
+    "devpulse_sensors" -> DevPulseSensorsDest
+    "devpulse_camera" -> DevPulseCameraDest
+    "devpulse_tests" -> DevPulseTestsDest
+    "devpulse_root" -> DevPulseRootDest
+    "devpulse_integrity" -> DevPulseIntegrityDest
+    "devpulse_app_analyzer" -> DevPulseAppAnalyzerDest
+    "devpulse_screen_time" -> DevPulseScreenTimeDest
+    "devpulse_floating_monitors" -> DevPulseFloatingMonitorsDest
+
+    // OmniToolbox Destinations
+    "omni_home" -> OmniHomeDest
+    "omni_ballistics" -> OmniBallisticsDest
+    "omni_prime_checker" -> OmniPrimeCheckerDest
+    "omni_star_map" -> OmniStarMapDest
+    "omni_moon_phase" -> OmniMoonPhaseDest
+    "omni_tides" -> OmniTidesDest
+    "omni_signal_mirror" -> OmniSignalMirrorDest
+    "omni_survival_guide" -> OmniSurvivalGuideDest
+    "omni_beacon_nav" -> OmniBeaconNavDest
+    "omni_weather_forecast" -> OmniWeatherForecastDest
+    "omni_telugu_panchangam" -> OmniTeluguPanchangamDest
+
+    // Companion Modules Destinations
+    "toolkit_quick_tiles" -> ToolkitQuickTilesDest
+    "essentials_tools" -> EssentialsToolsDest
+    "gsl_manager" -> GslManagerDest
+    "appmanager_inspector" -> AppManagerInspectorDest
+    "inure_manager" -> InureManagerDest
+    "dailytools_pdf_hub" -> DailyToolsPdfDest
     else -> null
 }
