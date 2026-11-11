@@ -6,7 +6,7 @@
     android:targetCellHeight="2"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
-    android:initialLayout="@layout/widget_loading"
+    android:initialLayout="@layout/widget_preview_counter"
     android:description="@string/counter_widget_description"
     android:previewLayout="@layout/widget_preview_counter"
     android:updatePeriodMillis="0" />

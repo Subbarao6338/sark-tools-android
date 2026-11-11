@@ -34,7 +34,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        resourceConfigurations += listOf("en", "te")
+        androidResources.localeFilters += listOf("en", "te")
 
         ndk {
             abiFilters.clear()
@@ -147,4 +147,22 @@ dependencies {
     implementation(libs.lottie.compose)
 
     testImplementation(libs.junit)
+}
+
+
+// Configure Kotlin and Java compilation to only compile the main com.toolbox source and tests
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    exclude { fileTreeElement ->
+        val path = fileTreeElement.file.invariantSeparatorsPath
+        val isExternal = (path.contains("/src/main/java/com/") || path.contains("/src/test/java/com/")) && !path.contains("/com/toolbox/")
+        isExternal
+    }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    exclude { fileTreeElement ->
+        val path = fileTreeElement.file.invariantSeparatorsPath
+        val isExternal = (path.contains("/src/main/java/com/") || path.contains("/src/test/java/com/")) && !path.contains("/com/toolbox/")
+        isExternal
+    }
 }
